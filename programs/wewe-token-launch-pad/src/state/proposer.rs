@@ -3,9 +3,9 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct Proposer {
-    pub proposer: Pubkey,
-    pub time_started: i64,
-    pub duration: u16,
-    pub protocol: str,
-    pub bump: u8,
+    pub maker: Pubkey,       // Fundraiser creator
+    pub current_amount: u64, // Current raised amount
+    pub time_started: i64,   // Start timestamp
+    pub duration: u16,       // Duration in seconds
+    pub bump: u8,            // PDA security bump
 }

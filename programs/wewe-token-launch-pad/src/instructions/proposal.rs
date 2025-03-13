@@ -1,45 +1,35 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken, 
-    token::{
-        Mint, 
-        Token, 
-        TokenAccount
-    }
-};
 
 use crate::{
-    constant::MIN_AMOUNT_TO_RAISE, errors::ProposalError, state::proposer::Proposer
+    constant::ANCHOR_DISCRIMINATOR, state::proposer::Proposer,
 };
 
 #[derive(Accounts)]
-pub struct Initialize<'info> {
+pub struct CreateProposal<'info> {
     #[account(mut)]
-    pub maker: Signer<'info>,
-    pub proposer: Account<'info, Proposer>,
-    pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub maker: Signer<'info>, // Creator of the proposal
+    #[account(
+        init,
+        payer = maker,
+        seeds = [b"proposer", maker.key().as_ref()],
+        bump,
+        space = ANCHOR_DISCRIMINATOR + Proposer::INIT_SPACE, // Allocate space
+    )]
+    pub fundraiser: Account<'info, Proposer>,
+    pub system_program: Program<'info, System>, // Needed for SOL transfers
 }
 
-impl<'info> Initialize<'info> {
-    pub fn create_proposal(&mut self, amount: u64, duration: u16, bumps: &InitializeBumps, protocol: &str) -> Result<()> {
-
-        // Check if the amount to raise meets the minimum amount required
-        require!(
-            amount >= MIN_AMOUNT_TO_RAISE,
-            ProposalError::InvalidAmount
-        );
-
-        // Initialize the fundraiser account
-        self.proposer.set_inner(Proposer {
-            proposer: self.maker.key(),
+impl<'info> CreateProposal<'info> {
+    pub fn create_proposal(&mut self, duration: u16, bumps: &CreateProposalBumps) -> Result<()> {
+    
+        self.fundraiser.set_inner(Proposer {
+            maker: self.maker.key(),
+            current_amount: 0,
             time_started: Clock::get()?.unix_timestamp,
             duration,
-            protocol,
-            bump: bumps.proposer
+            bump: bumps.fundraiser,
         });
-        
+
         Ok(())
     }
 }
