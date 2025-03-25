@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::Token;
 
 use crate::{constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE}, errors::ProposalError, state::{backers::Backers, proposer::Proposer}};
 
@@ -21,7 +20,6 @@ pub struct Refund<'info> {
         close = backer,
     )]
     pub backer_account: Account<'info, Backers>,
-    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
@@ -50,7 +48,7 @@ impl<'info> Refund<'info> {
         ]];
 
         // CPI context with signer since the proposer account is a PDA
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
+        // let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
 
 
         // Update the proposer state by reducing the amount contributed

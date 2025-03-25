@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, system_program::{transfer, Transfer}};
 
 use crate::{
     constant::{
@@ -53,30 +53,24 @@ impl<'info> Contribute<'info> {
         );
 
         // Check if the maximum contributions per backer have been reached
-        // require!(
-        //     (self.backer_account.amount
-        //         <= (self.proposer.amount_to_raise * MAX_CONTRIBUTION_PERCENTAGE)
-        //             / PERCENTAGE_SCALER)
-        //         && (self.backer_account.amount + amount
-        //             <= (self.proposer.amount_to_raise * MAX_CONTRIBUTION_PERCENTAGE)
-        //                 / PERCENTAGE_SCALER),
-        //     ProposalError::MaximumContributionsReached
-        // );
-
-        let cpi_transfer_ix = system_instruction::transfer(
-            &self.backer.key(),
-            &self.proposer.key(),
-            amount,
+        require!(
+            (self.backer_account.amount
+                <= MAX_AMOUNT_TO_RAISE)
+                && (self.backer_account.amount + amount
+                    <= MAX_AMOUNT_TO_RAISE),
+            ProposalError::MaximumContributionsReached
         );
 
-        anchor_lang::solana_program::program::invoke(
-            &cpi_transfer_ix,
-            &[
-                self.backer.to_account_info(),
-                self.proposer.to_account_info(),
-                self.system_program.to_account_info(),
-            ],
-        )?;
+        let program_id = self.system_program.to_account_info();
+        let cpi_context = CpiContext::new(
+            program_id,
+            Transfer {
+                from: self.backer.to_account_info(),
+                to: self.proposer.to_account_info(),
+            },
+        );
+
+        transfer(cpi_context, amount)?;
 
         // Update the proposer and backer accounts with the new amounts
         self.proposer.current_amount += amount;
