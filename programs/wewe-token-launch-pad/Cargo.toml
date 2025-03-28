@@ -17,9 +17,10 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-dynamic-amm = { git = "https://github.com/mercurial-finance/mercurial-dynamic-amm-sdk", features = [
+dynamic-amm = { git = "https://github.com/MeteoraAG/dynamic-amm-sdk", features = [
     "cpi",
-], rev = "85313c5e56a974d05feb533d986c60be1350cbf4" }
+], rev = "997df950fbd6fa64e1228f38acb4419adeed0b55", package = "dynamic-amm" }
+dynamic-amm-common = { git = "https://github.com/MeteoraAG/dynamic-amm-sdk", rev = "997df950fbd6fa64e1228f38acb4419adeed0b55", package = "common" }
 anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
 anchor-spl = "0.28.0"
 solana-program = "1.16.0"
