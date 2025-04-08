@@ -1,14 +1,12 @@
 use anchor_lang::prelude::*;
-use anchor_lang::system_program::Transfer as NativeSolTransfer;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount, Transfer as TokenTransfer},
 };
-
-pub const POOL_SIZE: usize = 8 + 944;
+use crate::dlmm;
 
 #[derive(Accounts)]
-pub struct InitializePoolFromProposer<'info> {
+pub struct InitializeLbPair<'info> {
     #[account(mut)]
     pub lb_pair: UncheckedAccount<'info>,
 
@@ -46,52 +44,34 @@ pub struct InitializePoolFromProposer<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
-// pub fn handle_initialize_pool_from_proposer_creator(
-//     ctx: Context<InitializePoolFromProposer>,
-//     token_a_amount: u64,
-//     token_b_amount: u64,
-// ) -> Result<()> {
+pub fn handle_initialize_pool_from_proposer_creator(
+    ctx: Context<InitializeLbPair>,
+    token_a_amount: u64,
+    token_b_amount: u64,
+) -> Result<()> {
 
-//     // Continue with pool initialization
-//     fund_maker(
-//         token_a_amount,
-//         token_b_amount,
-//         FundMakerAccounts {
-//             maker_token_a: &ctx.accounts.maker_token_a,
-//             maker_token_b: &ctx.accounts.maker_token_b,
-//             token_program: &ctx.accounts.token_program,
-//             maker: &ctx.accounts.maker,
-//             system_program: &ctx.accounts.system_program,
-//         },
-//     )?;
+    let accounts =
+        dlmm::cpi::accounts::InitializeLbPair{
+            lb_pair: ctx.accounts.lb_pair.to_account_info(),
+            bin_array_bitmap_extension: Some(ctx.accounts.bin_array_bitmap_extension.to_account_info()),
+            token_mint_x: ctx.accounts.token_mint_x.to_account_info(),
+            token_mint_y: ctx.accounts.token_mint_y.to_account_info(),
+            reserve_x: ctx.accounts.reserve_x.to_account_info(),
+            reserve_y: ctx.accounts.reserve_y.to_account_info(),
+            oracle: ctx.accounts.oracle.to_account_info(),
+            funder: ctx.accounts.funder.to_account_info(),
+            token_program: ctx.accounts.token_program.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            rent: ctx.accounts.rent.to_account_info(),
+            event_authority: ctx.accounts.funder.to_account_info(),
+            program: ctx.accounts.system_program.to_account_info(),
+        };
 
-//     let accounts =
-//         dlmm::cpi::accounts::InitializeCustomizablePermissionlessLbPair {
-//             lb_pair: ctx.accounts.lb_pair.to_account_info(),
-//             bin_array_bitmap_extension: ctx.accounts.bin_array_bitmap_extension.to_account_info(),
-//             token_mint_x: ctx.accounts.token_mint_x.to_account_info(),
-//             token_mint_y: ctx.accounts.token_mint_y.to_account_info(),
-//             reserve_x: ctx.accounts.reserve_x.to_account_info(),
-//             reserve_y: ctx.accounts.reserve_y.to_account_info(),
-//             oracle: ctx.accounts.oracle.to_account_info(),
-//             user_token_x: ctx.accounts.user_token_x.to_account_info(),
-//             funder: ctx.accounts.funder.to_account_info(),
-//             token_program: ctx.accounts.token_program.to_account_info(),
-//             system_program: ctx.accounts.system_program.to_account_info(),
-//             rent: ctx.accounts.rent.to_account_info(),
-//             event_authority: ctx.accounts.funder.to_account_info(),
-//             program: ctx.accounts.system_program.to_account_info(),
-//         };
+    let cpi_context = CpiContext::new(ctx.accounts.dynamic_amm_program.to_account_info(), accounts);
 
-//     let cpi_context = CpiContext::new(ctx.accounts.dynamic_amm_program.to_account_info(), accounts);
-
-//     dynamic_amm::cpi::initialize_customizable_permissionless_constant_product_pool(
-//         cpi_context,
-//         token_a_amount,
-//         token_b_amount,
-//         params,
-//     )
-// }
+    dlmm::cpi::initialize_lb_pair(
+    )
+}
 
 pub struct FundMakerAccounts<'b, 'info> {
     pub maker_token_a: &'b Account<'info, TokenAccount>,

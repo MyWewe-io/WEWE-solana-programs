@@ -1,3 +1,4 @@
+#![allow(unexpected_cfgs)]
 use anchor_lang::prelude::*;
 
 pub mod state;
@@ -6,4 +7,5 @@ pub mod errors;
 mod constant;
 mod event;
 
+declare_program!(dlmm);
 declare_id!("DtwC3LsBgwnp6Cuc6MExnijmwh7WLXS5Hdr7XpdyF1qZ");
