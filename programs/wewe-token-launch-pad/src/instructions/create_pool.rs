@@ -47,8 +47,8 @@ pub struct InitializeLbPair<'info> {
 
 pub fn handle_initialize_pool_from_proposer_creator<'a, 'b, 'c, 'info>(
     ctx: Context<'a, 'b, 'c, 'info, InitializeLbPair<'info>>,
-    token_a_amount: u64,
-    token_b_amount: u64,
+    active_id: i32,
+    bin_step: u16,
 ) -> Result<()> {
 
     let accounts =
@@ -73,7 +73,7 @@ pub fn handle_initialize_pool_from_proposer_creator<'a, 'b, 'c, 'info>(
     .with_remaining_accounts(ctx.remaining_accounts.to_vec());
     
     dlmm::cpi::initialize_lb_pair(
-        cpi_context, 1, 2 )
+        cpi_context, active_id, bin_step )
 }
 
 pub struct FundMakerAccounts<'b, 'info> {
