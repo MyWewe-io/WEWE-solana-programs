@@ -4,3 +4,4 @@ pub mod refund;
 pub mod create_pool;
 pub mod create_token;
 pub mod mint_token;
+pub mod distribute_token;
