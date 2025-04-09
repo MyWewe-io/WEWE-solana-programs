@@ -1,8 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount, Transfer as TokenTransfer},
-};
+use anchor_spl::token::{Token, TokenAccount, Transfer as TokenTransfer};
 use crate::dlmm;
 
 #[derive(Accounts)]
@@ -41,11 +38,15 @@ pub struct InitializeLbPair<'info> {
 
     pub system_program: UncheckedAccount<'info>,
 
+    pub event_authority: UncheckedAccount<'info>,
+
     pub rent: Sysvar<'info, Rent>,
+
+    pub program: UncheckedAccount<'info>,
 }
 
-pub fn handle_initialize_pool_from_proposer_creator(
-    ctx: Context<InitializeLbPair>,
+pub fn handle_initialize_pool_from_proposer_creator<'a, 'b, 'c, 'info>(
+    ctx: Context<'a, 'b, 'c, 'info, InitializeLbPair<'info>>,
     token_a_amount: u64,
     token_b_amount: u64,
 ) -> Result<()> {
@@ -63,14 +64,16 @@ pub fn handle_initialize_pool_from_proposer_creator(
             token_program: ctx.accounts.token_program.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
             rent: ctx.accounts.rent.to_account_info(),
-            event_authority: ctx.accounts.funder.to_account_info(),
-            program: ctx.accounts.system_program.to_account_info(),
+            event_authority: ctx.accounts.event_authority.to_account_info(),
+            program: ctx.accounts.program.to_account_info(),
+            preset_parameter: ctx.accounts.preset_parameter.to_account_info(),
         };
 
-    let cpi_context = CpiContext::new(ctx.accounts.dynamic_amm_program.to_account_info(), accounts);
-
+    let cpi_context = CpiContext::new(ctx.accounts.program.to_account_info(), accounts)
+    .with_remaining_accounts(ctx.remaining_accounts.to_vec());
+    
     dlmm::cpi::initialize_lb_pair(
-    )
+        cpi_context, 1, 2 )
 }
 
 pub struct FundMakerAccounts<'b, 'info> {
