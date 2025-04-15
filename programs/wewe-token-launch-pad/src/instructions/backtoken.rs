@@ -4,9 +4,7 @@ use crate::{
     constant::{
         ANCHOR_DISCRIMINATOR, MAX_AMOUNT_TO_RAISE, MIN_AMOUNT_TO_RAISE,
         SECONDS_TO_DAYS,
-    },
-    state::{backers::Backers, proposer::Proposer},
-    errors::ProposalError,
+    }, errors::ProposalError, event::ProposalBacked, state::{backers::Backers, proposer::Proposer},
 };
 
 #[derive(Accounts)]
@@ -76,6 +74,8 @@ impl<'info> Contribute<'info> {
         self.proposer.current_amount += amount;
 
         self.backer_account.amount += amount;
+
+        emit!(ProposalBacked { backer: self.backer.key(), proposal_backed: self.proposer.key(), amount });
 
         Ok(())
     }
