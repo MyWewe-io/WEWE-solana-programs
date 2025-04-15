@@ -1,13 +1,17 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
-use crate::{constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE}, errors::ProposalError, state::{backers::Backers, proposer::Proposer}};
-
+use crate::event::BackerRefunded;
+use crate::{
+    constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
+    errors::ProposalError,
+    state::{backers::Backers, proposer::Proposer},
+};
 
 #[derive(Accounts)]
 pub struct Refund<'info> {
     #[account(mut)]
-    pub backer: Signer<'info>,
+    pub backer: AccountInfo<'info>,
     pub maker: SystemAccount<'info>,
     #[account(
         mut,
@@ -27,12 +31,12 @@ pub struct Refund<'info> {
 
 impl<'info> Refund<'info> {
     pub fn refund(&mut self) -> Result<()> {
-
         // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
- 
+
         require!(
-            self.proposer.duration >= ((current_time - self.proposer.time_started) / SECONDS_TO_DAYS) as u16,
+            self.proposer.duration
+                >= ((current_time - self.proposer.time_started) / SECONDS_TO_DAYS) as u16,
             ProposalError::BackingNotEnded
         );
 
@@ -40,6 +44,8 @@ impl<'info> Refund<'info> {
             TOTAL_AMOUNT_TO_RAISE < self.proposer.current_amount,
             ProposalError::TargetMet
         );
+
+        require_keys_eq!(self.backer.key(), self.backer_account.backer_pubkey);
 
         system_program::transfer(
             CpiContext::new(
@@ -51,8 +57,13 @@ impl<'info> Refund<'info> {
             ),
             self.backer_account.amount,
         )?;
-        
+
         self.proposer.current_amount -= self.backer_account.amount;
+
+        emit!(BackerRefunded {
+           backer: self.backer.key(),
+           amount: self.backer_account.amount,
+        });
 
         Ok(())
     }
