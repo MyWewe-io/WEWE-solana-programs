@@ -7,7 +7,7 @@ use crate::{constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE}, errors::Proposal
 #[derive(Accounts)]
 pub struct Refund<'info> {
     #[account(mut)]
-    pub backer: Signer<'info>,
+    pub backer: AccountInfo<'info>,
     pub maker: SystemAccount<'info>,
     #[account(
         mut,
@@ -39,6 +39,11 @@ impl<'info> Refund<'info> {
         require!(
             TOTAL_AMOUNT_TO_RAISE < self.proposer.current_amount,
             ProposalError::TargetMet
+        );
+
+        require_keys_eq!(
+            self.backer.key(),
+            self.backer_account.backer_pubkey
         );
 
         system_program::transfer(

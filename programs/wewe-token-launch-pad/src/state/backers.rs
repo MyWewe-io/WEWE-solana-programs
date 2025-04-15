@@ -4,4 +4,5 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace)]
 pub struct Backers {
     pub amount: u64,
+    pub backer_pubkey: Pubkey,
 }
