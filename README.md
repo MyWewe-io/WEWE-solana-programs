@@ -39,14 +39,15 @@ anchor test
 Once the program is built, the IDL is located in:
 
 ```bash
-target/idl/solana_vamp_program.json
+anchor build
+target/idl/wewe_token_launch_pad.json
 ```
 
 #### 2. Using the IDL for integration
 ```ts
 import { AnchorProvider, Program, Idl } from "@project-serum/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
-import idl from "./idl/solana_vamp_program.json";
+import idl from "./idl/wewe_token_launch_pad.json";
 
 const connection = new Connection("https://api.devnet.solana.com");
 const provider = new AnchorProvider(connection, window.solana, {});
