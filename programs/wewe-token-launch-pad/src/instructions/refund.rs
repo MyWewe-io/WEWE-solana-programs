@@ -13,8 +13,7 @@ use crate::{
 
 #[derive(Accounts)]
 pub struct Refund<'info> {
-    #[account(mut)]
-    pub backer: AccountInfo<'info>,
+    pub backer: SystemAccount<'info>,
     pub maker: SystemAccount<'info>,
     #[account(
         mut,

@@ -1,11 +1,12 @@
 use {
     anchor_lang::prelude::*,
     anchor_spl::{
+        associated_token::AssociatedToken,
         metadata::{
             create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
             CreateMetadataAccountsV3, Metadata,
         },
-        token::{Mint, Token},
+        token::{mint_to, Mint, MintTo, Token, TokenAccount},
     },
 };
 
@@ -34,6 +35,15 @@ pub struct CreateToken<'info> {
     )]
     pub metadata_account: UncheckedAccount<'info>,
 
+    #[account(
+        init_if_needed,
+        payer = payer,
+        associated_token::mint = mint_account,
+        associated_token::authority = payer,
+    )]
+    pub associated_token_account: Account<'info, TokenAccount>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
     pub token_metadata_program: Program<'info, Metadata>,
     pub system_program: Program<'info, System>,
@@ -46,9 +56,10 @@ pub fn create_token(
     token_symbol: String,
     token_uri: String,
     _token_decimals: u8,
+    amount: u64,
 ) -> Result<()> {
     msg!("Creating metadata account");
-    
+
     create_metadata_accounts_v3(
         CpiContext::new(
             ctx.accounts.token_metadata_program.to_account_info(),
@@ -77,6 +88,28 @@ pub fn create_token(
     )?;
 
     msg!("Token created successfully.");
+
+    msg!("Minting tokens to associated token account...");
+    msg!("Mint: {}", &ctx.accounts.mint_account.key());
+    msg!(
+        "Token Address: {}",
+        &ctx.accounts.associated_token_account.key()
+    );
+
+    // Invoke the mint_to instruction on the token program
+    mint_to(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            MintTo {
+                mint: ctx.accounts.mint_account.to_account_info(),
+                to: ctx.accounts.associated_token_account.to_account_info(),
+                authority: ctx.accounts.payer.to_account_info(),
+            },
+        ),
+        amount * 10u64.pow(ctx.accounts.mint_account.decimals as u32), // Mint tokens
+    )?;
+
+    msg!("Token minted successfully.");
 
     Ok(())
 }
