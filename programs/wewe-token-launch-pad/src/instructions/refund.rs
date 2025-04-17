@@ -5,7 +5,7 @@ use crate::event::BackerRefunded;
 use crate::{
     constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
     errors::ProposalError,
-    state::{backers::Backers, proposer::Proposer},
+    state::{backers::Backers, proposer::Proposal},
 };
 
 #[derive(Accounts)]
@@ -18,7 +18,7 @@ pub struct Refund<'info> {
         seeds = [b"proposer", maker.key().as_ref()],
         bump = proposer.bump,
     )]
-    pub proposer: Account<'info, Proposer>,
+    pub proposer: Account<'info, Proposal>,
     #[account(
         mut,
         seeds = [b"backer", proposer.key().as_ref(), backer.key().as_ref()],
@@ -44,8 +44,6 @@ impl<'info> Refund<'info> {
             TOTAL_AMOUNT_TO_RAISE < self.proposer.current_amount,
             ProposalError::TargetMet
         );
-
-        require_keys_eq!(self.backer.key(), self.backer_account.backer_pubkey);
 
         system_program::transfer(
             CpiContext::new(
