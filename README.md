@@ -1,7 +1,5 @@
 # WEWE SOLANA PROGRAM
 
-This Solana program enables **secure token airdrops using Merkle roots**. Eligible users can claim their tokens by submitting a valid Merkle proof. 
-
 ---
 
 ## 🛠️ Deployment on Devnet
