@@ -14,10 +14,10 @@ pub struct CreateProposal<'info> {
         payer = maker,
         seeds = [b"proposer", maker.key().as_ref()],
         bump,
-        space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE, // Allocate space
+        space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
     )]
     pub proposal: Account<'info, Proposal>,
-    pub system_program: Program<'info, System>, // Needed for SOL transfers
+    pub system_program: Program<'info, System>,
 }
 
 impl<'info> CreateProposal<'info> {

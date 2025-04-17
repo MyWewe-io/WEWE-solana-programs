@@ -1,6 +1,9 @@
+use std::ops::Sub;
+
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
+use crate::constant::FEE_TO_DEDUCT;
 use crate::event::BackerRefunded;
 use crate::{
     constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
@@ -45,6 +48,8 @@ impl<'info> Refund<'info> {
             ProposalError::TargetMet
         );
 
+        let refund_amount = self.backer_account.amount.sub(FEE_TO_DEDUCT);
+
         system_program::transfer(
             CpiContext::new(
                 self.system_program.to_account_info(),
@@ -53,14 +58,14 @@ impl<'info> Refund<'info> {
                     to: self.backer.to_account_info(),
                 },
             ),
-            self.backer_account.amount,
+            refund_amount,
         )?;
 
-        self.proposer.current_amount -= self.backer_account.amount;
+        self.proposer.current_amount -= refund_amount;
 
         emit!(BackerRefunded {
            backer: self.backer.key(),
-           amount: self.backer_account.amount,
+           amount: refund_amount,
         });
 
         Ok(())
