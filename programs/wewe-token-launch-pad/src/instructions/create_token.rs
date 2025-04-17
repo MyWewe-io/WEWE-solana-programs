@@ -1,13 +1,12 @@
 use {
-    anchor_lang::prelude::*,
-    anchor_spl::{
+    crate::constant::TOTAL_MINT, anchor_lang::prelude::*, anchor_spl::{
         associated_token::AssociatedToken,
         metadata::{
             create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
             CreateMetadataAccountsV3, Metadata,
         },
         token::{mint_to, Mint, MintTo, Token, TokenAccount},
-    },
+    }
 };
 
 #[derive(Accounts)]
@@ -56,7 +55,6 @@ pub fn create_token(
     token_symbol: String,
     token_uri: String,
     _token_decimals: u8,
-    amount: u64,
 ) -> Result<()> {
     msg!("Creating metadata account");
 
@@ -106,7 +104,7 @@ pub fn create_token(
                 authority: ctx.accounts.payer.to_account_info(),
             },
         ),
-        amount * 10u64.pow(ctx.accounts.mint_account.decimals as u32), // Mint tokens
+        TOTAL_MINT * 10u64.pow(ctx.accounts.mint_account.decimals as u32), // Mint tokens
     )?;
 
     msg!("Token minted successfully.");
