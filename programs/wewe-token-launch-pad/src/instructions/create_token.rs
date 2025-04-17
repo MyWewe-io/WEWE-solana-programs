@@ -10,6 +10,7 @@ use {
 };
 
 #[derive(Accounts)]
+#[instruction(_token_decimals: u8)]
 pub struct CreateToken<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -17,7 +18,7 @@ pub struct CreateToken<'info> {
     #[account(
         init,
         payer = payer,
-        mint::decimals = 9,
+        mint::decimals = _token_decimals,
         mint::authority = payer.key(),
         mint::freeze_authority = payer.key(),
 
@@ -44,11 +45,10 @@ pub fn create_token(
     token_name: String,
     token_symbol: String,
     token_uri: String,
+    _token_decimals: u8,
 ) -> Result<()> {
     msg!("Creating metadata account");
-
-    // Cross Program Invocation (CPI)
-    // Invoking the create_metadata_account_v3 instruction on the token metadata program
+    
     create_metadata_accounts_v3(
         CpiContext::new(
             ctx.accounts.token_metadata_program.to_account_info(),

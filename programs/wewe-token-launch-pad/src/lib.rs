@@ -6,6 +6,7 @@ pub mod instructions;
 pub mod errors;
 mod constant;
 mod event;
+mod utils;
 
 pub use instructions::*;
 
