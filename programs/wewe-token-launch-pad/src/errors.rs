@@ -17,5 +17,7 @@ pub enum ProposalError {
     #[msg("The backing has ended")]
     BackingEnded,
     #[msg("Invalid total amount. i should be bigger than 3")]
-    InvalidAmount
+    InvalidAmount,
+    #[msg("Only owner can call this function!")]
+    NotOwner,
 }

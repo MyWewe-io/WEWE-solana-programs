@@ -4,7 +4,7 @@ use crate::{
     constant::{
         ANCHOR_DISCRIMINATOR, MAX_AMOUNT_TO_RAISE, MIN_AMOUNT_TO_RAISE,
         SECONDS_TO_DAYS,
-    }, errors::ProposalError, event::ProposalBacked, state::{backers::Backers, proposer::Proposer},
+    }, errors::ProposalError, event::ProposalBacked, state::{backers::Backers, proposer::Proposal},
 };
 
 #[derive(Accounts)]
@@ -16,7 +16,7 @@ pub struct Contribute<'info> {
         seeds = [b"proposer".as_ref(), proposer.maker.as_ref()],
         bump = proposer.bump,
     )]
-    pub proposer: Account<'info, Proposer>,
+    pub proposer: Account<'info, Proposal>,
     #[account(
         init_if_needed,
         payer = backer,

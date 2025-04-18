@@ -1,24 +1,26 @@
+use std::ops::Sub;
+
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
+use crate::constant::FEE_TO_DEDUCT;
 use crate::event::BackerRefunded;
 use crate::{
     constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
     errors::ProposalError,
-    state::{backers::Backers, proposer::Proposer},
+    state::{backers::Backers, proposer::Proposal},
 };
 
 #[derive(Accounts)]
 pub struct Refund<'info> {
-    #[account(mut)]
-    pub backer: AccountInfo<'info>,
+    pub backer: SystemAccount<'info>,
     pub maker: SystemAccount<'info>,
     #[account(
         mut,
         seeds = [b"proposer", maker.key().as_ref()],
         bump = proposer.bump,
     )]
-    pub proposer: Account<'info, Proposer>,
+    pub proposer: Account<'info, Proposal>,
     #[account(
         mut,
         seeds = [b"backer", proposer.key().as_ref(), backer.key().as_ref()],
@@ -45,7 +47,7 @@ impl<'info> Refund<'info> {
             ProposalError::TargetMet
         );
 
-        require_keys_eq!(self.backer.key(), self.backer_account.backer_pubkey);
+        let refund_amount = self.backer_account.amount.sub(FEE_TO_DEDUCT);
 
         system_program::transfer(
             CpiContext::new(
@@ -55,14 +57,14 @@ impl<'info> Refund<'info> {
                     to: self.backer.to_account_info(),
                 },
             ),
-            self.backer_account.amount,
+            refund_amount,
         )?;
 
-        self.proposer.current_amount -= self.backer_account.amount;
+        self.proposer.current_amount -= refund_amount;
 
         emit!(BackerRefunded {
            backer: self.backer.key(),
-           amount: self.backer_account.amount,
+           amount: refund_amount,
         });
 
         Ok(())
