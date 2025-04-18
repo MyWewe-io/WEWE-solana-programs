@@ -17,9 +17,12 @@ declare_id!("DtwC3LsBgwnp6Cuc6MExnijmwh7WLXS5Hdr7XpdyF1qZ");
 pub mod wewe_token_launch_pad {
     use super::*;
 
-    pub fn create_proposal(ctx: Context<CreateProposal>, duration: u16, backing_goal: u64) -> Result<()> {
+    pub fn create_proposal(ctx: Context<CreateProposal>, duration: u16, backing_goal: u64, token_name: String,
+        token_symbol: String,
+        token_uri: String,
+        token_decimals: u8) -> Result<()> {
 
-        ctx.accounts.create_proposal(duration, backing_goal, &ctx.bumps)?;
+        ctx.accounts.create_proposal(duration, backing_goal, token_name, token_symbol, token_uri, token_decimals, &ctx.bumps)?;
         
         Ok(())
     }

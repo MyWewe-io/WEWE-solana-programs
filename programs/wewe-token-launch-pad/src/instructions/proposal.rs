@@ -30,10 +30,11 @@ pub struct CreateProposal<'info> {
     #[account(
         init,
         payer = maker,
+        seeds = [b"mint", maker.key().as_ref()],
+        bump,
         mint::decimals = _token_decimals,
-        mint::authority = maker.key(),
-        mint::freeze_authority = maker.key(),
-
+        mint::authority = mint_account.key(),
+        mint::freeze_authority = mint_account.key(),
     )]
     pub mint_account: Account<'info, Mint>,
 
@@ -50,7 +51,7 @@ pub struct CreateProposal<'info> {
         init_if_needed,
         payer = maker,
         associated_token::mint = mint_account,
-        associated_token::authority = maker,
+        associated_token::authority = proposal,
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
@@ -66,25 +67,29 @@ impl<'info> CreateProposal<'info> {
         &mut self,
         duration: u16,
         backing_goal: u64,
-        bumps: &CreateProposalBumps,
         token_name: String,
         token_symbol: String,
         token_uri: String,
         _token_decimals: u8,
+        bumps: &CreateProposalBumps,
     ) -> Result<()> {
+        // PDA signer seeds
+        let signer_seeds: &[&[&[u8]]] = &[&[b"mint", &[bumps.mint_account]]];
+
         create_metadata_accounts_v3(
             CpiContext::new(
                 self.token_metadata_program.to_account_info(),
                 CreateMetadataAccountsV3 {
                     metadata: self.metadata_account.to_account_info(),
                     mint: self.mint_account.to_account_info(),
-                    mint_authority: self.maker.to_account_info(),
+                    mint_authority: self.mint_account.to_account_info(),
                     update_authority: self.maker.to_account_info(),
                     payer: self.maker.to_account_info(),
                     system_program: self.system_program.to_account_info(),
                     rent: self.rent.to_account_info(),
                 },
-            ),
+            )
+            .with_signer(signer_seeds),
             DataV2 {
                 name: token_name,
                 symbol: token_symbol,
@@ -106,9 +111,10 @@ impl<'info> CreateProposal<'info> {
                 MintTo {
                     mint: self.mint_account.to_account_info(),
                     to: self.token_vault.to_account_info(),
-                    authority: self.maker.to_account_info(),
+                    authority: self.mint_account.to_account_info(),
                 },
-            ),
+            )
+            .with_signer(signer_seeds), // using PDA to sign,
             TOTAL_MINT * 10u64.pow(self.mint_account.decimals as u32), // Mint tokens
         )?;
 
