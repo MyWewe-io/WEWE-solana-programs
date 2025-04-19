@@ -20,7 +20,6 @@ pub struct TransferTokens<'info> {
     pub backer: SystemAccount<'info>,
 
     #[account(
-        mut,
         seeds = [b"proposer", maker.key().as_ref()],
         bump,
     )]
@@ -71,8 +70,8 @@ pub fn transfer_tokens(ctx: Context<TransferTokens>) -> Result<()> {
     );
 
     require!(
-        TOTAL_AMOUNT_TO_RAISE < ctx.accounts.proposal.current_amount,
-        ProposalError::TargetMet
+        TOTAL_AMOUNT_TO_RAISE >= ctx.accounts.proposal.current_amount,
+        ProposalError::TargetNotMet
     );
 
     let amount = ctx
