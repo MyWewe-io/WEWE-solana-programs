@@ -13,17 +13,18 @@ use crate::{
 
 #[derive(Accounts)]
 pub struct Refund<'info> {
+    pub payer: Signer<'info>,
     pub backer: SystemAccount<'info>,
     pub maker: SystemAccount<'info>,
     #[account(
         mut,
         seeds = [b"proposer", maker.key().as_ref()],
-        bump = proposer.bump,
+        bump = proposal.bump,
     )]
-    pub proposer: Account<'info, Proposal>,
+    pub proposal: Account<'info, Proposal>,
     #[account(
         mut,
-        seeds = [b"backer", proposer.key().as_ref(), backer.key().as_ref()],
+        seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
         bump,
         close = backer,
     )]
@@ -37,13 +38,13 @@ impl<'info> Refund<'info> {
         let current_time = Clock::get()?.unix_timestamp;
 
         require!(
-            self.proposer.duration
-                >= ((current_time - self.proposer.time_started) / SECONDS_TO_DAYS) as u16,
+            self.proposal.duration
+                >= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
             ProposalError::BackingNotEnded
         );
 
         require!(
-            TOTAL_AMOUNT_TO_RAISE < self.proposer.current_amount,
+            TOTAL_AMOUNT_TO_RAISE < self.proposal.current_amount,
             ProposalError::TargetMet
         );
 
@@ -53,14 +54,14 @@ impl<'info> Refund<'info> {
             CpiContext::new(
                 self.system_program.to_account_info(),
                 system_program::Transfer {
-                    from: self.proposer.to_account_info(),
+                    from: self.proposal.to_account_info(),
                     to: self.backer.to_account_info(),
                 },
             ),
             refund_amount,
         )?;
 
-        self.proposer.current_amount -= refund_amount;
+        self.proposal.current_amount -= refund_amount;
 
         emit!(BackerRefunded {
            backer: self.backer.key(),

@@ -41,14 +41,21 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn initialize_dynamic_amm_customizable_permissionless_pool(
-        ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPool>,
-        token_a_amount: u64,
-        token_b_amount: u64,
-        params: dynamic_amm::types::CustomizableParams,
-    ) -> Result<()> {
+    // pub fn initialize_dynamic_amm_customizable_permissionless_pool(
+    //     ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPool>,
+    //     token_a_amount: u64,
+    //     token_b_amount: u64,
+    //     params: dynamic_amm::types::CustomizableParams,
+    // ) -> Result<()> {
         
-        instructions::handle_initialize_customizable_permissionless_pool(ctx, token_a_amount, token_b_amount, params)?;
+    //     instructions::handle_initialize_customizable_permissionless_pool(ctx, token_a_amount, token_b_amount, params)?;
+
+    //     Ok(())
+    // }
+
+    pub fn transfer_tokens(ctx: Context<TransferTokens>) -> Result<()> {
+
+        instructions::transfer_tokens(ctx)?;
 
         Ok(())
     }
