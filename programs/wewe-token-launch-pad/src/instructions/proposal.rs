@@ -65,16 +65,16 @@ pub struct CreateProposal<'info> {
 impl<'info> CreateProposal<'info> {
     pub fn create_proposal(
         &mut self,
-        duration: u16,
+        _token_decimals: u8,
         backing_goal: u64,
         token_name: String,
         token_symbol: String,
         token_uri: String,
-        _token_decimals: u8,
+        duration: u16,
         bumps: &CreateProposalBumps,
     ) -> Result<()> {
         // PDA signer seeds
-        let signer_seeds: &[&[&[u8]]] = &[&[b"mint", &[bumps.mint_account]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"mint", self.maker.key.as_ref(), &[bumps.mint_account]]];
 
         create_metadata_accounts_v3(
             CpiContext::new(
@@ -103,7 +103,7 @@ impl<'info> CreateProposal<'info> {
             true,  // Update authority is signer
             None,  // Collection details
         )?;
-
+        
         // Invoke the mint_to instruction on the token program
         mint_to(
             CpiContext::new(
@@ -117,7 +117,7 @@ impl<'info> CreateProposal<'info> {
             .with_signer(signer_seeds), // using PDA to sign,
             TOTAL_MINT * 10u64.pow(self.mint_account.decimals as u32), // Mint tokens
         )?;
-
+       
         self.proposal.set_inner(Proposal {
             maker: self.maker.key(),
             current_amount: 0,
