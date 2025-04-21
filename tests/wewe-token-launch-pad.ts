@@ -20,16 +20,12 @@ describe('wewe_token_launch_pad', () => {
 
   const maker = anchor.web3.Keypair.generate();
 
-  let contributorATA: anchor.web3.PublicKey;
-
-  let makerATA: anchor.web3.PublicKey;
-
-  const wallet = provider.wallet as NodeWallet;
+  const backer = anchor.web3.Keypair.generate();
 
   const proposal = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('proposer'), maker.publicKey.toBuffer()], program.programId)[0];
 
-  const backer = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from('backer'), proposal.toBuffer(), provider.publicKey.toBuffer()],
+  const backer_account = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from('backer'), proposal.toBuffer(), backer.publicKey.toBuffer()],
     program.programId,
   )[0];
 
@@ -53,6 +49,9 @@ describe('wewe_token_launch_pad', () => {
   it('Test Preparation', async () => {
     const airdrop = await provider.connection.requestAirdrop(maker.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
     console.log('\nAirdropped 1 SOL to maker', airdrop);
+
+    const airdrop_backer = await provider.connection.requestAirdrop(backer.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
+    console.log('\nAirdropped 1 SOL to maker', airdrop_backer);
 
   });
 
@@ -79,29 +78,26 @@ describe('wewe_token_launch_pad', () => {
 
   });
 
-  // it('Contribute to proposal', async () => {
-  //   const vault = getAssociatedTokenAddressSync(mint, proposal, true);
+  it('back a proposal', async () => {
 
-  //   const tx = await program.methods
-  //     .contribute(new anchor.BN(1000000))
-  //     .accountsPartial({
-  //       contributor: provider.publicKey,
-  //       proposal,
-  //       contributorAccount: contributor,
-  //       contributorAta: contributorATA,
-  //       vault,
-  //       tokenProgram: TOKEN_PROGRAM_ID,
-  //     })
-  //     .rpc()
-  //     .then(confirm);
+    const tx = await program.methods
+      .depositSol(new BN(10))
+      .accountsPartial({
+        backer: backer.publicKey,
+        proposal,
+        backerAccount: backer_account,
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
 
-  //   console.log('\nContributed to proposal', tx);
-  //   console.log('Your transaction signature', tx);
-  //   console.log('Vault balance', (await provider.connection.getTokenAccountBalance(vault)).value.amount);
+    console.log('\nContributed to proposal', tx);
+    console.log('Your transaction signature', tx);
 
-  //   const contributorAccount = await program.account.contributor.fetch(contributor);
-  //   console.log('Contributor balance', contributorAccount.amount.toString());
-  // });
+    const contributorAccount = await program.account.backers.fetch(backer.publicKey);
+    console.log('Contributor balance', contributorAccount.amount.toString());
+  });
+  
   // it('Contribute to proposal', async () => {
   //   const vault = getAssociatedTokenAddressSync(mint, proposal, true);
 
