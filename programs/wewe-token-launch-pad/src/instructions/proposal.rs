@@ -125,6 +125,7 @@ impl<'info> CreateProposal<'info> {
             duration,
             bump: bumps.proposal,
             backing_goal,
+            is_rejected: false,
         });
 
         emit!(ProposalCreated {

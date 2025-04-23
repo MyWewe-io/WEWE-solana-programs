@@ -37,6 +37,8 @@ describe('wewe_token_launch_pad', () => {
     uri: 'https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/spl-token.json',
   };
 
+  const vault = getAssociatedTokenAddressSync(mint, proposal, true);
+
   const confirm = async (signature: string): Promise<string> => {
     const block = await provider.connection.getLatestBlockhash();
     await provider.connection.confirmTransaction({
@@ -51,12 +53,11 @@ describe('wewe_token_launch_pad', () => {
     console.log('\nAirdropped 1 SOL to maker', airdrop);
 
     const airdrop_backer = await provider.connection.requestAirdrop(backer.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
-    console.log('\nAirdropped 1 SOL to maker', airdrop_backer);
+    console.log('\nAirdropped 1 SOL to backer', airdrop_backer);
 
   });
 
   it('Create proposal', async () => {
-    const vault = getAssociatedTokenAddressSync(mint, proposal, true);
     const amount_to_raise = new BN(50000000);
     const tx = await program.methods
       .createProposal(9, amount_to_raise, metadata.name, metadata.symbol, metadata.uri, 100)
@@ -79,7 +80,6 @@ describe('wewe_token_launch_pad', () => {
   });
 
   it('back a proposal', async () => {
-
     const tx = await program.methods
       .depositSol(new BN(10))
       .accountsPartial({
@@ -94,7 +94,7 @@ describe('wewe_token_launch_pad', () => {
     console.log('\nContributed to proposal', tx);
     console.log('Your transaction signature', tx);
 
-    const contributorAccount = await program.account.backers.fetch(backer.publicKey);
+    const contributorAccount = await program.account.backers.fetch(backer_account);
     console.log('Contributor balance', contributorAccount.amount.toString());
   });
   

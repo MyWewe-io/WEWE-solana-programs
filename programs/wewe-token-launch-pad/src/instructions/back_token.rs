@@ -46,8 +46,13 @@ impl<'info> Contribute<'info> {
         let current_time = Clock::get()?.unix_timestamp;
         require!(
             self.proposal.duration
-                <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
+                >= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
             ProposalError::BackingEnded
+        );
+
+        require!(
+            self.proposal.is_rejected == false,
+            ProposalError::ProposalRejected
         );
 
         // Check if the maximum contributions per backer have been reached
