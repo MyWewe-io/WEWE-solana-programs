@@ -11,7 +11,7 @@ mod utils;
 pub use instructions::*;
 
 declare_program!(dynamic_amm);
-declare_id!("J7wf9UHHtwL3GDBnHctx4QQXzNv81ZaytTZGSt5v37vN");
+declare_id!("Fehuig2xhLnbnv1V3C2njnEkTqYgHoZ71qUUYJhKjTkT");
 
 #[program]
 pub mod wewe_token_launch_pad {
