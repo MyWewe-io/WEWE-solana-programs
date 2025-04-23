@@ -81,7 +81,7 @@ describe('wewe_token_launch_pad', () => {
 
   it('back a proposal', async () => {
     const tx = await program.methods
-      .depositSol(new BN(10))
+      .depositSol(new BN(5))
       .accountsPartial({
         backer: backer.publicKey,
         proposal,
@@ -97,30 +97,25 @@ describe('wewe_token_launch_pad', () => {
     const contributorAccount = await program.account.backers.fetch(backer_account);
     console.log('Contributor balance', contributorAccount.amount.toString());
   });
-  
-  // it('Contribute to proposal', async () => {
-  //   const vault = getAssociatedTokenAddressSync(mint, proposal, true);
 
-  //   const tx = await program.methods
-  //     .contribute(new anchor.BN(1000000))
-  //     .accountsPartial({
-  //       contributor: provider.publicKey,
-  //       proposal,
-  //       contributorAccount: contributor,
-  //       contributorAta: contributorATA,
-  //       vault,
-  //       tokenProgram: TOKEN_PROGRAM_ID,
-  //     })
-  //     .rpc()
-  //     .then(confirm);
+  it('back to proposal again with same account', async () => {
+    const tx = await program.methods
+      .depositSol(new BN(5))
+      .accountsPartial({
+        backer: backer.publicKey,
+        proposal,
+        backerAccount: backer_account,
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
 
-  //   console.log('\nContributed to proposal', tx);
-  //   console.log('Your transaction signature', tx);
-  //   console.log('Vault balance', (await provider.connection.getTokenAccountBalance(vault)).value.amount);
+    console.log('\nContributed to proposal', tx);
+    console.log('Your transaction signature', tx);
 
-  //   const contributorAccount = await program.account.contributor.fetch(contributor);
-  //   console.log('Contributor balance', contributorAccount.amount.toString());
-  // });
+    const contributorAccount = await program.account.backers.fetch(backer_account);
+    console.log('Contributor balance', contributorAccount.amount.toString());
+  });
 
   // it('Contribute to proposal - Robustness Test', async () => {
   //   try {
