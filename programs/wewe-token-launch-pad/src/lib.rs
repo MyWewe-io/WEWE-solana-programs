@@ -9,6 +9,7 @@ mod event;
 mod utils;
 
 pub use instructions::*;
+use utils::*;
 
 declare_program!(dynamic_amm);
 declare_id!("J7wf9UHHtwL3GDBnHctx4QQXzNv81ZaytTZGSt5v37vN");
@@ -56,6 +57,14 @@ pub mod wewe_token_launch_pad {
     pub fn transfer_tokens(ctx: Context<TransferTokens>) -> Result<()> {
 
         instructions::transfer_tokens(ctx)?;
+
+        Ok(())
+    }
+
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
+
+        ctx.accounts.reject_proposal()?;
 
         Ok(())
     }
