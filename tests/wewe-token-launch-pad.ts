@@ -10,6 +10,7 @@ import {
   getOrCreateAssociatedTokenAccount,
 } from '@solana/spl-token';
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad.ts';
+import { expect } from 'chai';
 
 describe('wewe_token_launch_pad', () => {
   // Configure the client to use the local cluster.
@@ -59,6 +60,14 @@ describe('wewe_token_launch_pad', () => {
 
   it('Create proposal', async () => {
     const amount_to_raise = new BN(50000000);
+    let capturedEvent: any = null;
+  
+    // Set up the event listener
+    const listener = await program.addEventListener('proposalCreated', (event, slot) => {
+      capturedEvent = event;
+    });
+  
+    // Run the transaction
     const tx = await program.methods
       .createProposal(9, amount_to_raise, metadata.name, metadata.symbol, metadata.uri, 100)
       .accountsPartial({
@@ -73,11 +82,31 @@ describe('wewe_token_launch_pad', () => {
       .signers([maker])
       .rpc()
       .then(confirm);
-
+  
+    // Wait for the event to be captured
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  
+    // Remove the listener
+    await program.removeEventListener(listener);
+  
+    // Assert the event was received
+    expect(capturedEvent).to.not.be.null;
+  
+    // Expected values
+    const expectedEvent = {
+      maker: maker.publicKey.toBase58(),
+      proposalAddress: proposal.toBase58(),
+      duration: 9,
+    };
+  
+    // Assert event fields
+    expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
+    expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
+    expect(capturedEvent.duration).to.equal(expectedEvent.duration);
     console.log('\nInitialized proposal Account');
     console.log('Your transaction signature', tx);
-
   });
+  
 
   it('back a proposal', async () => {
     const tx = await program.methods
@@ -139,33 +168,6 @@ describe('wewe_token_launch_pad', () => {
   //     console.log('Vault balance', (await provider.connection.getTokenAccountBalance(vault)).value.amount);
   //   } catch (error) {
   //     console.log('\nError contributing to proposal');
-  //     console.log(error.msg);
-  //   }
-  // });
-
-  // it('Check contributions - Robustness Test', async () => {
-  //   try {
-  //     const vault = getAssociatedTokenAddressSync(mint, proposal, true);
-
-  //     const tx = await program.methods
-  //       .checkContributions()
-  //       .accountsPartial({
-  //         maker: maker.publicKey,
-  //         mintToRaise: mint,
-  //         proposal,
-  //         makerAta: makerATA,
-  //         vault,
-  //         tokenProgram: TOKEN_PROGRAM_ID,
-  //       })
-  //       .signers([maker])
-  //       .rpc()
-  //       .then(confirm);
-
-  //     console.log('\nChecked contributions');
-  //     console.log('Your transaction signature', tx);
-  //     console.log('Vault balance', (await provider.connection.getTokenAccountBalance(vault)).value.amount);
-  //   } catch (error) {
-  //     console.log('\nError checking contributions');
   //     console.log(error.msg);
   //   }
   // });
