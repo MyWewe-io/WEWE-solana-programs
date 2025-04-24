@@ -13,14 +13,14 @@ pub struct Contribute<'info> {
     pub backer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"proposer".as_ref(), proposer.maker.as_ref()],
-        bump = proposer.bump,
+        seeds = [b"proposer".as_ref(), proposal.maker.as_ref()],
+        bump = proposal.bump,
     )]
-    pub proposer: Account<'info, Proposal>,
+    pub proposal: Account<'info, Proposal>,
     #[account(
         init_if_needed,
         payer = backer,
-        seeds = [b"backer", proposer.key().as_ref(), backer.key().as_ref()],
+        seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR + Backers::INIT_SPACE,
     )]
@@ -45,9 +45,14 @@ impl<'info> Contribute<'info> {
         // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
         require!(
-            self.proposer.duration
-                <= ((current_time - self.proposer.time_started) / SECONDS_TO_DAYS) as u16,
+            self.proposal.duration
+                >= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
             ProposalError::BackingEnded
+        );
+
+        require!(
+            self.proposal.is_rejected == false,
+            ProposalError::ProposalRejected
         );
 
         // Check if the maximum contributions per backer have been reached
@@ -64,18 +69,18 @@ impl<'info> Contribute<'info> {
             program_id,
             Transfer {
                 from: self.backer.to_account_info(),
-                to: self.proposer.to_account_info(),
+                to: self.proposal.to_account_info(),
             },
         );
 
         transfer(cpi_context, amount)?;
 
-        // Update the proposer and backer accounts with the new amounts
-        self.proposer.current_amount += amount;
+        // Update the proposal and backer accounts with the new amounts
+        self.proposal.current_amount += amount;
 
         self.backer_account.amount += amount;
 
-        emit!(ProposalBacked { backer: self.backer.key(), proposal_backed: self.proposer.key(), amount });
+        emit!(ProposalBacked { backer: self.backer.key(), proposal_backed: self.proposal.key(), amount });
 
         Ok(())
     }

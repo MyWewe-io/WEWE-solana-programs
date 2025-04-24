@@ -20,4 +20,6 @@ pub enum ProposalError {
     InvalidAmount,
     #[msg("Only owner can call this function!")]
     NotOwner,
+    #[msg("This proposal is rejected")]
+    ProposalRejected,
 }

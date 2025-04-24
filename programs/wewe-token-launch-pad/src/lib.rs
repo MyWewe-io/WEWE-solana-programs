@@ -9,9 +9,10 @@ mod event;
 mod utils;
 
 pub use instructions::*;
+use utils::*;
 
 declare_program!(dynamic_amm);
-declare_id!("DtwC3LsBgwnp6Cuc6MExnijmwh7WLXS5Hdr7XpdyF1qZ");
+declare_id!("J7wf9UHHtwL3GDBnHctx4QQXzNv81ZaytTZGSt5v37vN");
 
 #[program]
 pub mod wewe_token_launch_pad {
@@ -22,7 +23,7 @@ pub mod wewe_token_launch_pad {
         token_uri: String,
         token_decimals: u8) -> Result<()> {
 
-        ctx.accounts.create_proposal(duration, backing_goal, token_name, token_symbol, token_uri, token_decimals, &ctx.bumps)?;
+        ctx.accounts.create_proposal(token_decimals, backing_goal, token_name, token_symbol, token_uri, duration, &ctx.bumps)?;
         
         Ok(())
     }
@@ -56,6 +57,14 @@ pub mod wewe_token_launch_pad {
     pub fn transfer_tokens(ctx: Context<TransferTokens>) -> Result<()> {
 
         instructions::transfer_tokens(ctx)?;
+
+        Ok(())
+    }
+
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
+
+        ctx.accounts.reject_proposal()?;
 
         Ok(())
     }

@@ -34,19 +34,22 @@ pub struct Refund<'info> {
 
 impl<'info> Refund<'info> {
     pub fn refund(&mut self) -> Result<()> {
-        // Check if the fundraising duration has been reached
-        let current_time = Clock::get()?.unix_timestamp;
+        // Check if the proposal is not rejected before performing other checks
+        if !self.proposal.is_rejected {
+            // Check if the fundraising duration has been reached
+            let current_time = Clock::get()?.unix_timestamp;
+            require!(
+                self.proposal.duration
+                    <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
+                ProposalError::BackingNotEnded
+            );
 
-        require!(
-            self.proposal.duration
-                >= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
-            ProposalError::BackingNotEnded
-        );
-
-        require!(
-            TOTAL_AMOUNT_TO_RAISE < self.proposal.current_amount,
-            ProposalError::TargetMet
-        );
+            // Check if the target amount has not been met
+            require!(
+                TOTAL_AMOUNT_TO_RAISE < self.proposal.current_amount,
+                ProposalError::TargetMet
+            );
+        }
 
         let refund_amount = self.backer_account.amount.sub(FEE_TO_DEDUCT);
 
@@ -71,3 +74,4 @@ impl<'info> Refund<'info> {
         Ok(())
     }
 }
+

@@ -9,4 +9,5 @@ pub struct Proposal {
     pub duration: u16,       // Duration in seconds
     pub bump: u8,            // PDA security bump
     pub backing_goal: u64,   // backing goal of proposal
+    pub is_rejected: bool,   // proposal is rejected or
 }

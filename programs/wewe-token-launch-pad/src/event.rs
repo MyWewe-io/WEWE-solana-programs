@@ -20,3 +20,9 @@ pub struct BackerRefunded {
     pub backer: Pubkey,
     pub amount: u64,
 }
+
+#[event]
+pub struct ProposalRejected {
+    pub maker: Pubkey,
+    pub proposal_address: Pubkey,
+}
