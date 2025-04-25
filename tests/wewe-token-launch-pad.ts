@@ -21,14 +21,20 @@ describe('wewe_token_launch_pad', () => {
 
   const backer = anchor.web3.Keypair.generate();
 
-  const proposal = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('proposer'), maker.publicKey.toBuffer()], program.programId)[0];
+  const proposalCount = new BN(0);
+  const proposal = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('proposer'), maker.publicKey.toBuffer(), proposalCount.toArrayLike(Buffer, "le", 8)], program.programId)[0];
 
   const backer_account = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from('backer'), proposal.toBuffer(), backer.publicKey.toBuffer()],
     program.programId,
   )[0];
 
-  const [mint] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('mint'), maker.publicKey.toBuffer()], program.programId);
+  const maker_account = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from('maker'), maker.publicKey.toBuffer()],
+    program.programId,
+  )[0];
+
+  const [mint] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('mint'), maker.publicKey.toBuffer(), proposalCount.toArrayLike(Buffer, "le", 8),], program.programId);
 
   const metadata = {
     name: 'Solana Gold',
@@ -70,6 +76,7 @@ describe('wewe_token_launch_pad', () => {
       .createProposal(9, amount_to_raise, metadata.name, metadata.symbol, metadata.uri, 100)
       .accountsPartial({
         maker: maker.publicKey,
+        makerAccount: maker_account,
         proposal,
         mintAccount: mint,
         tokenVault: vault,
