@@ -8,7 +8,7 @@ mod constant;
 mod event;
 mod utils;
 
-pub use instructions::*;
+use instructions::*;
 use utils::*;
 
 declare_program!(dynamic_amm);
