@@ -29,7 +29,7 @@ pub struct CreateProposal<'info> {
         bump,
         space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
     )]
-    pub maker_account: Account<'info, MakerAccount>, // Creator of the proposal
+    pub maker_account: Account<'info, MakerAccount>,
 
     #[account(
         init,
@@ -104,9 +104,9 @@ impl<'info> CreateProposal<'info> {
             )
             .with_signer(signer_seeds),
             DataV2 {
-                name: token_name,
-                symbol: token_symbol,
-                uri: token_uri,
+                name: token_name.clone(),
+                symbol: token_symbol.clone(),
+                uri: token_uri.clone(),
                 seller_fee_basis_points: 0,
                 creators: None,
                 collection: None,
@@ -140,7 +140,6 @@ impl<'info> CreateProposal<'info> {
             backing_goal,
             is_rejected: false,
         });
-        
         // increment proposal count for maker
         self.maker_account.proposal_count += 1;
 
@@ -149,6 +148,9 @@ impl<'info> CreateProposal<'info> {
             proposal_address: self.proposal.key(),
             start_time: Clock::get()?.unix_timestamp,
             duration,
+            token_name,
+            token_symbol,
+            token_uri
         });
 
         Ok(())

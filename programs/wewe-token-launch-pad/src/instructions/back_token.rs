@@ -8,12 +8,13 @@ use crate::{
 };
 
 #[derive(Accounts)]
+#[instruction(_proposal_index: u64)]
 pub struct Contribute<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"proposer".as_ref(), proposal.maker.as_ref()],
+        seeds = [b"proposer", proposal.maker.as_ref(), &_proposal_index.to_le_bytes()],
         bump = proposal.bump,
     )]
     pub proposal: Account<'info, Proposal>,
@@ -29,7 +30,7 @@ pub struct Contribute<'info> {
 }
 
 impl<'info> Contribute<'info> {
-    pub fn deposit_sol(&mut self, amount: u64) -> Result<()> {
+    pub fn deposit_sol(&mut self, _proposal_index: u64, amount: u64) -> Result<()> {
         // Check if the amount to contribute meets the minimum amount required
         require!(
             amount >= MIN_AMOUNT_TO_RAISE,

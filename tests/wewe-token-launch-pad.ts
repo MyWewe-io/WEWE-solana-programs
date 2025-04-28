@@ -115,7 +115,7 @@ describe('wewe_token_launch_pad', () => {
 
   it('back a proposal', async () => {
     const tx = await program.methods
-      .depositSol(new BN(5))
+      .depositSol(new BN(0), new BN(5))
       .accountsPartial({
         backer: backer.publicKey,
         proposal,
@@ -134,7 +134,7 @@ describe('wewe_token_launch_pad', () => {
 
   it('back to proposal again with same account', async () => {
     const tx = await program.methods
-      .depositSol(new BN(5))
+      .depositSol(new BN(0), new BN(5))
       .accountsPartial({
         backer: backer.publicKey,
         proposal,

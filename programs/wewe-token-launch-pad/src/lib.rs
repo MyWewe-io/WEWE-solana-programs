@@ -28,9 +28,9 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn deposit_sol(ctx: Context<Contribute>, amount: u64) -> Result<()> {
+    pub fn deposit_sol(ctx: Context<Contribute>, proposal_index: u64, amount: u64) -> Result<()> {
 
-        ctx.accounts.deposit_sol(amount)?;
+        ctx.accounts.deposit_sol(proposal_index, amount)?;
 
         Ok(())
     }
