@@ -6,6 +6,9 @@ pub struct ProposalCreated {
     pub proposal_address: Pubkey,
     pub start_time: i64,
     pub duration: u16,
+    pub token_name: String,
+    pub token_symbol: String,
+    pub token_uri: String,
 }
 
 #[event]

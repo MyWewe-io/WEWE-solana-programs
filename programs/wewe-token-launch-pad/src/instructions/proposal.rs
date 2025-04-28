@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 
-use crate::{event::ProposalCreated, state::proposer::Proposal};
+use crate::{
+    event::ProposalCreated,
+    state::{maker::MakerAccount, proposer::Proposal},
+};
 use {
     crate::constant::{ANCHOR_DISCRIMINATOR, TOTAL_MINT},
     anchor_spl::{
@@ -17,11 +20,21 @@ use {
 #[instruction(_token_decimals: u8)]
 pub struct CreateProposal<'info> {
     #[account(mut)]
-    pub maker: Signer<'info>, // Creator of the proposal
+    pub maker: Signer<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = maker,
+        seeds = [b"maker", maker.key().as_ref()],
+        bump,
+        space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
+    )]
+    pub maker_account: Account<'info, MakerAccount>,
+
     #[account(
         init,
         payer = maker,
-        seeds = [b"proposer", maker.key().as_ref()],
+        seeds = [b"proposer", maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
         bump,
         space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
     )]
@@ -30,7 +43,7 @@ pub struct CreateProposal<'info> {
     #[account(
         init,
         payer = maker,
-        seeds = [b"mint", maker.key().as_ref()],
+        seeds = [b"mint", maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
         bump,
         mint::decimals = _token_decimals,
         mint::authority = mint_account.key(),
@@ -74,7 +87,7 @@ impl<'info> CreateProposal<'info> {
         bumps: &CreateProposalBumps,
     ) -> Result<()> {
         // PDA signer seeds
-        let signer_seeds: &[&[&[u8]]] = &[&[b"mint", self.maker.key.as_ref(), &[bumps.mint_account]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"mint", self.maker.key.as_ref(), &self.maker_account.proposal_count.to_le_bytes(), &[bumps.mint_account]]];
 
         create_metadata_accounts_v3(
             CpiContext::new(
@@ -91,9 +104,9 @@ impl<'info> CreateProposal<'info> {
             )
             .with_signer(signer_seeds),
             DataV2 {
-                name: token_name,
-                symbol: token_symbol,
-                uri: token_uri,
+                name: token_name.clone(),
+                symbol: token_symbol.clone(),
+                uri: token_uri.clone(),
                 seller_fee_basis_points: 0,
                 creators: None,
                 collection: None,
@@ -103,7 +116,7 @@ impl<'info> CreateProposal<'info> {
             true,  // Update authority is signer
             None,  // Collection details
         )?;
-        
+
         // Invoke the mint_to instruction on the token program
         mint_to(
             CpiContext::new(
@@ -117,7 +130,7 @@ impl<'info> CreateProposal<'info> {
             .with_signer(signer_seeds), // using PDA to sign,
             TOTAL_MINT * 10u64.pow(self.mint_account.decimals as u32), // Mint tokens
         )?;
-       
+
         self.proposal.set_inner(Proposal {
             maker: self.maker.key(),
             current_amount: 0,
@@ -127,12 +140,17 @@ impl<'info> CreateProposal<'info> {
             backing_goal,
             is_rejected: false,
         });
+        // increment proposal count for maker
+        self.maker_account.proposal_count += 1;
 
         emit!(ProposalCreated {
             maker: self.maker.key(),
             proposal_address: self.proposal.key(),
             start_time: Clock::get()?.unix_timestamp,
             duration,
+            token_name,
+            token_symbol,
+            token_uri
         });
 
         Ok(())
