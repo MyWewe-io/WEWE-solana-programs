@@ -150,7 +150,9 @@ impl<'info> CreateProposal<'info> {
             duration,
             token_name,
             token_symbol,
-            token_uri
+            token_uri,
+            mint_account: self.mint_account.key(),
+            backing_goal
         });
 
         Ok(())

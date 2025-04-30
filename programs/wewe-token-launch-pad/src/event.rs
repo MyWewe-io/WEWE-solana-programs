@@ -9,6 +9,8 @@ pub struct ProposalCreated {
     pub token_name: String,
     pub token_symbol: String,
     pub token_uri: String,
+    pub mint_account: Pubkey,
+    pub backing_goal: u64,
 }
 
 #[event]
