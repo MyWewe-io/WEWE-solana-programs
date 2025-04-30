@@ -27,7 +27,7 @@ pub struct CreateProposal<'info> {
         payer = maker,
         seeds = [b"maker", maker.key().as_ref()],
         bump,
-        space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
+        space = ANCHOR_DISCRIMINATOR + MakerAccount::INIT_SPACE,
     )]
     pub maker_account: Account<'info, MakerAccount>,
 
@@ -150,7 +150,9 @@ impl<'info> CreateProposal<'info> {
             duration,
             token_name,
             token_symbol,
-            token_uri
+            token_uri,
+            mint_account: self.mint_account.key(),
+            backing_goal
         });
 
         Ok(())
