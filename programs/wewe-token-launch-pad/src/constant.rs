@@ -5,4 +5,4 @@ pub const MAX_AMOUNT_TO_RAISE: u64 = 10;
 pub const TOTAL_AMOUNT_TO_RAISE: u64 = 50000000;
 pub const FEE_TO_DEDUCT: u64 = 1;
 pub const TOTAL_MINT: u64 = 1000000000;
-pub const OWNER: &str = "";
+pub const OWNER: &str = "D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe";

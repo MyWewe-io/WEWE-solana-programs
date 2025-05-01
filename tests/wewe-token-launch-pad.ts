@@ -44,6 +44,9 @@ describe('wewe_token_launch_pad', () => {
 
   const vault = getAssociatedTokenAddressSync(mint, proposal, true);
 
+  const authority = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([42,132,54,48,86,137,10,155,254,103,140,97,104,8,197,48,55,71,171,157,247,159,233,130,100,213,107,236,96,40,175,164,179,49,15,185,22,130,249,11,142,174,6,253,52,133,167,81,80,179,15,199,164,252,14,233,42,74,178,20,71,62,139,21])
+  );
+
   const confirm = async (signature: string): Promise<string> => {
     const block = await provider.connection.getLatestBlockhash();
     await provider.connection.confirmTransaction({
@@ -54,12 +57,14 @@ describe('wewe_token_launch_pad', () => {
   };
 
   it('Test Preparation', async () => {
-    const airdrop = await provider.connection.requestAirdrop(maker.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
-    console.log('\nAirdropped 1 SOL to maker', airdrop);
+    const airdrop_maker = await provider.connection.requestAirdrop(maker.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
+    console.log('\nAirdropped 1 SOL to maker', airdrop_maker);
 
     const airdrop_backer = await provider.connection.requestAirdrop(backer.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
     console.log('\nAirdropped 1 SOL to backer', airdrop_backer);
 
+    const airdrop_authority = await provider.connection.requestAirdrop(authority.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
+    console.log('\nAirdropped 1 SOL to backer', airdrop_authority);
   });
 
   it('Create proposal', async () => {
@@ -151,22 +156,22 @@ describe('wewe_token_launch_pad', () => {
     console.log('Contributor balance', contributorAccount.amount.toString());
   });
 
-  // it('reject a proposal from authority', async () => {
-  //   let authority = anchor.web3.Keypair.fromSecretKey(secretKey);
-  //   const tx = await program.methods
-  //     .rejectProposal()
-  //     .accountsPartial({
-  //       authority.publicKey,
-  //       proposal,
-  //       systemProgram: anchor.web3.SystemProgram.programId,
-  //     })
-  //     .signers([authority])
-  //     .rpc()
-  //     .then(confirm);
-  //
-  //   console.log('\nContributed to proposal', tx);
-  //   console.log('Your transaction signature', tx);
-  // });
+  it('reject a proposal from authority', async () => {
+    let proposal_index = new BN(0);
+    const tx = await program.methods
+      .rejectProposal(proposal_index)
+      .accountsPartial({
+        authority: authority.publicKey,
+        proposal,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    console.log('\nContributed to proposal', tx);
+    console.log('Your transaction signature', tx);
+  });
 
   // it('Refund Contributions', async () => {
   //   const vault = getAssociatedTokenAddressSync(mint, proposal, true);
