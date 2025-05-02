@@ -173,30 +173,21 @@ describe('wewe_token_launch_pad', () => {
     console.log('Your transaction signature', tx);
   });
 
-  // it('Refund Contributions', async () => {
-  //   const vault = getAssociatedTokenAddressSync(mint, proposal, true);
-
-  //   const contributorAccount = await program.account.contributor.fetch(contributor);
-  //   console.log('\nContributor balance', contributorAccount.amount.toString());
-
-  //   const tx = await program.methods
-  //     .refund()
-  //     .accountsPartial({
-  //       contributor: provider.publicKey,
-  //       maker: maker.publicKey,
-  //       mintToRaise: mint,
-  //       proposal,
-  //       contributorAccount: contributor,
-  //       contributorAta: contributorATA,
-  //       vault,
-  //       tokenProgram: TOKEN_PROGRAM_ID,
-  //       systemProgram: anchor.web3.SystemProgram.programId,
-  //     })
-  //     .rpc()
-  //     .then(confirm);
-
-  //   console.log('\nRefunded contributions', tx);
-  //   console.log('Your transaction signature', tx);
-  //   console.log('Vault balance', (await provider.connection.getTokenAccountBalance(vault)).value.amount);
-  // });
+  it('Refund Backing', async () => {
+    let proposal_index = new BN(0);
+    const tx = await program.methods
+      .refund(proposal_index)
+      .accountsPartial({
+        recepient: backer.publicKey,
+        maker: maker.publicKey,
+        proposal,
+        backerAccount: backer_account,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc()
+      .then(confirm);
+    console.log('\nRefunded contributions', tx);
+    console.log('Your transaction signature', tx);
+    console.log('proposal balance', (await provider.connection.getBalance(proposal)));
+  });
 });

@@ -12,7 +12,7 @@ use instructions::*;
 use utils::*;
 
 declare_program!(dynamic_amm);
-declare_id!("J7wf9UHHtwL3GDBnHctx4QQXzNv81ZaytTZGSt5v37vN");
+declare_id!("5Q9RDWeAyxrH3XXe7Fy5kbs2U2FqXeDbhyguWggfsaP6");
 
 #[program]
 pub mod wewe_token_launch_pad {
@@ -35,9 +35,9 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn refund(ctx: Context<Refund>) -> Result<()> {
+    pub fn refund(ctx: Context<Refund>, proposal_index: u64) -> Result<()> {
 
-        ctx.accounts.refund()?;
+        ctx.accounts.refund(proposal_index)?;
 
         Ok(())
     }
@@ -62,9 +62,9 @@ pub mod wewe_token_launch_pad {
     }
 
     #[access_control(check(&ctx.accounts.authority))]
-    pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
+    pub fn reject_proposal(ctx: Context<RejectProposal>, proposal_index: u64) -> Result<()> {
 
-        ctx.accounts.reject_proposal()?;
+        ctx.accounts.reject_proposal(proposal_index)?;
 
         Ok(())
     }

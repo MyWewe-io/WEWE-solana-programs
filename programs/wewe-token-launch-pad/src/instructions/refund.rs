@@ -1,7 +1,6 @@
 use std::ops::Sub;
 
 use anchor_lang::prelude::*;
-use anchor_lang::system_program;
 
 use crate::constant::FEE_TO_DEDUCT;
 use crate::event::BackerRefunded;
@@ -12,28 +11,31 @@ use crate::{
 };
 
 #[derive(Accounts)]
+#[instruction(_proposal_index: u64)]
 pub struct Refund<'info> {
-    pub payer: Signer<'info>,
-    pub backer: SystemAccount<'info>,
-    pub maker: SystemAccount<'info>,
+    #[account(mut)]
+    /// CHECK: it recievs refund
+    pub recepient: AccountInfo<'info>,
+    /// CHECK: maker of the proposal
+    pub maker: AccountInfo<'info>,
     #[account(
         mut,
-        seeds = [b"proposer", maker.key().as_ref()],
+        seeds = [b"proposer", maker.key().as_ref(), &_proposal_index.to_le_bytes()],
         bump = proposal.bump,
     )]
     pub proposal: Account<'info, Proposal>,
     #[account(
         mut,
-        seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
+        seeds = [b"backer", proposal.key().as_ref(), recepient.key().as_ref()],
         bump,
-        close = backer,
+        close = recepient,
     )]
     pub backer_account: Account<'info, Backers>,
     pub system_program: Program<'info, System>,
 }
 
 impl<'info> Refund<'info> {
-    pub fn refund(&mut self) -> Result<()> {
+    pub fn refund(&mut self, _proposal_index: u64) -> Result<()> {
         // Check if the proposal is not rejected before performing other checks
         if !self.proposal.is_rejected {
             // Check if the fundraising duration has been reached
@@ -50,28 +52,18 @@ impl<'info> Refund<'info> {
                 ProposalError::TargetMet
             );
         }
-
         let refund_amount = self.backer_account.amount.sub(FEE_TO_DEDUCT);
 
-        system_program::transfer(
-            CpiContext::new(
-                self.system_program.to_account_info(),
-                system_program::Transfer {
-                    from: self.proposal.to_account_info(),
-                    to: self.backer.to_account_info(),
-                },
-            ),
-            refund_amount,
-        )?;
-
+        **self.proposal.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
+        **self.recepient.try_borrow_mut_lamports()? += refund_amount;
+        
         self.proposal.current_amount -= refund_amount;
 
         emit!(BackerRefunded {
-           backer: self.backer.key(),
-           amount: refund_amount,
+            backer: self.recepient.key(),
+            amount: refund_amount,
         });
 
         Ok(())
     }
 }
-
