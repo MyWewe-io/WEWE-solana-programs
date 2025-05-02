@@ -175,11 +175,10 @@ describe('wewe_token_launch_pad', () => {
 
   it('Refund Backing', async () => {
     let proposal_index = new BN(0);
-    console.log(proposal)
     const tx = await program.methods
       .refund(proposal_index)
       .accountsPartial({
-        backer: backer.publicKey,
+        recepient: backer.publicKey,
         maker: maker.publicKey,
         proposal,
         backerAccount: backer_account,
@@ -189,6 +188,6 @@ describe('wewe_token_launch_pad', () => {
       .then(confirm);
     console.log('\nRefunded contributions', tx);
     console.log('Your transaction signature', tx);
-    console.log('Vault balance', (await provider.connection.getTokenAccountBalance(vault)).value.amount);
+    console.log('proposal balance', (await provider.connection.getBalance(proposal)));
   });
 });
