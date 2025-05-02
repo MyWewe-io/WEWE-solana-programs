@@ -12,13 +12,13 @@ use crate::{
 };
 
 #[derive(Accounts)]
+#[instruction(proposal_index: u64)]
 pub struct Refund<'info> {
-    pub payer: Signer<'info>,
     pub backer: SystemAccount<'info>,
     pub maker: SystemAccount<'info>,
     #[account(
         mut,
-        seeds = [b"proposer", maker.key().as_ref()],
+        seeds = [b"proposer", maker.key().as_ref(), &proposal_index.to_le_bytes()],
         bump = proposal.bump,
     )]
     pub proposal: Account<'info, Proposal>,
@@ -33,7 +33,7 @@ pub struct Refund<'info> {
 }
 
 impl<'info> Refund<'info> {
-    pub fn refund(&mut self) -> Result<()> {
+    pub fn refund(&mut self, proposal_index: u64) -> Result<()> {
         // Check if the proposal is not rejected before performing other checks
         if !self.proposal.is_rejected {
             // Check if the fundraising duration has been reached
@@ -50,18 +50,19 @@ impl<'info> Refund<'info> {
                 ProposalError::TargetMet
             );
         }
-
+        let signer_seeds: &[&[&[u8]]] = &[&[b"proposer", self.maker.key.as_ref(), &proposal_index.to_le_bytes(), &[self.proposal.bump]]];
         let refund_amount = self.backer_account.amount.sub(FEE_TO_DEDUCT);
 
         system_program::transfer(
-            CpiContext::new(
+            CpiContext::new_with_signer(
                 self.system_program.to_account_info(),
                 system_program::Transfer {
                     from: self.proposal.to_account_info(),
                     to: self.backer.to_account_info(),
                 },
+                signer_seeds,
             ),
-            refund_amount,
+            refund_amount
         )?;
 
         self.proposal.current_amount -= refund_amount;

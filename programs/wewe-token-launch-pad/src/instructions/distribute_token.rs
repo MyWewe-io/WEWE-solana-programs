@@ -92,7 +92,7 @@ pub fn transfer_tokens(ctx: Context<TransferTokens>) -> Result<()> {
 
     // Signer seeds to sign the CPI on behalf of the fundraiser account
     let signer_seeds: [&[&[u8]]; 1] = [&[
-        b"proper".as_ref(),
+        b"proposer".as_ref(),
         ctx.accounts.maker.to_account_info().key.as_ref(),
         &[ctx.accounts.proposal.bump],
     ]];
