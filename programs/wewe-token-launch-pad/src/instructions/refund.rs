@@ -56,7 +56,7 @@ impl<'info> Refund<'info> {
 
         **self.proposal.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
         **self.recepient.try_borrow_mut_lamports()? += refund_amount;
-        
+
         self.proposal.current_amount -= refund_amount;
 
         emit!(BackerRefunded {

@@ -17,10 +17,7 @@ pub struct RejectProposal<'info> {
 }
 
 impl<'info> RejectProposal<'info> {
-    pub fn reject_proposal(
-        &mut self,
-        _proposal_index: u64,
-    ) -> Result<()> {
+    pub fn reject_proposal(&mut self, _proposal_index: u64) -> Result<()> {
         self.proposal.is_rejected = true;
 
         emit!(ProposalRejected {

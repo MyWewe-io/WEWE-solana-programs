@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 pub struct ProposalCreated {
     pub maker: Pubkey,
     pub proposal_address: Pubkey,
+    pub proposal_index: u64,
     pub start_time: i64,
     pub duration: u16,
     pub token_name: String,
