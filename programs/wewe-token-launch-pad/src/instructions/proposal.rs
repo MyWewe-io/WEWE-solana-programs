@@ -87,7 +87,12 @@ impl<'info> CreateProposal<'info> {
         bumps: &CreateProposalBumps,
     ) -> Result<()> {
         // PDA signer seeds
-        let signer_seeds: &[&[&[u8]]] = &[&[b"mint", self.maker.key.as_ref(), &self.maker_account.proposal_count.to_le_bytes(), &[bumps.mint_account]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"mint",
+            self.maker.key.as_ref(),
+            &self.maker_account.proposal_count.to_le_bytes(),
+            &[bumps.mint_account],
+        ]];
 
         create_metadata_accounts_v3(
             CpiContext::new(
@@ -152,7 +157,8 @@ impl<'info> CreateProposal<'info> {
             token_symbol,
             token_uri,
             mint_account: self.mint_account.key(),
-            backing_goal
+            backing_goal,
+            proposal_index: self.maker_account.proposal_count,
         });
 
         Ok(())

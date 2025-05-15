@@ -1,10 +1,13 @@
-use anchor_lang::{prelude::*, system_program::{transfer, Transfer}};
+use anchor_lang::{
+    prelude::*,
+    system_program::{transfer, Transfer},
+};
 
 use crate::{
-    constant::{
-        ANCHOR_DISCRIMINATOR, MAX_AMOUNT_TO_RAISE, MIN_AMOUNT_TO_RAISE,
-        SECONDS_TO_DAYS,
-    }, errors::ProposalError, event::ProposalBacked, state::{backers::Backers, proposer::Proposal},
+    constant::{ANCHOR_DISCRIMINATOR, MAX_AMOUNT_TO_RAISE, MIN_AMOUNT_TO_RAISE, SECONDS_TO_DAYS},
+    errors::ProposalError,
+    event::ProposalBacked,
+    state::{backers::Backers, proposer::Proposal},
 };
 
 #[derive(Accounts)]
@@ -58,10 +61,8 @@ impl<'info> Contribute<'info> {
 
         // Check if the maximum contributions per backer have been reached
         require!(
-            (self.backer_account.amount
-                <= MAX_AMOUNT_TO_RAISE)
-                && (self.backer_account.amount + amount
-                    <= MAX_AMOUNT_TO_RAISE),
+            (self.backer_account.amount <= MAX_AMOUNT_TO_RAISE)
+                && (self.backer_account.amount + amount <= MAX_AMOUNT_TO_RAISE),
             ProposalError::MaximumContributionsReached
         );
 
@@ -81,7 +82,11 @@ impl<'info> Contribute<'info> {
 
         self.backer_account.amount += amount;
 
-        emit!(ProposalBacked { backer: self.backer.key(), proposal_backed: self.proposal.key(), amount });
+        emit!(ProposalBacked {
+            backer: self.backer.key(),
+            proposal_backed: self.proposal.key(),
+            amount
+        });
 
         Ok(())
     }
