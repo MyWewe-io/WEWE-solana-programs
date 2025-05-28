@@ -158,7 +158,8 @@ impl<'info> CreateProposal<'info> {
             token_symbol,
             token_uri,
             mint_account: self.mint_account.key(),
-            backing_goal
+            backing_goal,
+            proposal_index: self.maker_account.proposal_count,
         });
 
         Ok(())

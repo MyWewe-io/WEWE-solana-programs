@@ -7,3 +7,4 @@ pub const FEE_TO_DEDUCT: u64 = 17000000;   //0.017 SOl ~ 3$
 pub const TOTAL_MINT: u64 = 1000000000;
 pub const AMOUNT_PER_AIRDROP: u64 = 14000000;  // 14% of tokens in each airdrop
 pub const OWNER: &str = "D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe";
+

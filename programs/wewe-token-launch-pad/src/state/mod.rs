@@ -1,3 +1,3 @@
 pub mod backers;
-pub mod proposer;
 pub mod maker;
+pub mod proposer;

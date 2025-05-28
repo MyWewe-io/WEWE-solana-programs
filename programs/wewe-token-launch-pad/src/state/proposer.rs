@@ -12,3 +12,4 @@ pub struct Proposal {
     pub is_rejected: bool,   // proposal is rejected
     pub airdrop_cycle: u8,   
 }
+
