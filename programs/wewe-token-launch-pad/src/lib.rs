@@ -64,8 +64,8 @@ pub mod wewe_token_launch_pad {
     //     Ok(())
     // }
 
-    pub fn transfer_tokens(ctx: Context<TransferTokens>) -> Result<()> {
-        instructions::transfer_tokens(ctx)?;
+    pub fn claim(ctx: Context<Claim>) -> Result<()> {
+        ctx.accounts.claim()?;
 
         Ok(())
     }
