@@ -22,7 +22,7 @@ pub struct Contribute<'info> {
     )]
     pub proposal: Account<'info, Proposal>,
     #[account(
-        init_if_needed,
+        init,
         payer = backer,
         seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
         bump,

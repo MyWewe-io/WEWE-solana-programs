@@ -8,7 +8,7 @@ import {
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad.ts';
-import { expect } from 'chai';
+import { assert, expect } from 'chai';
 
 describe('wewe_token_launch_pad', () => {
   // Configure the client to use the local cluster.
@@ -131,6 +131,24 @@ describe('wewe_token_launch_pad', () => {
 
     console.log('\nContributed to proposal', tx);
     console.log('Your transaction signature', tx);
+  });
+
+  it('fails when user backs the same proposal twice', async () => {
+    try {
+      const tx = await program.methods
+        .depositSol(new BN(0))
+        .accountsPartial({
+          backer: backer.publicKey,
+          proposal,
+          backerAccount: backer_account,
+        })
+        .signers([backer])
+        .rpc();
+  
+      assert.fail('Second contribution should have failed but succeeded:', tx);
+    } catch (err) {
+      expect(err.message).match(/custom program error/);
+    }
   });
 
   it('reject a proposal from authority', async () => {
