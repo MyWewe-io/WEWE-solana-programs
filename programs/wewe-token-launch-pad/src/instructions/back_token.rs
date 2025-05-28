@@ -4,7 +4,7 @@ use anchor_lang::{
 };
 
 use crate::{
-    constant::{ANCHOR_DISCRIMINATOR, MAX_AMOUNT_TO_RAISE, MIN_AMOUNT_TO_RAISE, SECONDS_TO_DAYS},
+    constant::{AMOUNT_TO_RAISE_PER_USER, ANCHOR_DISCRIMINATOR, SECONDS_TO_DAYS},
     errors::ProposalError,
     event::ProposalBacked,
     state::{backers::Backers, proposer::Proposal},
@@ -33,19 +33,7 @@ pub struct Contribute<'info> {
 }
 
 impl<'info> Contribute<'info> {
-    pub fn deposit_sol(&mut self, _proposal_index: u64, amount: u64) -> Result<()> {
-        // Check if the amount to contribute meets the minimum amount required
-        require!(
-            amount >= MIN_AMOUNT_TO_RAISE,
-            ProposalError::ContributionTooSmall
-        );
-
-        // Check if the amount to contribute is less than the maximum allowed contribution
-        require!(
-            amount <= MAX_AMOUNT_TO_RAISE,
-            ProposalError::ContributionTooBig
-        );
-
+    pub fn deposit_sol(&mut self, _proposal_index: u64) -> Result<()> {
         // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
         require!(
@@ -59,13 +47,6 @@ impl<'info> Contribute<'info> {
             ProposalError::ProposalRejected
         );
 
-        // Check if the maximum contributions per backer have been reached
-        require!(
-            (self.backer_account.amount <= MAX_AMOUNT_TO_RAISE)
-                && (self.backer_account.amount + amount <= MAX_AMOUNT_TO_RAISE),
-            ProposalError::MaximumContributionsReached
-        );
-
         let program_id = self.system_program.to_account_info();
         let cpi_context = CpiContext::new(
             program_id,
@@ -75,17 +56,14 @@ impl<'info> Contribute<'info> {
             },
         );
 
-        transfer(cpi_context, amount)?;
+        transfer(cpi_context, AMOUNT_TO_RAISE_PER_USER)?;
 
         // Update the proposal and backer accounts with the new amounts
-        self.proposal.current_amount += amount;
-
-        self.backer_account.amount += amount;
+        self.proposal.current_amount += AMOUNT_TO_RAISE_PER_USER;
 
         emit!(ProposalBacked {
             backer: self.backer.key(),
             proposal_backed: self.proposal.key(),
-            amount
         });
 
         Ok(())
