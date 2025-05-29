@@ -8,7 +8,7 @@ import {
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad.ts';
-import { expect } from 'chai';
+import { assert, expect } from 'chai';
 
 describe('wewe_token_launch_pad', () => {
   // Configure the client to use the local cluster.
@@ -60,7 +60,7 @@ describe('wewe_token_launch_pad', () => {
     const airdrop_maker = await provider.connection.requestAirdrop(maker.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
     console.log('\nAirdropped 1 SOL to maker', airdrop_maker);
 
-    const airdrop_backer = await provider.connection.requestAirdrop(backer.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
+    const airdrop_backer = await provider.connection.requestAirdrop(backer.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
     console.log('\nAirdropped 1 SOL to backer', airdrop_backer);
 
     const airdrop_authority = await provider.connection.requestAirdrop(authority.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(confirm);
@@ -117,10 +117,9 @@ describe('wewe_token_launch_pad', () => {
     console.log('Your transaction signature', tx);
   });
 
-
   it('back a proposal', async () => {
     const tx = await program.methods
-      .depositSol(new BN(0), new BN(5))
+      .depositSol(new BN(0))
       .accountsPartial({
         backer: backer.publicKey,
         proposal,
@@ -132,28 +131,24 @@ describe('wewe_token_launch_pad', () => {
 
     console.log('\nContributed to proposal', tx);
     console.log('Your transaction signature', tx);
-
-    const contributorAccount = await program.account.backers.fetch(backer_account);
-    console.log('Contributor balance', contributorAccount.amount.toString());
   });
 
-  it('back to proposal again with same account', async () => {
-    const tx = await program.methods
-      .depositSol(new BN(0), new BN(5))
-      .accountsPartial({
-        backer: backer.publicKey,
-        proposal,
-        backerAccount: backer_account,
-      })
-      .signers([backer])
-      .rpc()
-      .then(confirm);
-
-    console.log('\nContributed to proposal', tx);
-    console.log('Your transaction signature', tx);
-
-    const contributorAccount = await program.account.backers.fetch(backer_account);
-    console.log('Contributor balance', contributorAccount.amount.toString());
+  it('fails when user backs the same proposal twice', async () => {
+    try {
+      const tx = await program.methods
+        .depositSol(new BN(0))
+        .accountsPartial({
+          backer: backer.publicKey,
+          proposal,
+          backerAccount: backer_account,
+        })
+        .signers([backer])
+        .rpc();
+  
+      assert.fail('Second contribution should have failed but succeeded:', tx);
+    } catch (err) {
+      expect(err.message).match(/custom program error/);
+    }
   });
 
   it('reject a proposal from authority', async () => {

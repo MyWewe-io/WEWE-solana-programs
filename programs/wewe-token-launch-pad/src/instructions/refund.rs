@@ -2,10 +2,10 @@ use std::ops::Sub;
 
 use anchor_lang::prelude::*;
 
-use crate::constant::FEE_TO_DEDUCT;
+use crate::constant::{AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT};
 use crate::event::BackerRefunded;
 use crate::{
-    constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
+    constant::SECONDS_TO_DAYS,
     errors::ProposalError,
     state::{backers::Backers, proposer::Proposal},
 };
@@ -45,14 +45,8 @@ impl<'info> Refund<'info> {
                     <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
                 ProposalError::BackingNotEnded
             );
-
-            // Check if the target amount has not been met
-            require!(
-                TOTAL_AMOUNT_TO_RAISE < self.proposal.current_amount,
-                ProposalError::TargetMet
-            );
         }
-        let refund_amount = self.backer_account.amount.sub(FEE_TO_DEDUCT);
+        let refund_amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
 
         **self.proposal.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
         **self.recepient.try_borrow_mut_lamports()? += refund_amount;

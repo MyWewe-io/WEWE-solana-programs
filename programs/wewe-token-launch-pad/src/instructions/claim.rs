@@ -1,6 +1,6 @@
 use {
     crate::{
-        constant::{AMOUNT_PER_AIRDROP, SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
+        constant::{AMOUNT_PER_AIRDROP, AMOUNT_TO_RAISE_PER_USER, SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
         errors::ProposalError,
         state::{backers::Backers, proposer::Proposal},
     },
@@ -80,9 +80,7 @@ impl<'info> Claim<'info> {
             airdrop_percent = 1;
         }
 
-        let amount = self
-            .backer_account
-            .amount
+        let amount = AMOUNT_TO_RAISE_PER_USER
             .mul(AMOUNT_PER_AIRDROP)
             .div(self.proposal.backing_goal)
             .mul(airdrop_percent);
