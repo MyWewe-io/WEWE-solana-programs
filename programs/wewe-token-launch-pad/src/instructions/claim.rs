@@ -1,6 +1,6 @@
 use {
     crate::{
-        constant::{AMOUNT_PER_AIRDROP, AMOUNT_TO_RAISE_PER_USER, SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
+        constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
         errors::ProposalError,
         state::{backers::Backers, proposer::Proposal},
     },
@@ -9,24 +9,24 @@ use {
         associated_token::AssociatedToken,
         token::{transfer, Mint, Token, TokenAccount, Transfer},
     },
-    std::ops::{Div, Mul},
 };
 
 #[derive(Accounts)]
+#[instruction(_proposal_index: u64)]
 pub struct Claim<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
     pub maker: SystemAccount<'info>,
 
     #[account(
-        seeds = [b"proposer", maker.key().as_ref()],
+        seeds = [b"proposer", proposal.maker.as_ref(), &_proposal_index.to_le_bytes()],
         bump,
     )]
     pub proposal: Account<'info, Proposal>,
 
     #[account(
         mut,
-        seeds = [b"mint", maker.key().as_ref()],
+        seeds = [b"mint", proposal.maker.as_ref(), &_proposal_index.to_le_bytes()],
         bump
     )]
     pub mint_account: Account<'info, Mint>,
@@ -59,7 +59,7 @@ pub struct Claim<'info> {
 }
 
 impl<'info> Claim<'info> {
-    pub fn claim(&mut self) -> Result<()> {
+    pub fn claim(&mut self, _proposal_index: u64) -> Result<()> {
         // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
 
@@ -73,17 +73,6 @@ impl<'info> Claim<'info> {
             TOTAL_AMOUNT_TO_RAISE >= self.proposal.current_amount,
             ProposalError::TargetNotMet
         );
-
-        let mut airdrop_percent =
-            get_airdrop_percent(self.backer_account.reputation_score).div(100);
-        if self.backer_account.claimed_cycle == 0 {
-            airdrop_percent = 1;
-        }
-
-        let amount = AMOUNT_TO_RAISE_PER_USER
-            .mul(AMOUNT_PER_AIRDROP)
-            .div(self.proposal.backing_goal)
-            .mul(airdrop_percent);
 
         let cpi_program = self.token_program.to_account_info();
 
@@ -105,21 +94,10 @@ impl<'info> Claim<'info> {
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
 
         // Transfer the funds from the vault to the contributor
-        transfer(cpi_ctx, amount)?;
+        transfer(cpi_ctx, self.backer_account.claim_amount)?;
 
         msg!("Tokens transferred successfully.");
 
         Ok(())
-    }
-}
-
-// Get airdrop percent based on reputation score
-pub fn get_airdrop_percent(reputation_score: u64) -> u64 {
-    match reputation_score {
-        100 => 100,
-        70..=99 => 75,
-        50..=69 => 50,
-        30..=49 => 25,
-        _ => 0,
     }
 }

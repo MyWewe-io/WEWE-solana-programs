@@ -12,7 +12,7 @@ use instructions::*;
 use utils::*;
 
 declare_program!(dynamic_amm);
-declare_id!("5Q9RDWeAyxrH3XXe7Fy5kbs2U2FqXeDbhyguWggfsaP6");
+declare_id!("F1oVBG5SQfKwd78DHUJtfwARJv8Mk8yAMoW6yp8hPi8u");
 
 #[program]
 pub mod wewe_token_launch_pad {
@@ -64,8 +64,8 @@ pub mod wewe_token_launch_pad {
     //     Ok(())
     // }
 
-    pub fn claim(ctx: Context<Claim>) -> Result<()> {
-        ctx.accounts.claim()?;
+    pub fn claim(ctx: Context<Claim>, proposal_index: u64) -> Result<()> {
+        ctx.accounts.claim(proposal_index)?;
 
         Ok(())
     }
