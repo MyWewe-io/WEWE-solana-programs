@@ -11,15 +11,10 @@ use crate::{
 };
 
 #[derive(Accounts)]
-#[instruction(_proposal_index: u64)]
 pub struct Contribute<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
-    #[account(
-        mut,
-        seeds = [b"proposer", proposal.maker.as_ref(), &_proposal_index.to_le_bytes()],
-        bump = proposal.bump,
-    )]
+    #[account(mut)]
     pub proposal: Account<'info, Proposal>,
     #[account(
         init,
@@ -33,7 +28,7 @@ pub struct Contribute<'info> {
 }
 
 impl<'info> Contribute<'info> {
-    pub fn deposit_sol(&mut self, _proposal_index: u64) -> Result<()> {
+    pub fn deposit_sol(&mut self) -> Result<()> {
         // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
         require!(
