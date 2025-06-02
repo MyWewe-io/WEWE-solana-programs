@@ -17,18 +17,9 @@ pub struct Claim<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
     pub maker: SystemAccount<'info>,
-
-    #[account(
-        seeds = [b"proposer", proposal.maker.as_ref(), &_proposal_index.to_le_bytes()],
-        bump,
-    )]
     pub proposal: Account<'info, Proposal>,
 
-    #[account(
-        mut,
-        seeds = [b"mint", proposal.maker.as_ref(), &_proposal_index.to_le_bytes()],
-        bump
-    )]
+    #[account(mut)]
     pub mint_account: Account<'info, Mint>,
 
     #[account(
@@ -59,7 +50,7 @@ pub struct Claim<'info> {
 }
 
 impl<'info> Claim<'info> {
-    pub fn claim(&mut self, _proposal_index: u64) -> Result<()> {
+    pub fn claim(&mut self) -> Result<()> {
         // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
 

@@ -40,8 +40,8 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn deposit_sol(ctx: Context<Contribute>, proposal_index: u64) -> Result<()> {
-        ctx.accounts.deposit_sol(proposal_index)?;
+    pub fn deposit_sol(ctx: Context<Contribute>) -> Result<()> {
+        ctx.accounts.deposit_sol()?;
 
         Ok(())
     }
@@ -64,15 +64,15 @@ pub mod wewe_token_launch_pad {
     //     Ok(())
     // }
 
-    pub fn claim(ctx: Context<Claim>, proposal_index: u64) -> Result<()> {
-        ctx.accounts.claim(proposal_index)?;
+    pub fn claim(ctx: Context<Claim>) -> Result<()> {
+        ctx.accounts.claim()?;
 
         Ok(())
     }
 
     #[access_control(check(&ctx.accounts.authority))]
-    pub fn reject_proposal(ctx: Context<RejectProposal>, proposal_index: u64) -> Result<()> {
-        ctx.accounts.reject_proposal(proposal_index)?;
+    pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
+        ctx.accounts.reject_proposal()?;
 
         Ok(())
     }
