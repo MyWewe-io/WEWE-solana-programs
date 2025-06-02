@@ -119,7 +119,7 @@ describe('wewe_token_launch_pad', () => {
 
   it('back a proposal', async () => {
     const tx = await program.methods
-      .depositSol(new BN(0))
+      .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
         proposal,
@@ -136,7 +136,7 @@ describe('wewe_token_launch_pad', () => {
   it('fails when user backs the same proposal twice', async () => {
     try {
       const tx = await program.methods
-        .depositSol(new BN(0))
+        .depositSol()
         .accountsPartial({
           backer: backer.publicKey,
           proposal,
@@ -152,9 +152,8 @@ describe('wewe_token_launch_pad', () => {
   });
 
   it('reject a proposal from authority', async () => {
-    let proposal_index = new BN(0);
     const tx = await program.methods
-      .rejectProposal(proposal_index)
+      .rejectProposal()
       .accountsPartial({
         authority: authority.publicKey,
         proposal,
