@@ -10,14 +10,12 @@ pub enum ProposalError {
     ContributionTooBig,
     #[msg("The contribution is too small")]
     ContributionTooSmall,
-    #[msg("The maximum amount to contribute has been reached")]
-    MaximumContributionsReached,
+    #[msg("The proposal can't be backed twice")]
+    ProposalAlreadyBacked,
     #[msg("The backing has not ended yet")]
     BackingNotEnded,
     #[msg("The backing has ended")]
     BackingEnded,
-    #[msg("Invalid total amount. i should be bigger than 3")]
-    InvalidAmount,
     #[msg("Only owner can call this function!")]
     NotOwner,
     #[msg("This proposal is rejected, Claim your refund")]
