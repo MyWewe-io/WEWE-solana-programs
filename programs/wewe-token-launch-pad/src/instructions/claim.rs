@@ -76,7 +76,7 @@ impl<'info> Claim<'info> {
 
         // Signer seeds to sign the CPI on behalf of the fundraiser account
         let signer_seeds: [&[&[u8]]; 1] = [&[
-            b"proposer".as_ref(),
+            b"proposal".as_ref(),
             self.maker.to_account_info().key.as_ref(),
             &[self.proposal.bump],
         ]];
