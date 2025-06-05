@@ -22,7 +22,7 @@ describe('wewe_token_launch_pad', () => {
   const backer = anchor.web3.Keypair.generate();
 
   const proposalCount = new BN(0);
-  const proposal = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('proposer'), maker.publicKey.toBuffer(), proposalCount.toArrayLike(Buffer, "le", 8)], program.programId)[0];
+  const proposal = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('proposal'), maker.publicKey.toBuffer(), proposalCount.toArrayLike(Buffer, "le", 8)], program.programId)[0];
 
   const backer_account = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from('backer'), proposal.toBuffer(), backer.publicKey.toBuffer()],
@@ -34,7 +34,9 @@ describe('wewe_token_launch_pad', () => {
     program.programId,
   )[0];
 
-  const [mint] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from('mint'), maker.publicKey.toBuffer(), proposalCount.toArrayLike(Buffer, "le", 8),], program.programId);
+  // mint PublicKey prefixed with wewe: weweca2xonYzkEE1HGv8yqfBwwTzyHGyXx4B6sKaGmx
+  const mint = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([120,242,147,132,61,86,151,209,148,93,109,242,239,178,189,134,74,139,56,122,168,40,166,101,75,200,91,214,253,44,238,50,14,0,67,220,240,46,161,156,27,124,159,138,189,13,94,61,144,123,166,53,197,39,157,168,196,163,91,187,245,3,156,19])
+);
 
   const metadata = {
     name: 'Solana Gold',
@@ -42,7 +44,7 @@ describe('wewe_token_launch_pad', () => {
     uri: 'https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/spl-token.json',
   };
 
-  const vault = getAssociatedTokenAddressSync(mint, proposal, true);
+  const vault = getAssociatedTokenAddressSync(mint.publicKey, proposal, true);
 
   const authority = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([42,132,54,48,86,137,10,155,254,103,140,97,104,8,197,48,55,71,171,157,247,159,233,130,100,213,107,236,96,40,175,164,179,49,15,185,22,130,249,11,142,174,6,253,52,133,167,81,80,179,15,199,164,252,14,233,42,74,178,20,71,62,139,21])
   );
@@ -83,13 +85,13 @@ describe('wewe_token_launch_pad', () => {
         maker: maker.publicKey,
         makerAccount: maker_account,
         proposal,
-        mintAccount: mint,
+        mintAccount: mint.publicKey,
         tokenVault: vault,
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
-      .signers([maker])
+      .signers([maker, mint])
       .rpc()
       .then(confirm);
 
@@ -113,6 +115,7 @@ describe('wewe_token_launch_pad', () => {
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
     expect(capturedEvent.duration).to.equal(expectedEvent.duration);
+    console.log(capturedEvent.mintAccount);
     console.log('\nInitialized proposal Account');
     console.log('Your transaction signature', tx);
   });
