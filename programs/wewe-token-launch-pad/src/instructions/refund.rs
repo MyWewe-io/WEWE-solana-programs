@@ -20,7 +20,7 @@ pub struct Refund<'info> {
     pub maker: AccountInfo<'info>,
     #[account(
         mut,
-        seeds = [b"proposer", maker.key().as_ref(), &_proposal_index.to_le_bytes()],
+        seeds = [b"proposal", maker.key().as_ref(), &_proposal_index.to_le_bytes()],
         bump = proposal.bump,
     )]
     pub proposal: Account<'info, Proposal>,

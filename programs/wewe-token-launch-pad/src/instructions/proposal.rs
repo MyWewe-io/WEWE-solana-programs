@@ -34,7 +34,7 @@ pub struct CreateProposal<'info> {
     #[account(
         init,
         payer = maker,
-        seeds = [b"proposer", maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
+        seeds = [b"proposal", maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
         bump,
         space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
     )]
@@ -43,11 +43,9 @@ pub struct CreateProposal<'info> {
     #[account(
         init,
         payer = maker,
-        seeds = [b"mint", maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
-        bump,
         mint::decimals = _token_decimals,
-        mint::authority = mint_account.key(),
-        mint::freeze_authority = mint_account.key(),
+        mint::authority = proposal.key(),
+        mint::freeze_authority = proposal.key(),
     )]
     pub mint_account: Account<'info, Mint>,
 
@@ -88,10 +86,10 @@ impl<'info> CreateProposal<'info> {
     ) -> Result<()> {
         // PDA signer seeds
         let signer_seeds: &[&[&[u8]]] = &[&[
-            b"mint",
+            b"proposal",
             self.maker.key.as_ref(),
             &self.maker_account.proposal_count.to_le_bytes(),
-            &[bumps.mint_account],
+            &[bumps.proposal],
         ]];
 
         create_metadata_accounts_v3(
@@ -100,7 +98,7 @@ impl<'info> CreateProposal<'info> {
                 CreateMetadataAccountsV3 {
                     metadata: self.metadata_account.to_account_info(),
                     mint: self.mint_account.to_account_info(),
-                    mint_authority: self.mint_account.to_account_info(),
+                    mint_authority: self.proposal.to_account_info(),
                     update_authority: self.maker.to_account_info(),
                     payer: self.maker.to_account_info(),
                     system_program: self.system_program.to_account_info(),
@@ -129,7 +127,7 @@ impl<'info> CreateProposal<'info> {
                 MintTo {
                     mint: self.mint_account.to_account_info(),
                     to: self.token_vault.to_account_info(),
-                    authority: self.mint_account.to_account_info(),
+                    authority: self.proposal.to_account_info(),
                 },
             )
             .with_signer(signer_seeds), // using PDA to sign,
