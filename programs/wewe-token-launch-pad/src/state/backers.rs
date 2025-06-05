@@ -4,5 +4,4 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace)]
 pub struct Backers {
     pub claim_amount: u64,
-    pub claimed_cycle: u8,
 }

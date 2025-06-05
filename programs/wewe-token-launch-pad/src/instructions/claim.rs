@@ -12,7 +12,6 @@ use {
 };
 
 #[derive(Accounts)]
-#[instruction(_proposal_index: u64)]
 pub struct Claim<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
@@ -86,6 +85,9 @@ impl<'info> Claim<'info> {
 
         // Transfer the funds from the vault to the contributor
         transfer(cpi_ctx, self.backer_account.claim_amount)?;
+
+        // set claim amount to zero, for succesive airdrops
+        self.backer_account.claim_amount = 0;
 
         msg!("Tokens transferred successfully.");
 

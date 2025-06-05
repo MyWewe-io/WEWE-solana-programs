@@ -10,9 +10,10 @@ mod utils;
 
 use instructions::*;
 use utils::*;
+use errors::*;
 
 declare_program!(dynamic_amm);
-declare_id!("F1oVBG5SQfKwd78DHUJtfwARJv8Mk8yAMoW6yp8hPi8u");
+declare_id!("668qx8PESTjHLfkeNgL7sjEHTHWBipShyvC3TyBa5GQ5");
 
 #[program]
 pub mod wewe_token_launch_pad {
@@ -41,7 +42,10 @@ pub mod wewe_token_launch_pad {
     }
 
     pub fn deposit_sol(ctx: Context<Contribute>) -> Result<()> {
-        ctx.accounts.deposit_sol()?;
+        match ctx.accounts.deposit_sol() {
+            Ok(_) => {},
+            Err(_) => return Err(error!(ProposalError::ProposalAlreadyBacked)),
+        }
 
         Ok(())
     }
