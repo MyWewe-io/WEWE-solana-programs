@@ -15,20 +15,14 @@ use crate::{
 pub struct Refund<'info> {
     #[account(mut)]
     /// CHECK: it recievs refund
-    pub recepient: AccountInfo<'info>,
-    /// CHECK: maker of the proposal
-    pub maker: AccountInfo<'info>,
-    #[account(
-        mut,
-        seeds = [b"proposal", maker.key().as_ref(), &_proposal_index.to_le_bytes()],
-        bump = proposal.bump,
-    )]
+    pub backer: AccountInfo<'info>,
+    #[account(mut)]
     pub proposal: Account<'info, Proposal>,
     #[account(
         mut,
-        seeds = [b"backer", proposal.key().as_ref(), recepient.key().as_ref()],
+        seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
         bump,
-        close = recepient,
+        close = backer,
     )]
     pub backer_account: Account<'info, Backers>,
     pub system_program: Program<'info, System>,
@@ -49,12 +43,12 @@ impl<'info> Refund<'info> {
         let refund_amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
 
         **self.proposal.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
-        **self.recepient.try_borrow_mut_lamports()? += refund_amount;
+        **self.backer.try_borrow_mut_lamports()? += refund_amount;
 
         self.proposal.current_amount -= refund_amount;
 
         emit!(BackerRefunded {
-            backer: self.recepient.key(),
+            backer: self.backer.key(),
             amount: refund_amount,
         });
 
