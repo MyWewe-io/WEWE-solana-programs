@@ -80,4 +80,11 @@ pub mod wewe_token_launch_pad {
 
         Ok(())
     }
+
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn update_airdrop_amount(ctx: Context<UpdateBacker>, amount: u64) -> Result<()> {
+        ctx.accounts.update_airdrop_amount(amount)?;
+
+        Ok(())
+    }
 }

@@ -175,8 +175,7 @@ describe('wewe_token_launch_pad', () => {
     const tx = await program.methods
       .refund(proposal_index)
       .accountsPartial({
-        recepient: backer.publicKey,
-        maker: maker.publicKey,
+        backer: backer.publicKey,
         proposal,
         backerAccount: backer_account,
         systemProgram: anchor.web3.SystemProgram.programId,
