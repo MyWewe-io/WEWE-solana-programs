@@ -142,6 +142,7 @@ impl<'info> CreateProposal<'info> {
             bump: bumps.proposal,
             backing_goal,
             is_rejected: false,
+            proposal_id: self.maker_account.proposal_count,
         });
         // increment proposal count for maker
         self.maker_account.proposal_count += 1;

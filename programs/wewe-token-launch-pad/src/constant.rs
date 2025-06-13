@@ -5,3 +5,6 @@ pub const TOTAL_AMOUNT_TO_RAISE: u64 = 50_000_000_000;  // 50 SOL
 pub const FEE_TO_DEDUCT: u64 = 20000000;   //0.02 SOl ~ 3$
 pub const TOTAL_MINT: u64 = 1000000000;
 pub const OWNER: &str = "D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe";
+pub const MAKER_TOKEN_AMOUNT: u64 = 10_000_000;// 1% of the 1 Billion Token supply 
+pub const INITIAL_POOL_LIQUIDITY: u64 = 15_000_000; // 15% of the 1 Billion Token Supply
+pub const POOL_SIZE: usize = 8 + 944;

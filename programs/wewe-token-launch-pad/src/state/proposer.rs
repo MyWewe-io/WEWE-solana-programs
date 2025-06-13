@@ -10,5 +10,6 @@ pub struct Proposal {
     pub bump: u8,            // PDA security bump
     pub backing_goal: u64,   // backing goal of proposal
     pub is_rejected: bool,   // proposal is rejected 
+    pub proposal_id: u64, 
 }
 

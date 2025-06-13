@@ -8,13 +8,13 @@ skip-lint = false
 wewe_token_launch_pad = "668qx8PESTjHLfkeNgL7sjEHTHWBipShyvC3TyBa5GQ5"
 
 [programs.localnet]
-wewe_token_launch_pad = "F1oVBG5SQfKwd78DHUJtfwARJv8Mk8yAMoW6yp8hPi8u"
+wewe_token_launch_pad = "668qx8PESTjHLfkeNgL7sjEHTHWBipShyvC3TyBa5GQ5"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
