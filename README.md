@@ -11,6 +11,8 @@ npm install
 ```
 
 ### 2. Configure Anchor
+[Installation instructions](https://www.anchor-lang.com/docs/installation)
+
 Set the provider to Devnet:
 
 ```bash
