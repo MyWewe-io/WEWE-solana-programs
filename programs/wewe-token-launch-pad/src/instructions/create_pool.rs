@@ -1,6 +1,7 @@
 use crate::constant::{INITIAL_POOL_LIQUIDITY, MAKER_TOKEN_AMOUNT, SECONDS_TO_DAYS};
 use crate::dynamic_amm::types::CustomizableParams;
 use crate::errors::ProposalError;
+use crate::event::CoinLaunched;
 use crate::state::proposer::Proposal;
 use crate::{constant::POOL_SIZE, dynamic_amm};
 use anchor_lang::prelude::*;
@@ -48,6 +49,7 @@ pub struct DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator<'info> {
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
+    /// CHECK: proposal maker
     pub maker: UncheckedAccount<'info>,
 
     #[account(
@@ -229,7 +231,14 @@ pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
         INITIAL_POOL_LIQUIDITY,
         ctx.accounts.proposal.get_lamports(),
         params,
-    )
+    )?;
+
+    emit!(CoinLaunched {
+        proposal_address: ctx.accounts.proposal.key(),
+        mint_account: ctx.accounts.token_a_mint.key(),
+    });
+
+    Ok(())
 }
 
 pub struct FundCreatorAuthorityAccounts<'b, 'info> {

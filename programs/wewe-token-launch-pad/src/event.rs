@@ -31,3 +31,16 @@ pub struct ProposalRejected {
     pub maker: Pubkey,
     pub proposal_address: Pubkey,
 }
+
+#[event]
+pub struct AirdropClaimed {
+    pub proposal_address: Pubkey,
+    pub backer: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct CoinLaunched {
+    pub mint_account: Pubkey,
+    pub proposal_address: Pubkey,
+}
