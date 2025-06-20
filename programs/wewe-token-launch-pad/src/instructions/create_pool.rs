@@ -158,8 +158,6 @@ pub struct DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator<'info> {
 /// Returns a `Result` indicating success or failure.
 pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
     ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator>,
-    token_a_amount: u64,
-    token_b_amount: u64,
     params: CustomizableParams,
 ) -> Result<()> {
     if ctx.accounts.proposal.is_rejected {
@@ -173,7 +171,7 @@ pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
     }
 
     fund_creator_authority(
-        token_b_amount,
+        ctx.accounts.proposal.get_lamports(),
         FundCreatorAuthorityAccounts {
             creator_token_a: &ctx.accounts.creator_token_a,
             creator_token_b: &ctx.accounts.creator_token_b,
@@ -228,8 +226,8 @@ pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
 
     dynamic_amm::cpi::initialize_customizable_permissionless_constant_product_pool(
         cpi_context,
-        token_a_amount,
-        token_b_amount,
+        INITIAL_POOL_LIQUIDITY,
+        ctx.accounts.proposal.get_lamports(),
         params,
     )
 }
