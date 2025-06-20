@@ -1,6 +1,7 @@
 use crate::constant::{INITIAL_POOL_LIQUIDITY, MAKER_TOKEN_AMOUNT, SECONDS_TO_DAYS};
 use crate::dynamic_amm::types::CustomizableParams;
 use crate::errors::ProposalError;
+use crate::event::CoinLaunched;
 use crate::state::proposer::Proposal;
 use crate::{constant::POOL_SIZE, dynamic_amm};
 use anchor_lang::prelude::*;
@@ -48,6 +49,7 @@ pub struct DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator<'info> {
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
+    /// CHECK: proposal maker
     pub maker: UncheckedAccount<'info>,
 
     #[account(
@@ -158,8 +160,6 @@ pub struct DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator<'info> {
 /// Returns a `Result` indicating success or failure.
 pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
     ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator>,
-    token_a_amount: u64,
-    token_b_amount: u64,
     params: CustomizableParams,
 ) -> Result<()> {
     if ctx.accounts.proposal.is_rejected {
@@ -173,7 +173,7 @@ pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
     }
 
     fund_creator_authority(
-        token_b_amount,
+        ctx.accounts.proposal.get_lamports(),
         FundCreatorAuthorityAccounts {
             creator_token_a: &ctx.accounts.creator_token_a,
             creator_token_b: &ctx.accounts.creator_token_b,
@@ -228,10 +228,17 @@ pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
 
     dynamic_amm::cpi::initialize_customizable_permissionless_constant_product_pool(
         cpi_context,
-        token_a_amount,
-        token_b_amount,
+        INITIAL_POOL_LIQUIDITY,
+        ctx.accounts.proposal.get_lamports(),
         params,
-    )
+    )?;
+
+    emit!(CoinLaunched {
+        proposal_address: ctx.accounts.proposal.key(),
+        mint_account: ctx.accounts.token_a_mint.key(),
+    });
+
+    Ok(())
 }
 
 pub struct FundCreatorAuthorityAccounts<'b, 'info> {

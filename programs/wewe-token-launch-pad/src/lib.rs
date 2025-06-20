@@ -50,23 +50,21 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn refund(ctx: Context<Refund>, proposal_index: u64) -> Result<()> {
-        ctx.accounts.refund(proposal_index)?;
+    pub fn refund(ctx: Context<Refund>) -> Result<()> {
+        ctx.accounts.refund()?;
 
         Ok(())
     }
 
-    // pub fn initialize_dynamic_amm_customizable_permissionless_pool(
-    //     ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPool>,
-    //     token_a_amount: u64,
-    //     token_b_amount: u64,
-    //     params: dynamic_amm::types::CustomizableParams,
-    // ) -> Result<()> {
+    pub fn initialize_dynamic_amm_customizable_permissionless_pool(
+        ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator>,
+        params: dynamic_amm::types::CustomizableParams,
+    ) -> Result<()> {
 
-    //     instructions::handle_initialize_customizable_permissionless_pool(ctx, token_a_amount, token_b_amount, params)?;
+        instructions::handle_initialize_customizable_permissionless_pool_with_pda_creator(ctx, params)?;
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
         ctx.accounts.claim()?;

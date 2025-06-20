@@ -11,7 +11,6 @@ use crate::{
 };
 
 #[derive(Accounts)]
-#[instruction(_proposal_index: u64)]
 pub struct Refund<'info> {
     #[account(mut)]
     /// CHECK: it recievs refund
@@ -29,7 +28,7 @@ pub struct Refund<'info> {
 }
 
 impl<'info> Refund<'info> {
-    pub fn refund(&mut self, _proposal_index: u64) -> Result<()> {
+    pub fn refund(&mut self) -> Result<()> {
         // Check if the proposal is not rejected before performing other checks
         if !self.proposal.is_rejected {
             // Check if the fundraising duration has been reached

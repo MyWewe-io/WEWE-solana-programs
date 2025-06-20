@@ -1,8 +1,6 @@
 use {
     crate::{
-        constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE},
-        errors::ProposalError,
-        state::{backers::Backers, proposer::Proposal},
+        constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE}, errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposer::Proposal}
     },
     anchor_lang::prelude::*,
     anchor_spl::{
@@ -83,13 +81,18 @@ impl<'info> Claim<'info> {
         // CPI context with signer since the fundraiser account is a PDA
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
 
+        let claim_amount = self.backer_account.claim_amount;
         // Transfer the funds from the vault to the contributor
-        transfer(cpi_ctx, self.backer_account.claim_amount)?;
+        transfer(cpi_ctx, claim_amount)?;
 
         // set claim amount to zero, for succesive airdrops
         self.backer_account.claim_amount = 0;
 
-        msg!("Tokens transferred successfully.");
+        emit!(AirdropClaimed {
+            proposal_address: self.proposal.key(),
+            backer: self.backer.key(),
+            amount: claim_amount,
+        });
 
         Ok(())
     }
