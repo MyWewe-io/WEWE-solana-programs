@@ -12,7 +12,7 @@ use instructions::*;
 use utils::*;
 use errors::*;
 
-declare_program!(dynamic_amm);
+declare_program!(damm_v2);
 declare_id!("668qx8PESTjHLfkeNgL7sjEHTHWBipShyvC3TyBa5GQ5");
 
 #[program]
@@ -56,15 +56,15 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn initialize_dynamic_amm_customizable_permissionless_pool(
-        ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator>,
-        params: dynamic_amm::types::CustomizableParams,
-    ) -> Result<()> {
+    // pub fn initialize_dynamic_amm_customizable_permissionless_pool(
+    //     ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator>,
+    //     params: dynamic_amm::types::CustomizableParams,
+    // ) -> Result<()> {
 
-        instructions::handle_initialize_customizable_permissionless_pool_with_pda_creator(ctx, params)?;
+    //     instructions::handle_initialize_customizable_permissionless_pool_with_pda_creator(ctx, params)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
         ctx.accounts.claim()?;
