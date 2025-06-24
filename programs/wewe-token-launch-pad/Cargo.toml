@@ -21,4 +21,4 @@ anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
 anchor-spl = { version = "0.31.0", features = ["metadata"]}
 bytemuck = { version = "1.13.1", features = ["derive", "min_const_generics"] }
 solana-program = "2.1.0"
-const_crypto = "0.1.2" 
+const-crypto = "0.3.0"
