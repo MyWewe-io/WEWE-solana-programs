@@ -8,3 +8,4 @@ pub const OWNER: &str = "D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe";
 pub const MAKER_TOKEN_AMOUNT: u64 = 10_000_000;// 1% of the 1 Billion Token supply 
 pub const INITIAL_POOL_LIQUIDITY: u64 = 15_000_000; // 15% of the 1 Billion Token Supply
 pub const POOL_SIZE: usize = 8 + 944;
+pub const POOL_AUTHORITY_PREFIX: &[u8] = b"pool_authority";

@@ -7,6 +7,7 @@ mod event;
 pub mod instructions;
 pub mod state;
 mod utils;
+mod const_pda;
 
 use instructions::*;
 use utils::*;

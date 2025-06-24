@@ -1,6 +1,5 @@
 use std::u64;
 
-use anchor_lang::solana_program::{program::invoke, system_instruction};
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use damm_v2::types::InitializePoolParameters;
 
@@ -17,7 +16,7 @@ use crate::constant::POOL_SIZE;
 use anchor_lang::system_program;
 use anchor_lang::system_program::Transfer as NativeSolTransfer;
 use anchor_spl::token;
-use anchor_spl::token::{Mint, Token, Transfer as TokenTransfer};
+use anchor_spl::token::{Mint, Transfer as TokenTransfer};
 
 #[derive(Accounts)]
 pub struct DammV2<'info> {
@@ -149,19 +148,21 @@ impl<'info> DammV2<'info> {
 
         let pool_authority_seeds = &[b"pool_authority".as_ref(), &[bump]];
 
-        // Send some lamport to pool authority to pay rent fee?
-        msg!("transfer lamport to pool_authority");
-        invoke(
-            &system_instruction::transfer(
-                &self.payer.key(),
-                &self.pool_authority.key(),
-                50_000_000, // TODO calculate correct lamport here
-            ),
-            &[
-                self.payer.to_account_info(),
-                self.pool_authority.to_account_info(),
-                self.system_program.to_account_info(),
-            ],
+
+        fund_creator_authority(
+            self.proposal.get_lamports(),
+            FundCreatorAuthorityAccounts {
+                creator_token_a: &self.base_vault,
+                creator_token_b: &self.quote_vault,
+                proposal: &self.proposal,
+                token_program_a: &self.token_base_program,
+                token_program_b: &self.token_quote_program,
+                token_vault: &self.token_vault,
+                payer: &self.payer,
+                system_program: &self.system_program,
+                creator_authority: &self.pool_authority,
+                maker: &self.maker_token_account,
+            },
         )?;
 
         damm_v2::cpi::initialize_pool(
@@ -208,15 +209,16 @@ impl<'info> DammV2<'info> {
 }
 
 pub struct FundCreatorAuthorityAccounts<'b, 'info> {
-    pub creator_token_a: &'b Account<'info, TokenAccount>,
-    pub creator_token_b: &'b Account<'info, TokenAccount>,
+    pub creator_token_a: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub creator_token_b: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub proposal: &'b Account<'info, Proposal>,
-    pub token_program: &'b Program<'info, Token>,
-    pub token_vault: &'b Account<'info, TokenAccount>,
+    pub token_program_a: &'b Interface<'info, TokenInterface>,
+    pub token_program_b: &'b Interface<'info, TokenInterface>,
+    pub token_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub payer: &'b Signer<'info>,
     pub system_program: &'b Program<'info, System>,
     pub creator_authority: &'b AccountInfo<'info>,
-    pub maker: &'b Account<'info, TokenAccount>,
+    pub maker: &'b Box<InterfaceAccount<'info, TokenAccount>>,
 }
 
 pub fn fund_creator_authority<'b, 'info>(
@@ -227,7 +229,8 @@ pub fn fund_creator_authority<'b, 'info>(
         creator_token_a,
         creator_token_b,
         proposal,
-        token_program,
+        token_program_a,
+        token_program_b,
         token_vault,
         payer,
         system_program,
@@ -247,7 +250,7 @@ pub fn fund_creator_authority<'b, 'info>(
         let amount = INITIAL_POOL_LIQUIDITY - creator_token_a.amount;
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
-                token_program.to_account_info(),
+                token_program_a.to_account_info(),
                 TokenTransfer {
                     from: token_vault.to_account_info(),
                     to: creator_token_a.to_account_info(),
@@ -275,7 +278,7 @@ pub fn fund_creator_authority<'b, 'info>(
         let cpi_accounts = token::SyncNative {
             account: accounts.creator_token_b.to_account_info(),
         };
-        let cpi_program = accounts.token_program.to_account_info();
+        let cpi_program = accounts.token_program_b.to_account_info();
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
         token::sync_native(cpi_ctx)?;
     }
@@ -283,7 +286,7 @@ pub fn fund_creator_authority<'b, 'info>(
     // Transfer 1% Tokens to proposal maker
     anchor_spl::token::transfer(
         CpiContext::new_with_signer(
-            token_program.to_account_info(),
+            token_program_b.to_account_info(),
             TokenTransfer {
                 from: token_vault.to_account_info(),
                 to: maker.to_account_info(),
