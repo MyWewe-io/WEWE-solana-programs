@@ -49,6 +49,8 @@ pub struct DammV2<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
 
+    pool_config: AccountInfo<'info>,
+
     /// CHECK: pool
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
@@ -128,9 +130,8 @@ pub struct DammV2<'info> {
 }
 
 impl<'info> DammV2<'info> {
-    fn create_pool(
+    pub fn create_pool(
         &self,
-        pool_config: AccountInfo<'info>,
         liquidity: u128,
         sqrt_price: u128,
         bump: u8,
@@ -173,7 +174,7 @@ impl<'info> DammV2<'info> {
                     position_nft_mint: self.first_position_nft_mint.to_account_info(),
                     position_nft_account: self.first_position_nft_account.to_account_info(),
                     payer: self.pool_authority.to_account_info(),
-                    config: pool_config.to_account_info(),
+                    config: self.pool_config.to_account_info(),
                     pool_authority: self.damm_pool_authority.to_account_info(),
                     pool: self.pool.to_account_info(),
                     position: self.first_position.to_account_info(),

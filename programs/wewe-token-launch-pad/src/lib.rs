@@ -57,15 +57,15 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    // pub fn initialize_dynamic_amm_customizable_permissionless_pool(
-    //     ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator>,
-    //     params: dynamic_amm::types::CustomizableParams,
-    // ) -> Result<()> {
-
-    //     instructions::handle_initialize_customizable_permissionless_pool_with_pda_creator(ctx, params)?;
-
-    //     Ok(())
-    // }
+    pub fn create_pool(
+        ctx: Context<DammV2>,
+        liquidity: u128,
+        sqrt_price: u128,
+        bump: u8,
+    ) -> Result<()> {
+    
+        ctx.accounts.create_pool(liquidity, sqrt_price, bump)
+    }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
         ctx.accounts.claim()?;
