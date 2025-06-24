@@ -6,7 +6,6 @@ use damm_v2::types::InitializePoolParameters;
 
 use crate::{
     const_pda,
-    state::{ PoolConfig, VirtualPool},
     *,
 };
 
@@ -22,13 +21,6 @@ use anchor_spl::token::{Mint, Token, Transfer as TokenTransfer};
 
 #[derive(Accounts)]
 pub struct DammV2<'info> {
-    /// virtual pool
-    #[account(mut, has_one = base_vault, has_one = quote_vault, has_one = config)]
-    pub virtual_pool: AccountLoader<'info, VirtualPool>,
-
-    /// virtual pool config key
-    pub config: AccountLoader<'info, PoolConfig>,
-
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
 
@@ -155,7 +147,7 @@ impl<'info> DammV2<'info> {
             );
         }
 
-        let pool_authority_seeds = pool_authority_seeds!(bump);
+        let pool_authority_seeds = &[b"pool_authority".as_ref(), &[bump]];
 
         // Send some lamport to pool authority to pay rent fee?
         msg!("transfer lamport to pool_authority");
