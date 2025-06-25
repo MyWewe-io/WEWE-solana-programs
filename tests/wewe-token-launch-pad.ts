@@ -38,11 +38,11 @@ describe('wewe_token_launch_pad', () => {
   )[0];
 
   // mint PublicKey prefixed with wewe: weweca2xonYzkEE1HGv8yqfBwwTzyHGyXx4B6sKaGmx
-  const mint = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([120,242,147,132,61,86,151,209,148,93,109,242,239,178,189,134,74,139,56,122,168,40,166,101,75,200,91,214,253,44,238,50,14,0,67,220,240,46,161,156,27,124,159,138,189,13,94,61,144,123,166,53,197,39,157,168,196,163,91,187,245,3,156,19]));
+  const mint = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([120, 242, 147, 132, 61, 86, 151, 209, 148, 93, 109, 242, 239, 178, 189, 134, 74, 139, 56, 122, 168, 40, 166, 101, 75, 200, 91, 214, 253, 44, 238, 50, 14, 0, 67, 220, 240, 46, 161, 156, 27, 124, 159, 138, 189, 13, 94, 61, 144, 123, 166, 53, 197, 39, 157, 168, 196, 163, 91, 187, 245, 3, 156, 19]));
 
   // mint PublicKey prefixed with wewe: wewesHFmfmCQtD7kGgq1vATe2sE2ehDGQJsQ9hRiHQ4
-  const mint2 = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([225,221,220,42,149,90,160,131,244,182,127,56,41,199,93,110,174,0,14,141,87,60,191,10,74,94,100,50,75,15,173,37,14,0,67,226,134,115,217,145,253,4,100,186,147,181,23,98,31,67,199,140,101,137,76,233,93,210,70,44,195,91,37,225])
-);
+  const mint2 = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([225, 221, 220, 42, 149, 90, 160, 131, 244, 182, 127, 56, 41, 199, 93, 110, 174, 0, 14, 141, 87, 60, 191, 10, 74, 94, 100, 50, 75, 15, 173, 37, 14, 0, 67, 226, 134, 115, 217, 145, 253, 4, 100, 186, 147, 181, 23, 98, 31, 67, 199, 140, 101, 137, 76, 233, 93, 210, 70, 44, 195, 91, 37, 225])
+  );
 
   const metadata = {
     name: 'Solana Gold',
@@ -54,8 +54,14 @@ describe('wewe_token_launch_pad', () => {
 
   const vault2 = getAssociatedTokenAddressSync(mint2.publicKey, proposal2, true);
 
-  const authority = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([42,132,54,48,86,137,10,155,254,103,140,97,104,8,197,48,55,71,171,157,247,159,233,130,100,213,107,236,96,40,175,164,179,49,15,185,22,130,249,11,142,174,6,253,52,133,167,81,80,179,15,199,164,252,14,233,42,74,178,20,71,62,139,21])
+  const authority = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([42, 132, 54, 48, 86, 137, 10, 155, 254, 103, 140, 97, 104, 8, 197, 48, 55, 71, 171, 157, 247, 159, 233, 130, 100, 213, 107, 236, 96, 40, 175, 164, 179, 49, 15, 185, 22, 130, 249, 11, 142, 174, 6, 253, 52, 133, 167, 81, 80, 179, 15, 199, 164, 252, 14, 233, 42, 74, 178, 20, 71, 62, 139, 21])
   );
+
+  const WSOL_MINT = new anchor.web3.PublicKey("So11111111111111111111111111111111111111112");
+
+  const wsol_vault = getAssociatedTokenAddressSync(WSOL_MINT, proposal, true);
+  const wsol_vault2 = getAssociatedTokenAddressSync(WSOL_MINT, proposal2, true);
+
 
   const confirm = async (signature: string): Promise<string> => {
     const block = await provider.connection.getLatestBlockhash();
@@ -88,13 +94,15 @@ describe('wewe_token_launch_pad', () => {
 
     // Run the transaction
     const tx = await program.methods
-      .createProposal(9, amount_to_raise, metadata.name, metadata.symbol, metadata.uri, 100)
+      .createProposal(9, amount_to_raise, metadata.name, metadata.symbol, metadata.uri, 0)
       .accountsPartial({
         maker: maker.publicKey,
         makerAccount: maker_account,
         proposal,
         mintAccount: mint.publicKey,
         tokenVault: vault,
+        wsolVault: wsol_vault,
+        wsolMint: WSOL_MINT,
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -147,6 +155,8 @@ describe('wewe_token_launch_pad', () => {
         proposal: proposal2,
         mintAccount: mint2.publicKey,
         tokenVault: vault2,
+        wsolVault: wsol_vault2,
+        wsolMint: WSOL_MINT,
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -187,6 +197,11 @@ describe('wewe_token_launch_pad', () => {
         backer: backer.publicKey,
         proposal,
         backerAccount: backer_account,
+        wsolVault: wsol_vault,
+        wsolMint: WSOL_MINT,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([backer])
       .rpc()
@@ -204,10 +219,15 @@ describe('wewe_token_launch_pad', () => {
           backer: backer.publicKey,
           proposal,
           backerAccount: backer_account,
+          wsolVault: wsol_vault,
+          wsolMint: WSOL_MINT,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([backer])
         .rpc();
-  
+
       assert.fail('Second contribution should have failed but succeeded:', tx);
     } catch (err) {
       expect(err.message).match(/custom program error/);
@@ -225,24 +245,130 @@ describe('wewe_token_launch_pad', () => {
       .signers([authority])
       .rpc()
       .then(confirm);
-  
+
     console.log('\nContributed to proposal', tx);
     console.log('Your transaction signature', tx);
   });
 
-  it('Refund Backing', async () => {
+  it('it refunds backing by unwrapping WSOL', async () => {
     const tx = await program.methods
       .refund()
       .accountsPartial({
         backer: backer.publicKey,
         proposal,
         backerAccount: backer_account,
+        wsolVault: wsol_vault,
+        wsolMint: WSOL_MINT,
+        tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
+      .signers([backer])
       .rpc()
       .then(confirm);
-    console.log('\nRefunded contributions', tx);
-    console.log('Your transaction signature', tx);
-    console.log('proposal balance', (await provider.connection.getBalance(proposal)));
+
+    console.log('\nRefunded contributions (WSOL unwrap)', tx);
+
+    const balance = await provider.connection.getBalance(backer.publicKey);
+    console.log(`Backer new balance: ${balance / anchor.web3.LAMPORTS_PER_SOL} SOL`);
   });
+
+  it('create pool', async () => {
+    const liquidity = new BN(100_000_000_000); // example liquidity
+    const sqrtPrice = new BN(1000);
+    const bump = 255; // replace with actual bump for pool_authority
+
+    let capturedEvent: any = null;
+
+    const listener = await program.addEventListener('coinLaunched', (event, slot) => {
+      capturedEvent = event;
+    });
+
+    const configKey = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
+    const pool = anchor.web3.Keypair.generate();
+    const firstPositionNftMint = anchor.web3.Keypair.generate();
+    const firstPositionNftAccount = anchor.web3.Keypair.generate();
+    const firstPosition = anchor.web3.Keypair.generate();
+    const secondPositionNftAccount = anchor.web3.Keypair.generate();
+    const secondPositionNftMint = anchor.web3.Keypair.generate();
+    const secondPosition = anchor.web3.Keypair.generate();
+    const dammPoolAuthority = anchor.web3.Keypair.generate();
+    const WSOL_MINT = new anchor.web3.PublicKey('So11111111111111111111111111111111111111112');
+    const tokenAVault = anchor.web3.Keypair.generate();
+    const tokenBVault = anchor.web3.Keypair.generate();
+    const baseVault = anchor.web3.Keypair.generate();
+    const quoteVault = anchor.web3.Keypair.generate();
+    const dammEventAuthority = anchor.web3.Keypair.generate();
+
+    console.log('\n--- Account Public Keys ---');
+    console.log('Proposal:', proposal.toBase58());
+    console.log('Maker:', maker.publicKey.toBase58());
+    console.log('Token Vault:', vault.toBase58());
+    // console.log('Maker Token Account: (to be added)');
+    // console.log('Pool Authority: (to be added)');
+    console.log('Pool:', pool.publicKey.toBase58());
+    console.log('Pool Config:', configKey.toBase58());
+    console.log('First Position NFT Mint:', firstPositionNftMint.publicKey.toBase58());
+    console.log('First Position NFT Account:', firstPositionNftAccount.publicKey.toBase58());
+    console.log('First Position:', firstPosition.publicKey.toBase58());
+    console.log('Second Position NFT Mint:', secondPositionNftMint.publicKey.toBase58());
+    console.log('Second Position NFT Account:', secondPositionNftAccount.publicKey.toBase58());
+    console.log('Second Position:', secondPosition.publicKey.toBase58());
+    console.log('DAMM Pool Authority:', dammPoolAuthority.publicKey.toBase58());
+    console.log('Base Mint (Token):', mint.publicKey.toBase58());
+    console.log('Quote Mint (WSOL):', WSOL_MINT.toBase58());
+    console.log('Token A Vault:', tokenAVault.publicKey.toBase58());
+    console.log('Token B Vault:', tokenBVault.publicKey.toBase58());
+    console.log('Base Vault:', baseVault.publicKey.toBase58());
+    console.log('Quote Vault:', quoteVault.publicKey.toBase58());
+    console.log('Payer:', maker.publicKey.toBase58());
+    console.log('DAMM Event Authority:', dammEventAuthority.publicKey.toBase58());
+    console.log('----------------------------\n');
+
+    const tx = await program.methods
+      .createPool(liquidity, sqrtPrice, bump)
+      .accountsPartial({
+        proposal,
+        maker: maker.publicKey,
+        tokenVault: vault,
+        wsolVault: wsol_vault,
+        // makerTokenAccount: /* your maker's ATA */,
+        // poolAuthority: poolAuthority,
+        poolConfig: configKey,
+        pool: pool.publicKey,
+        firstPositionNftMint: firstPositionNftMint.publicKey,
+        firstPositionNftAccount: firstPositionNftAccount.publicKey,
+        firstPosition: firstPosition.publicKey,
+        secondPositionNftMint: secondPositionNftMint.publicKey,
+        secondPositionNftAccount: secondPositionNftAccount.publicKey,
+        secondPosition: secondPosition.publicKey,
+        dammPoolAuthority: dammPoolAuthority.publicKey,
+        // ammProgram: /* damm_v2 ID */,
+        baseMint: mint.publicKey,
+        quoteMint: WSOL_MINT,
+        tokenAVault: tokenAVault.publicKey,
+        tokenBVault: tokenBVault.publicKey,
+        baseVault: baseVault.publicKey,
+        quoteVault: quoteVault.publicKey,
+        payer: maker.publicKey,
+        tokenBaseProgram: TOKEN_PROGRAM_ID,
+        tokenQuoteProgram: TOKEN_PROGRAM_ID,
+        token2022Program: TOKEN_PROGRAM_ID,
+        dammEventAuthority: dammEventAuthority.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([maker, quoteVault, baseVault])
+      .rpc()
+      .then(confirm);
+
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await program.removeEventListener(listener);
+
+    expect(capturedEvent).to.not.be.null;
+    expect(capturedEvent.proposalAddress.toBase58()).to.equal(proposal.toBase58());
+    expect(capturedEvent.mintAccount.toBase58()).to.equal(mint.publicKey.toBase58());
+
+    console.log('\nPool created successfully');
+    console.log('Transaction:', tx);
+  });
+
 });

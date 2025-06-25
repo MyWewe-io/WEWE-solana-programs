@@ -9,14 +9,11 @@ use crate::{
 };
 
 use crate::constant::{INITIAL_POOL_LIQUIDITY, MAKER_TOKEN_AMOUNT, SECONDS_TO_DAYS};
-use crate::errors::ProposalError;
 use crate::event::CoinLaunched;
 use crate::state::proposer::Proposal;
-use crate::constant::POOL_SIZE;
-use anchor_lang::system_program;
+// use crate::constant::POOL_SIZE;
 use anchor_lang::system_program::Transfer as NativeSolTransfer;
-use anchor_spl::token;
-use anchor_spl::token::{Mint, Transfer as TokenTransfer};
+use anchor_spl::token::Transfer as TokenTransfer;
 
 #[derive(Accounts)]
 pub struct DammV2<'info> {
@@ -29,6 +26,13 @@ pub struct DammV2<'info> {
         token::token_program = token_base_program
     )]
     pub token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut, 
+        token::mint = quote_mint,
+        token::token_program = token_quote_program
+    )]
+    pub wsol_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: proposal maker
     pub maker: UncheckedAccount<'info>,
@@ -49,6 +53,7 @@ pub struct DammV2<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
 
+    /// CHECK: 
     pool_config: AccountInfo<'info>,
 
     /// CHECK: pool
@@ -102,16 +107,20 @@ pub struct DammV2<'info> {
     pub token_b_vault: UncheckedAccount<'info>,
     /// CHECK: base_vault
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         token::mint = base_mint,
-        token::token_program = token_base_program
+        token::token_program = token_base_program,
+        token::authority = payer
     )]
     pub base_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: quote vault
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         token::mint = quote_mint,
-        token::token_program = token_quote_program
+        token::token_program = token_quote_program,
+        token::authority = payer
     )]
     pub quote_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: payer
@@ -136,16 +145,16 @@ impl<'info> DammV2<'info> {
         sqrt_price: u128,
         bump: u8,
     ) -> Result<()> {
-        if self.proposal.is_rejected {
-            // Check if the fundraising duration has been reached
-            let current_time = Clock::get()?.unix_timestamp;
-            require!(
-                self.proposal.duration
-                    <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS)
-                        as u16,
-                ProposalError::BackingNotEnded
-            );
-        }
+        // if self.proposal.is_rejected {
+        //     // Check if the fundraising duration has been reached
+        //     let current_time = Clock::get()?.unix_timestamp;
+        //     require!(
+        //         self.proposal.duration
+        //             <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS)
+        //                 as u16,
+        //         ProposalError::BackingNotEnded
+        //     );
+        // }
 
         let pool_authority_seeds = &[b"pool_authority".as_ref(), &[bump]];
 
@@ -153,12 +162,13 @@ impl<'info> DammV2<'info> {
         fund_creator_authority(
             self.proposal.get_lamports(),
             FundCreatorAuthorityAccounts {
-                creator_token_a: &self.base_vault,
-                creator_token_b: &self.quote_vault,
+                base_vault: &self.base_vault,
+                quote_vault: &self.quote_vault,
                 proposal: &self.proposal,
                 token_program_a: &self.token_base_program,
                 token_program_b: &self.token_quote_program,
                 token_vault: &self.token_vault,
+                wsol_vault: &self.wsol_vault,
                 payer: &self.payer,
                 system_program: &self.system_program,
                 creator_authority: &self.pool_authority,
@@ -210,12 +220,13 @@ impl<'info> DammV2<'info> {
 }
 
 pub struct FundCreatorAuthorityAccounts<'b, 'info> {
-    pub creator_token_a: &'b Box<InterfaceAccount<'info, TokenAccount>>,
-    pub creator_token_b: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub base_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub quote_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub proposal: &'b Account<'info, Proposal>,
     pub token_program_a: &'b Interface<'info, TokenInterface>,
     pub token_program_b: &'b Interface<'info, TokenInterface>,
     pub token_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub wsol_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub payer: &'b Signer<'info>,
     pub system_program: &'b Program<'info, System>,
     pub creator_authority: &'b AccountInfo<'info>,
@@ -227,12 +238,13 @@ pub fn fund_creator_authority<'b, 'info>(
     accounts: FundCreatorAuthorityAccounts<'b, 'info>,
 ) -> Result<()> {
     let FundCreatorAuthorityAccounts {
-        creator_token_a,
-        creator_token_b,
+        base_vault,
+        quote_vault,
         proposal,
         token_program_a,
         token_program_b,
         token_vault,
+        wsol_vault,
         payer,
         system_program,
         creator_authority,
@@ -247,14 +259,14 @@ pub fn fund_creator_authority<'b, 'info>(
     ]];
 
     // Fund creator PDA with token A and token B
-    if INITIAL_POOL_LIQUIDITY > creator_token_a.amount {
-        let amount = INITIAL_POOL_LIQUIDITY - creator_token_a.amount;
+    if INITIAL_POOL_LIQUIDITY > base_vault.amount {
+        let amount = INITIAL_POOL_LIQUIDITY - base_vault.amount;
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
                 token_program_a.to_account_info(),
                 TokenTransfer {
                     from: token_vault.to_account_info(),
-                    to: creator_token_a.to_account_info(),
+                    to: base_vault.to_account_info(),
                     authority: proposal.to_account_info(),
                 },
                 signer_seeds,
@@ -263,25 +275,21 @@ pub fn fund_creator_authority<'b, 'info>(
         )?;
     }
 
-    if token_b_amount > creator_token_b.amount {
-        let amount = token_b_amount - creator_token_b.amount;
+    if token_b_amount > quote_vault.amount {
+        let amount = token_b_amount - quote_vault.amount;
         // transfer sol to token account
-        let cpi_context = CpiContext::new(
-            accounts.system_program.to_account_info(),
-            system_program::Transfer {
-                from: accounts.proposal.to_account_info(),
-                to: accounts.creator_token_b.to_account_info(),
-            },
-        );
-        system_program::transfer(cpi_context, amount)?;
-
-        // Sync the native token to reflect the new SOL balance as wSOL
-        let cpi_accounts = token::SyncNative {
-            account: accounts.creator_token_b.to_account_info(),
-        };
-        let cpi_program = accounts.token_program_b.to_account_info();
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
-        token::sync_native(cpi_ctx)?;
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                token_program_a.to_account_info(),
+                TokenTransfer {
+                    from: wsol_vault.to_account_info(),
+                    to: quote_vault.to_account_info(),
+                    authority: proposal.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            amount,
+        )?;
     }
 
     // Transfer 1% Tokens to proposal maker
@@ -298,21 +306,21 @@ pub fn fund_creator_authority<'b, 'info>(
         MAKER_TOKEN_AMOUNT,
     )?;
     // Fund creator PDA with SOL to pay for account rental
-    let mut lamports: u64 = 0;
+    // let mut lamports: u64 = 0;
 
-    // Pool
-    lamports += Rent::get()?.minimum_balance(POOL_SIZE);
-    // LP mint
-    lamports += Rent::get()?.minimum_balance(Mint::LEN);
+    // // Pool
+    // lamports += Rent::get()?.minimum_balance(POOL_SIZE);
+    // // LP mint
+    // lamports += Rent::get()?.minimum_balance(Mint::LEN);
     //  a_vault_lp + b_vault_lp + creator LP ATA + protocol fee A + protocol fee B
     // let token_account_lamports = Rent::get()?.minimum_balance(TokenAccount);
     // lamports += token_account_lamports * 5;
     // LP mint Metadata
-    lamports += Rent::get()?.minimum_balance(679);
-    // Metaplex fee ...
-    lamports += 10_000_000;
+    // lamports += Rent::get()?.minimum_balance(679);
+    // // Metaplex fee ...
+    // lamports += 10_000_000;
 
-    msg!("Required lamports: {}", lamports);
+    // msg!("Required lamports: {}", lamports);
 
     anchor_lang::system_program::transfer(
         CpiContext::new(
@@ -322,8 +330,8 @@ pub fn fund_creator_authority<'b, 'info>(
                 to: creator_authority.to_account_info(),
             },
         ),
-        lamports,
-        // 34290400,
+        // lamports,
+        34290400,
     )?;
 
     Ok(())
