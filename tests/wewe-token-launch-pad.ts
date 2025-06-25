@@ -5,6 +5,7 @@ import BN from 'bn.js';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad.ts';
@@ -275,7 +276,6 @@ describe('wewe_token_launch_pad', () => {
   it('create pool', async () => {
     const liquidity = new BN(100_000_000_000); // example liquidity
     const sqrtPrice = new BN(1000);
-    const bump = 255; // replace with actual bump for pool_authority
 
     let capturedEvent: any = null;
 
@@ -283,80 +283,138 @@ describe('wewe_token_launch_pad', () => {
       capturedEvent = event;
     });
 
-    const configKey = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
-    const pool = anchor.web3.Keypair.generate();
-    const firstPositionNftMint = anchor.web3.Keypair.generate();
-    const firstPositionNftAccount = anchor.web3.Keypair.generate();
-    const firstPosition = anchor.web3.Keypair.generate();
-    const secondPositionNftAccount = anchor.web3.Keypair.generate();
-    const secondPositionNftMint = anchor.web3.Keypair.generate();
-    const secondPosition = anchor.web3.Keypair.generate();
-    const dammPoolAuthority = anchor.web3.Keypair.generate();
-    const WSOL_MINT = new anchor.web3.PublicKey('So11111111111111111111111111111111111111112');
-    const tokenAVault = anchor.web3.Keypair.generate();
-    const tokenBVault = anchor.web3.Keypair.generate();
-    const baseVault = anchor.web3.Keypair.generate();
-    const quoteVault = anchor.web3.Keypair.generate();
-    const dammEventAuthority = anchor.web3.Keypair.generate();
+    const DAMM_V2_PROGRAM_ID = new anchor.web3.PublicKey('cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG');
+    function minKey(key1, key2) {
+      return key1.toBuffer().compare(key2.toBuffer()) < 0 ? key1 : key2;
+    }
+    
+    function maxKey(key1, key2) {
+      return key1.toBuffer().compare(key2.toBuffer()) > 0 ? key1 : key2;
+    }
 
-    console.log('\n--- Account Public Keys ---');
-    console.log('Proposal:', proposal.toBase58());
-    console.log('Maker:', maker.publicKey.toBase58());
-    console.log('Token Vault:', vault.toBase58());
-    // console.log('Maker Token Account: (to be added)');
-    // console.log('Pool Authority: (to be added)');
-    console.log('Pool:', pool.publicKey.toBase58());
-    console.log('Pool Config:', configKey.toBase58());
-    console.log('First Position NFT Mint:', firstPositionNftMint.publicKey.toBase58());
-    console.log('First Position NFT Account:', firstPositionNftAccount.publicKey.toBase58());
-    console.log('First Position:', firstPosition.publicKey.toBase58());
-    console.log('Second Position NFT Mint:', secondPositionNftMint.publicKey.toBase58());
-    console.log('Second Position NFT Account:', secondPositionNftAccount.publicKey.toBase58());
-    console.log('Second Position:', secondPosition.publicKey.toBase58());
-    console.log('DAMM Pool Authority:', dammPoolAuthority.publicKey.toBase58());
-    console.log('Base Mint (Token):', mint.publicKey.toBase58());
-    console.log('Quote Mint (WSOL):', WSOL_MINT.toBase58());
-    console.log('Token A Vault:', tokenAVault.publicKey.toBase58());
-    console.log('Token B Vault:', tokenBVault.publicKey.toBase58());
-    console.log('Base Vault:', baseVault.publicKey.toBase58());
-    console.log('Quote Vault:', quoteVault.publicKey.toBase58());
-    console.log('Payer:', maker.publicKey.toBase58());
-    console.log('DAMM Event Authority:', dammEventAuthority.publicKey.toBase58());
-    console.log('----------------------------\n');
+    const CONFIG = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
+    const WSOL_MINT = new anchor.web3.PublicKey('So11111111111111111111111111111111111111112');
+
+
+    const [poolAuthority, poolAuthorityBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("pool_authority")],
+      program.programId
+    );
+    
+    // Mints
+    const tokenBMint = WSOL_MINT;
+    
+    // Derive pool PDA
+    const [pool, poolBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("pool"),
+        CONFIG.toBuffer(),
+        maxKey(mint.publicKey, tokenBMint).toBuffer(),
+        minKey(mint.publicKey, tokenBMint).toBuffer(),
+      ],
+      program.programId
+    );
+    
+    // Position NFT Mint (must be a real Keypair, not PDA)
+    const positionNftMint = anchor.web3.Keypair.generate();
+    const secondPositionNftMint = anchor.web3.Keypair.generate();
+    
+    // Derive position account PDA
+    const [position, positionBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("position"),
+        positionNftMint.publicKey.toBuffer(),
+      ],
+      program.programId
+    );
+    
+    // Derive position NFT token account (PDA, seeded)
+    const [positionNftAccount, positionNftAccountBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("position_nft_account"), // replace with your `POSITION_NFT_ACCOUNT_PREFIX`
+        positionNftMint.publicKey.toBuffer(),
+      ],
+      program.programId
+    );
+    
+    const [secondPosition, secondPositionBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("position"),
+        secondPositionNftMint.publicKey.toBuffer(),
+      ],
+      program.programId
+    );
+    const dammEventAuthority = anchor.web3.Keypair.generate();
+    // Derive position NFT token account (PDA, seeded)
+    const [secondPositionNftAccount, secondPositionNftAccountBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("position_nft_account"), // replace with your `POSITION_NFT_ACCOUNT_PREFIX`
+        secondPositionNftMint.publicKey.toBuffer(),
+      ],
+      program.programId
+    );
+
+    // Derive token vaults
+    const [tokenAVault, tokenAVaultBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_vault"),
+        mint.publicKey.toBuffer(),
+        pool.toBuffer(),
+      ],
+      program.programId
+    );
+    
+    const [tokenBVault, tokenBVaultBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_vault"),
+        tokenBMint.toBuffer(),
+        pool.toBuffer(),
+      ],
+      program.programId
+    );
+
+    const [quoteVault] = await anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("quote_vault"), maker.publicKey.toBuffer(), WSOL_MINT.toBuffer()],
+      program.programId
+    );
+
+    const [baseVault] = await anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("base_vault"), maker.publicKey.toBuffer(), mint.publicKey.toBuffer()],
+      program.programId
+    );
 
     const tx = await program.methods
-      .createPool(liquidity, sqrtPrice, bump)
+      .createPool(liquidity, sqrtPrice, poolAuthorityBump)
       .accountsPartial({
         proposal,
         maker: maker.publicKey,
         tokenVault: vault,
         wsolVault: wsol_vault,
-        // makerTokenAccount: /* your maker's ATA */,
-        // poolAuthority: poolAuthority,
-        poolConfig: configKey,
-        pool: pool.publicKey,
-        firstPositionNftMint: firstPositionNftMint.publicKey,
-        firstPositionNftAccount: firstPositionNftAccount.publicKey,
-        firstPosition: firstPosition.publicKey,
+        makerTokenAccount: baseVault,
+        poolAuthority, // derived via PDA
+        poolConfig: CONFIG,
+        pool,
+        firstPositionNftMint: positionNftMint.publicKey,
+        firstPositionNftAccount: positionNftAccount,
+        firstPosition: position,
         secondPositionNftMint: secondPositionNftMint.publicKey,
-        secondPositionNftAccount: secondPositionNftAccount.publicKey,
-        secondPosition: secondPosition.publicKey,
-        dammPoolAuthority: dammPoolAuthority.publicKey,
-        // ammProgram: /* damm_v2 ID */,
+        secondPositionNftAccount: secondPositionNftAccount,
+        secondPosition: secondPosition,
+        ammProgram: DAMM_V2_PROGRAM_ID,
         baseMint: mint.publicKey,
         quoteMint: WSOL_MINT,
-        tokenAVault: tokenAVault.publicKey,
-        tokenBVault: tokenBVault.publicKey,
-        baseVault: baseVault.publicKey,
-        quoteVault: quoteVault.publicKey,
+        tokenAVault,
+        tokenBVault,
+        baseVault: baseVault,
+        quoteVault: quoteVault,
         payer: maker.publicKey,
         tokenBaseProgram: TOKEN_PROGRAM_ID,
         tokenQuoteProgram: TOKEN_PROGRAM_ID,
-        token2022Program: TOKEN_PROGRAM_ID,
+        token2022Program: TOKEN_2022_PROGRAM_ID,
         dammEventAuthority: dammEventAuthority.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([maker, quoteVault, baseVault])
+      })      
+      .signers([maker])
       .rpc()
       .then(confirm);
 

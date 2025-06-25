@@ -1,5 +1,6 @@
 use std::u64;
 
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use damm_v2::types::InitializePoolParameters;
 
@@ -39,10 +40,12 @@ pub struct DammV2<'info> {
 
     #[account(
         init_if_needed,
+        seeds = [b"base_vault", maker.key().as_ref(), base_mint.key().as_ref()],
         payer = payer,
         token::mint = base_mint,
         token::authority = maker,
         token::token_program = token_base_program,
+        bump
     )]
     pub maker_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -86,9 +89,6 @@ pub struct DammV2<'info> {
     #[account(mut)]
     pub second_position: Option<UncheckedAccount<'info>>,
 
-    /// CHECK: damm pool authority
-    pub damm_pool_authority: UncheckedAccount<'info>,
-
     /// CHECK:
     #[account(address = damm_v2::ID)]
     pub amm_program: UncheckedAccount<'info>,
@@ -109,18 +109,22 @@ pub struct DammV2<'info> {
     #[account(
         init_if_needed,
         payer = payer,
+        seeds = [b"base_vault", payer.key().as_ref(), base_mint.key().as_ref()],
+        token::authority = payer,
         token::mint = base_mint,
         token::token_program = token_base_program,
-        token::authority = payer
+        bump
     )]
     pub base_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: quote vault
     #[account(
         init_if_needed,
         payer = payer,
+        seeds = [b"quote_vault", payer.key().as_ref(), quote_mint.key().as_ref()],
+        token::authority = payer,
         token::mint = quote_mint,
         token::token_program = token_quote_program,
-        token::authority = payer
+        bump
     )]
     pub quote_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: payer
@@ -185,7 +189,7 @@ impl<'info> DammV2<'info> {
                     position_nft_account: self.first_position_nft_account.to_account_info(),
                     payer: self.pool_authority.to_account_info(),
                     config: self.pool_config.to_account_info(),
-                    pool_authority: self.damm_pool_authority.to_account_info(),
+                    pool_authority: self.pool_authority.to_account_info(),
                     pool: self.pool.to_account_info(),
                     position: self.first_position.to_account_info(),
                     token_a_mint: self.base_mint.to_account_info(),
