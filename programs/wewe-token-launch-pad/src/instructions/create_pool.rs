@@ -1,6 +1,5 @@
 use std::u64;
 
-use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 use damm_v2::types::InitializePoolParameters;
 
@@ -63,8 +62,6 @@ pub struct DammV2<'info> {
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
 
-    // CHECK: damm-v2 config key
-    // pub damm_config: AccountLoader<'info, damm_v2::accounts::Config>,
     /// CHECK: position nft mint for partner
     #[account(mut)]
     pub first_position_nft_mint: UncheckedAccount<'info>,
@@ -76,18 +73,6 @@ pub struct DammV2<'info> {
     /// CHECK:
     #[account(mut)]
     pub first_position: UncheckedAccount<'info>,
-
-    /// CHECK: position nft mint for owner
-    #[account(mut, constraint = first_position_nft_mint.key().ne(&second_position_nft_mint.key()))]
-    pub second_position_nft_mint: Option<UncheckedAccount<'info>>,
-
-    /// CHECK: position nft account for owner
-    #[account(mut)]
-    pub second_position_nft_account: Option<UncheckedAccount<'info>>,
-
-    /// CHECK:
-    #[account(mut)]
-    pub second_position: Option<UncheckedAccount<'info>>,
 
     /// CHECK:
     #[account(address = damm_v2::ID)]

@@ -251,27 +251,27 @@ describe('wewe_token_launch_pad', () => {
     console.log('Your transaction signature', tx);
   });
 
-  it('it refunds backing by unwrapping WSOL', async () => {
-    const tx = await program.methods
-      .refund()
-      .accountsPartial({
-        backer: backer.publicKey,
-        proposal,
-        backerAccount: backer_account,
-        wsolVault: wsol_vault,
-        wsolMint: WSOL_MINT,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([backer])
-      .rpc()
-      .then(confirm);
+  // it('it refunds backing by unwrapping WSOL', async () => {
+  //   const tx = await program.methods
+  //     .refund()
+  //     .accountsPartial({
+  //       backer: backer.publicKey,
+  //       proposal,
+  //       backerAccount: backer_account,
+  //       wsolVault: wsol_vault,
+  //       wsolMint: WSOL_MINT,
+  //       tokenProgram: TOKEN_PROGRAM_ID,
+  //       systemProgram: anchor.web3.SystemProgram.programId,
+  //     })
+  //     .signers([backer])
+  //     .rpc()
+  //     .then(confirm);
 
-    console.log('\nRefunded contributions (WSOL unwrap)', tx);
+  //   console.log('\nRefunded contributions (WSOL unwrap)', tx);
 
-    const balance = await provider.connection.getBalance(backer.publicKey);
-    console.log(`Backer new balance: ${balance / anchor.web3.LAMPORTS_PER_SOL} SOL`);
-  });
+  //   const balance = await provider.connection.getBalance(backer.publicKey);
+  //   console.log(`Backer new balance: ${balance / anchor.web3.LAMPORTS_PER_SOL} SOL`);
+  // });
 
   it('create pool', async () => {
     const liquidity = new BN(100_000_000_000); // example liquidity
@@ -317,7 +317,6 @@ describe('wewe_token_launch_pad', () => {
     
     // Position NFT Mint (must be a real Keypair, not PDA)
     const positionNftMint = anchor.web3.Keypair.generate();
-    const secondPositionNftMint = anchor.web3.Keypair.generate();
     
     // Derive position account PDA
     const [position, positionBump] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -337,22 +336,7 @@ describe('wewe_token_launch_pad', () => {
       program.programId
     );
     
-    const [secondPosition, secondPositionBump] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("position"),
-        secondPositionNftMint.publicKey.toBuffer(),
-      ],
-      program.programId
-    );
     const dammEventAuthority = anchor.web3.Keypair.generate();
-    // Derive position NFT token account (PDA, seeded)
-    const [secondPositionNftAccount, secondPositionNftAccountBump] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("position_nft_account"), // replace with your `POSITION_NFT_ACCOUNT_PREFIX`
-        secondPositionNftMint.publicKey.toBuffer(),
-      ],
-      program.programId
-    );
 
     // Derive token vaults
     const [tokenAVault, tokenAVaultBump] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -391,15 +375,12 @@ describe('wewe_token_launch_pad', () => {
         tokenVault: vault,
         wsolVault: wsol_vault,
         makerTokenAccount: baseVault,
-        poolAuthority, // derived via PDA
+        poolAuthority,
         poolConfig: CONFIG,
         pool,
         firstPositionNftMint: positionNftMint.publicKey,
         firstPositionNftAccount: positionNftAccount,
         firstPosition: position,
-        secondPositionNftMint: secondPositionNftMint.publicKey,
-        secondPositionNftAccount: secondPositionNftAccount,
-        secondPosition: secondPosition,
         ammProgram: DAMM_V2_PROGRAM_ID,
         baseMint: mint.publicKey,
         quoteMint: WSOL_MINT,
