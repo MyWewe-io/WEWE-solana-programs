@@ -13,7 +13,6 @@ use instructions::*;
 use utils::*;
 use errors::*;
 
-declare_program!(damm_v2);
 declare_id!("668qx8PESTjHLfkeNgL7sjEHTHWBipShyvC3TyBa5GQ5");
 
 #[program]

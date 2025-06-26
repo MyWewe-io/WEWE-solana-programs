@@ -1,7 +1,6 @@
 use std::u64;
 
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use damm_v2::types::InitializePoolParameters;
 
 use crate::{
     const_pda,
@@ -63,7 +62,7 @@ pub struct DammV2<'info> {
     pub pool: UncheckedAccount<'info>,
 
     /// CHECK: position nft mint for partner
-    #[account(mut)]
+    #[account(mut, signer)]
     pub first_position_nft_mint: UncheckedAccount<'info>,
 
     /// CHECK: position nft account for partner
@@ -75,7 +74,7 @@ pub struct DammV2<'info> {
     pub first_position: UncheckedAccount<'info>,
 
     /// CHECK:
-    #[account(address = damm_v2::ID)]
+    #[account(address = cp_amm::ID)]
     pub amm_program: UncheckedAccount<'info>,
 
     /// CHECK: base token mint
@@ -165,10 +164,10 @@ impl<'info> DammV2<'info> {
             },
         )?;
 
-        damm_v2::cpi::initialize_pool(
+        cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
-                damm_v2::cpi::accounts::InitializePool {
+                cp_amm::cpi::accounts::InitializePoolCtx {
                     creator: self.pool_authority.to_account_info(),
                     position_nft_mint: self.first_position_nft_mint.to_account_info(),
                     position_nft_account: self.first_position_nft_account.to_account_info(),
@@ -192,7 +191,7 @@ impl<'info> DammV2<'info> {
                 },
                 &[&pool_authority_seeds[..]],
             ),
-            InitializePoolParameters {
+            cp_amm::InitializePoolParameters {
                 liquidity,
                 sqrt_price,
                 activation_point: None,
