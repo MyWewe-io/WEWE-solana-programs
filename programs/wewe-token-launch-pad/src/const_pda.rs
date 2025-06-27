@@ -10,5 +10,4 @@ pub mod pool_authority {
     );
 
     pub const ID: Pubkey = Pubkey::new_from_array(POOL_AUTHORITY_AND_BUMP.0);
-    pub const BUMP: u8 = POOL_AUTHORITY_AND_BUMP.1;
 }

@@ -59,7 +59,8 @@ export const derivePoolPDAs = (
   programId: anchor.web3.PublicKey,
   baseMint: anchor.web3.PublicKey,
   quoteMint: anchor.web3.PublicKey,
-  maker: anchor.web3.PublicKey
+  maker: anchor.web3.PublicKey,
+  config: anchor.web3.PublicKey
 ) => {
   const minKey = (a: anchor.web3.PublicKey, b: anchor.web3.PublicKey) =>
     a.toBuffer().compare(b.toBuffer()) < 0 ? a : b;
@@ -70,11 +71,9 @@ export const derivePoolPDAs = (
     Buffer.from("pool_authority"),
   ], programId);
 
-  const CONFIG = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
-
   const [pool] = anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from("pool"),
-    CONFIG.toBuffer(),
+    config.toBuffer(),
     maxKey(baseMint, quoteMint).toBuffer(),
     minKey(baseMint, quoteMint).toBuffer(),
   ], programId);
