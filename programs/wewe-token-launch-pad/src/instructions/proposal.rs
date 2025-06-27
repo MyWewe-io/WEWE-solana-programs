@@ -59,13 +59,23 @@ pub struct CreateProposal<'info> {
     pub metadata_account: UncheckedAccount<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = maker,
         associated_token::mint = mint_account,
         associated_token::authority = proposal,
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
+    #[account(
+        init,
+        payer = maker,
+        associated_token::mint = wsol_mint,
+        associated_token::authority = proposal,
+    )]
+    pub wsol_vault: Account<'info, TokenAccount>,
+
+    pub wsol_mint: Account<'info, Mint>,
+    pub wsol_token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
     pub token_metadata_program: Program<'info, Metadata>,

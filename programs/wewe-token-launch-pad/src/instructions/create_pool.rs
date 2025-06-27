@@ -1,256 +1,224 @@
-use crate::constant::{INITIAL_POOL_LIQUIDITY, MAKER_TOKEN_AMOUNT, SECONDS_TO_DAYS};
-use crate::dynamic_amm::types::CustomizableParams;
-use crate::errors::ProposalError;
-use crate::event::CoinLaunched;
-use crate::state::proposer::Proposal;
-use crate::{constant::POOL_SIZE, dynamic_amm};
-use anchor_lang::prelude::*;
-use anchor_lang::system_program;
-use anchor_lang::system_program::Transfer as NativeSolTransfer;
-use anchor_spl::token;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount, Transfer as TokenTransfer},
+use std::u64;
+
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
+
+use crate::{
+    const_pda,
+    *,
 };
 
+use crate::constant::{INITIAL_POOL_LIQUIDITY, MAKER_TOKEN_AMOUNT, SECONDS_TO_DAYS};
+use crate::event::CoinLaunched;
+use crate::state::proposer::Proposal;
+// use crate::constant::POOL_SIZE;
+use anchor_lang::system_program::Transfer as NativeSolTransfer;
+use anchor_spl::token::Transfer as TokenTransfer;
+
 #[derive(Accounts)]
-pub struct DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator<'info> {
-    /// CHECK: Creator authority
-    #[account(
-        mut,
-        seeds = [b"creator"],
-        bump
-    )]
-    pub creator_authority: UncheckedAccount<'info>,
-
-    #[account(
-        init_if_needed,
-        associated_token::mint = token_a_mint,
-        associated_token::authority = creator_authority,
-        payer = payer
-    )]
-    pub creator_token_a: Account<'info, TokenAccount>,
-
-    #[account(
-        init_if_needed,
-        associated_token::mint = token_b_mint,
-        associated_token::authority = creator_authority,
-        payer = payer
-    )]
-    pub creator_token_b: Account<'info, TokenAccount>,
-
+pub struct DammV2<'info> {
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
 
     #[account(
-        mut,
-        associated_token::mint = token_a_mint,
-        associated_token::authority = proposal,
+        mut, 
+        token::mint = base_mint,
+        token::token_program = token_base_program
     )]
-    pub token_vault: Account<'info, TokenAccount>,
+    pub token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(
+        mut, 
+        token::mint = quote_mint,
+        token::token_program = token_quote_program
+    )]
+    pub wsol_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: proposal maker
     pub maker: UncheckedAccount<'info>,
 
     #[account(
         init_if_needed,
+        seeds = [b"base_vault", maker.key().as_ref(), base_mint.key().as_ref()],
         payer = payer,
-        associated_token::mint = token_a_mint,
-        associated_token::authority = maker,
+        token::mint = base_mint,
+        token::authority = maker,
+        token::token_program = token_base_program,
+        bump
     )]
-    pub maker_token_account: Account<'info, TokenAccount>,
+    pub maker_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: Pool account (PDA)
+    /// CHECK: pool authority
+    #[account(
+        mut,
+        address = const_pda::pool_authority::ID,
+    )]
+    pub pool_authority: AccountInfo<'info>,
+
+    /// CHECK: 
+    pool_config: AccountInfo<'info>,
+
+    /// CHECK: pool
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
 
-    /// CHECK: LP token mint of the pool
+    /// CHECK: position nft mint for partner
+    #[account(mut, signer)]
+    pub first_position_nft_mint: UncheckedAccount<'info>,
+
+    /// CHECK: position nft account for partner
     #[account(mut)]
-    pub lp_mint: UncheckedAccount<'info>,
+    pub first_position_nft_account: UncheckedAccount<'info>,
 
-    /// CHECK: Token A mint of the pool. Eg: USDT
-    pub token_a_mint: UncheckedAccount<'info>,
-
-    /// CHECK: Token B mint of the pool. Eg: WSOL
-    pub token_b_mint: UncheckedAccount<'info>,
-
-    /// CHECK: Vault account for token A. Token A of the pool will be deposit / withdraw from this vault account.
+    /// CHECK:
     #[account(mut)]
-    pub a_vault: UncheckedAccount<'info>,
+    pub first_position: UncheckedAccount<'info>,
 
+    /// CHECK:
+    #[account(address = cp_amm::ID)]
+    pub amm_program: UncheckedAccount<'info>,
+
+    /// CHECK: base token mint
     #[account(mut)]
-    /// CHECK: Vault account for token B. Token B of the pool will be deposit / withdraw from this vault account.
-    pub b_vault: UncheckedAccount<'info>,
-
+    pub base_mint: UncheckedAccount<'info>,
+    /// CHECK: quote token mint
     #[account(mut)]
-    /// CHECK: Token vault account of vault A
-    pub a_token_vault: UncheckedAccount<'info>,
-
+    pub quote_mint: UncheckedAccount<'info>,
+    /// CHECK:
     #[account(mut)]
-    /// CHECK: Token vault account of vault B
-    pub b_token_vault: UncheckedAccount<'info>,
-
+    pub token_a_vault: UncheckedAccount<'info>,
+    /// CHECK:
     #[account(mut)]
-    /// CHECK: LP token mint of vault A
-    pub a_vault_lp_mint: UncheckedAccount<'info>,
-
-    #[account(mut)]
-    /// CHECK: LP token mint of vault B
-    pub b_vault_lp_mint: UncheckedAccount<'info>,
-
-    /// CHECK: LP token account of vault A. Used to receive/burn the vault LP upon deposit/withdraw from the vault.
-    #[account(mut)]
-    pub a_vault_lp: UncheckedAccount<'info>,
-
-    /// CHECK: LP token account of vault B. Used to receive/burn vault LP upon deposit/withdraw from the vault.
-    #[account(mut)]
-    pub b_vault_lp: UncheckedAccount<'info>,
-
-    /// CHECK: Creator pool LP token account. Used to receive LP during first deposit (initialize pool). Creator is a PDA.
-    #[account(mut)]
-    pub creator_pool_lp: UncheckedAccount<'info>,
-
-    #[account(mut)]
-    /// CHECK: Protocol fee token account for token A. Used to receive trading fee.
-    pub protocol_token_a_fee: UncheckedAccount<'info>,
-
-    /// CHECK: Protocol fee token account for token B. Used to receive trading fee.
-    #[account(mut)]
-    pub protocol_token_b_fee: UncheckedAccount<'info>,
-
-    /// CHECK: Payer account. This account will be the creator of the pool, and the payer for PDA during initialize pool.
+    pub token_b_vault: UncheckedAccount<'info>,
+    /// CHECK: base_vault
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [b"base_vault", payer.key().as_ref(), base_mint.key().as_ref()],
+        token::authority = payer,
+        token::mint = base_mint,
+        token::token_program = token_base_program,
+        bump
+    )]
+    pub base_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: quote vault
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [b"quote_vault", payer.key().as_ref(), quote_mint.key().as_ref()],
+        token::authority = payer,
+        token::mint = quote_mint,
+        token::token_program = token_quote_program,
+        bump
+    )]
+    pub quote_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: payer
     #[account(mut)]
     pub payer: Signer<'info>,
-
-    /// Rent account.
-    pub rent: Sysvar<'info, Rent>,
-
-    /// CHECK: LP mint metadata PDA. Metaplex do the checking.
-    #[account(mut)]
-    pub mint_metadata: UncheckedAccount<'info>,
-
-    /// CHECK: Metadata program
-    pub metadata_program: UncheckedAccount<'info>,
-
-    /// CHECK: Vault program. The pool will deposit/withdraw liquidity from the vault.
-    pub vault_program: UncheckedAccount<'info>,
-    /// Token program.
-    pub token_program: Program<'info, Token>,
-    /// Associated token program.
-    pub associated_token_program: Program<'info, AssociatedToken>,
+    /// CHECK: token_program
+    pub token_base_program: Interface<'info, TokenInterface>,
+    /// CHECK: token_program
+    pub token_quote_program: Interface<'info, TokenInterface>,
+    /// CHECK: token_program
+    pub token_2022_program: Interface<'info, TokenInterface>,
+    /// CHECK: damm event authority
+    pub damm_event_authority: UncheckedAccount<'info>,
     /// System program.
     pub system_program: Program<'info, System>,
-
-    /// CHECK: Dynamic AMM program
-    #[account(address = dynamic_amm::ID)]
-    pub dynamic_amm_program: UncheckedAccount<'info>,
 }
 
-/// Executes a Dynamic AMM initialize customizable constant product permissionless pool but with PDA as creator / payer.
-///
-/// # Arguments
-///
-/// * `ctx` - The context containing accounts and programs.
-/// * `token_a_amount` - The amount of token a to be deposited.
-/// * `token_b_amount` - The amount of token b to be deposited.
-/// * `params` - The parameters for the pool.
-///
-/// # Returns
-///
-/// Returns a `Result` indicating success or failure.
-pub fn handle_initialize_customizable_permissionless_pool_with_pda_creator(
-    ctx: Context<DynamicAmmInitializeCustomizablePermissionlessPoolPdaCreator>,
-    params: CustomizableParams,
-) -> Result<()> {
-    if ctx.accounts.proposal.is_rejected {
-        // Check if the fundraising duration has been reached
-        let current_time = Clock::get()?.unix_timestamp;
-        require!(
-            ctx.accounts.proposal.duration
-                <= ((current_time - ctx.accounts.proposal.time_started) / SECONDS_TO_DAYS) as u16,
-            ProposalError::BackingNotEnded
-        );
-    }
+impl<'info> DammV2<'info> {
+    pub fn create_pool(
+        &self,
+        liquidity: u128,
+        sqrt_price: u128,
+        bump: u8,
+    ) -> Result<()> {
+        // if self.proposal.is_rejected {
+        //     // Check if the fundraising duration has been reached
+        //     let current_time = Clock::get()?.unix_timestamp;
+        //     require!(
+        //         self.proposal.duration
+        //             <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS)
+        //                 as u16,
+        //         ProposalError::BackingNotEnded
+        //     );
+        // }
 
-    fund_creator_authority(
-        ctx.accounts.proposal.get_lamports(),
-        FundCreatorAuthorityAccounts {
-            creator_token_a: &ctx.accounts.creator_token_a,
-            creator_token_b: &ctx.accounts.creator_token_b,
-            proposal: &ctx.accounts.proposal,
-            token_program: &ctx.accounts.token_program,
-            token_vault: &ctx.accounts.token_vault,
-            payer: &ctx.accounts.payer,
-            system_program: &ctx.accounts.system_program,
-            creator_authority: &ctx.accounts.creator_authority,
-            maker: &ctx.accounts.maker_token_account,
-        },
-    )?;
+        let pool_authority_seeds = &[b"pool_authority".as_ref(), &[bump]];
 
-    let accounts =
-        dynamic_amm::cpi::accounts::InitializeCustomizablePermissionlessConstantProductPool {
-            pool: ctx.accounts.pool.to_account_info(),
-            token_a_mint: ctx.accounts.token_a_mint.to_account_info(),
-            token_b_mint: ctx.accounts.token_b_mint.to_account_info(),
-            a_vault: ctx.accounts.a_vault.to_account_info(),
-            b_vault: ctx.accounts.b_vault.to_account_info(),
-            a_token_vault: ctx.accounts.a_token_vault.to_account_info(),
-            b_token_vault: ctx.accounts.b_token_vault.to_account_info(),
-            a_vault_lp_mint: ctx.accounts.a_vault_lp_mint.to_account_info(),
-            b_vault_lp_mint: ctx.accounts.b_vault_lp_mint.to_account_info(),
-            a_vault_lp: ctx.accounts.a_vault_lp.to_account_info(),
-            b_vault_lp: ctx.accounts.b_vault_lp.to_account_info(),
-            payer_token_a: ctx.accounts.creator_token_a.to_account_info(),
-            payer_token_b: ctx.accounts.creator_token_b.to_account_info(),
-            payer_pool_lp: ctx.accounts.creator_pool_lp.to_account_info(),
-            protocol_token_a_fee: ctx.accounts.protocol_token_a_fee.to_account_info(),
-            protocol_token_b_fee: ctx.accounts.protocol_token_b_fee.to_account_info(),
-            payer: ctx.accounts.creator_authority.to_account_info(),
-            rent: ctx.accounts.rent.to_account_info(),
-            mint_metadata: ctx.accounts.mint_metadata.to_account_info(),
-            metadata_program: ctx.accounts.metadata_program.to_account_info(),
-            vault_program: ctx.accounts.vault_program.to_account_info(),
-            token_program: ctx.accounts.token_program.to_account_info(),
-            associated_token_program: ctx.accounts.associated_token_program.to_account_info(),
-            lp_mint: ctx.accounts.lp_mint.to_account_info(),
-            system_program: ctx.accounts.system_program.to_account_info(),
-        };
 
-    let seeds = [b"creator".as_ref(), &[ctx.bumps.creator_authority]];
+        fund_creator_authority(
+            self.proposal.get_lamports(),
+            FundCreatorAuthorityAccounts {
+                base_vault: &self.base_vault,
+                quote_vault: &self.quote_vault,
+                proposal: &self.proposal,
+                token_program_a: &self.token_base_program,
+                token_program_b: &self.token_quote_program,
+                token_vault: &self.token_vault,
+                wsol_vault: &self.wsol_vault,
+                payer: &self.payer,
+                system_program: &self.system_program,
+                creator_authority: &self.pool_authority,
+                maker: &self.maker_token_account,
+            },
+        )?;
 
-    let signer_seeds = &[&seeds[..]];
-
-    let cpi_context = CpiContext::new_with_signer(
-        ctx.accounts.dynamic_amm_program.to_account_info(),
-        accounts,
-        signer_seeds,
-    );
-
-    dynamic_amm::cpi::initialize_customizable_permissionless_constant_product_pool(
-        cpi_context,
-        INITIAL_POOL_LIQUIDITY,
-        ctx.accounts.proposal.get_lamports(),
-        params,
-    )?;
+        cp_amm::cpi::initialize_pool(
+            CpiContext::new_with_signer(
+                self.amm_program.to_account_info(),
+                cp_amm::cpi::accounts::InitializePoolCtx {
+                    creator: self.pool_authority.to_account_info(),
+                    position_nft_mint: self.first_position_nft_mint.to_account_info(),
+                    position_nft_account: self.first_position_nft_account.to_account_info(),
+                    payer: self.pool_authority.to_account_info(),
+                    config: self.pool_config.to_account_info(),
+                    pool_authority: self.pool_authority.to_account_info(),
+                    pool: self.pool.to_account_info(),
+                    position: self.first_position.to_account_info(),
+                    token_a_mint: self.base_mint.to_account_info(),
+                    token_b_mint: self.quote_mint.to_account_info(),
+                    token_a_vault: self.token_a_vault.to_account_info(),
+                    token_b_vault: self.token_b_vault.to_account_info(),
+                    payer_token_a: self.base_vault.to_account_info(),
+                    payer_token_b: self.quote_vault.to_account_info(),
+                    token_a_program: self.token_base_program.to_account_info(),
+                    token_b_program: self.token_quote_program.to_account_info(),
+                    token_2022_program: self.token_2022_program.to_account_info(),
+                    system_program: self.system_program.to_account_info(),
+                    event_authority: self.damm_event_authority.to_account_info(),
+                    program: self.amm_program.to_account_info(),
+                },
+                &[&pool_authority_seeds[..]],
+            ),
+            cp_amm::InitializePoolParameters {
+                liquidity,
+                sqrt_price,
+                activation_point: None,
+            },
+        )?;
 
     emit!(CoinLaunched {
-        proposal_address: ctx.accounts.proposal.key(),
-        mint_account: ctx.accounts.token_a_mint.key(),
+        proposal_address: self.proposal.key(),
+        mint_account: self.base_mint.key(),
     });
 
-    Ok(())
+        Ok(())
+    }
 }
 
 pub struct FundCreatorAuthorityAccounts<'b, 'info> {
-    pub creator_token_a: &'b Account<'info, TokenAccount>,
-    pub creator_token_b: &'b Account<'info, TokenAccount>,
+    pub base_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub quote_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub proposal: &'b Account<'info, Proposal>,
-    pub token_program: &'b Program<'info, Token>,
-    pub token_vault: &'b Account<'info, TokenAccount>,
+    pub token_program_a: &'b Interface<'info, TokenInterface>,
+    pub token_program_b: &'b Interface<'info, TokenInterface>,
+    pub token_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub wsol_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub payer: &'b Signer<'info>,
     pub system_program: &'b Program<'info, System>,
     pub creator_authority: &'b AccountInfo<'info>,
-    pub maker: &'b Account<'info, TokenAccount>,
+    pub maker: &'b Box<InterfaceAccount<'info, TokenAccount>>,
 }
 
 pub fn fund_creator_authority<'b, 'info>(
@@ -258,11 +226,13 @@ pub fn fund_creator_authority<'b, 'info>(
     accounts: FundCreatorAuthorityAccounts<'b, 'info>,
 ) -> Result<()> {
     let FundCreatorAuthorityAccounts {
-        creator_token_a,
-        creator_token_b,
+        base_vault,
+        quote_vault,
         proposal,
-        token_program,
+        token_program_a,
+        token_program_b,
         token_vault,
+        wsol_vault,
         payer,
         system_program,
         creator_authority,
@@ -277,14 +247,14 @@ pub fn fund_creator_authority<'b, 'info>(
     ]];
 
     // Fund creator PDA with token A and token B
-    if INITIAL_POOL_LIQUIDITY > creator_token_a.amount {
-        let amount = INITIAL_POOL_LIQUIDITY - creator_token_a.amount;
+    if INITIAL_POOL_LIQUIDITY > base_vault.amount {
+        let amount = INITIAL_POOL_LIQUIDITY - base_vault.amount;
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
-                token_program.to_account_info(),
+                token_program_a.to_account_info(),
                 TokenTransfer {
                     from: token_vault.to_account_info(),
-                    to: creator_token_a.to_account_info(),
+                    to: base_vault.to_account_info(),
                     authority: proposal.to_account_info(),
                 },
                 signer_seeds,
@@ -293,31 +263,27 @@ pub fn fund_creator_authority<'b, 'info>(
         )?;
     }
 
-    if token_b_amount > creator_token_b.amount {
-        let amount = token_b_amount - creator_token_b.amount;
+    if token_b_amount > quote_vault.amount {
+        let amount = token_b_amount - quote_vault.amount;
         // transfer sol to token account
-        let cpi_context = CpiContext::new(
-            accounts.system_program.to_account_info(),
-            system_program::Transfer {
-                from: accounts.proposal.to_account_info(),
-                to: accounts.creator_token_b.to_account_info(),
-            },
-        );
-        system_program::transfer(cpi_context, amount)?;
-
-        // Sync the native token to reflect the new SOL balance as wSOL
-        let cpi_accounts = token::SyncNative {
-            account: accounts.creator_token_b.to_account_info(),
-        };
-        let cpi_program = accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
-        token::sync_native(cpi_ctx)?;
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                token_program_a.to_account_info(),
+                TokenTransfer {
+                    from: wsol_vault.to_account_info(),
+                    to: quote_vault.to_account_info(),
+                    authority: proposal.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            amount,
+        )?;
     }
 
     // Transfer 1% Tokens to proposal maker
     anchor_spl::token::transfer(
         CpiContext::new_with_signer(
-            token_program.to_account_info(),
+            token_program_b.to_account_info(),
             TokenTransfer {
                 from: token_vault.to_account_info(),
                 to: maker.to_account_info(),
@@ -328,21 +294,21 @@ pub fn fund_creator_authority<'b, 'info>(
         MAKER_TOKEN_AMOUNT,
     )?;
     // Fund creator PDA with SOL to pay for account rental
-    let mut lamports: u64 = 0;
+    // let mut lamports: u64 = 0;
 
-    // Pool
-    lamports += Rent::get()?.minimum_balance(POOL_SIZE);
-    // LP mint
-    lamports += Rent::get()?.minimum_balance(Mint::LEN);
+    // // Pool
+    // lamports += Rent::get()?.minimum_balance(POOL_SIZE);
+    // // LP mint
+    // lamports += Rent::get()?.minimum_balance(Mint::LEN);
     //  a_vault_lp + b_vault_lp + creator LP ATA + protocol fee A + protocol fee B
-    let token_account_lamports = Rent::get()?.minimum_balance(TokenAccount::LEN);
-    lamports += token_account_lamports * 5;
+    // let token_account_lamports = Rent::get()?.minimum_balance(TokenAccount);
+    // lamports += token_account_lamports * 5;
     // LP mint Metadata
-    lamports += Rent::get()?.minimum_balance(679);
-    // Metaplex fee ...
-    lamports += 10_000_000;
+    // lamports += Rent::get()?.minimum_balance(679);
+    // // Metaplex fee ...
+    // lamports += 10_000_000;
 
-    msg!("Required lamports: {}", lamports);
+    // msg!("Required lamports: {}", lamports);
 
     anchor_lang::system_program::transfer(
         CpiContext::new(
@@ -352,8 +318,8 @@ pub fn fund_creator_authority<'b, 'info>(
                 to: creator_authority.to_account_info(),
             },
         ),
-        lamports,
-        // 34290400,
+        // lamports,
+        34290400,
     )?;
 
     Ok(())
