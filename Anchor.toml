@@ -5,10 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-wewe_token_launch_pad = "668qx8PESTjHLfkeNgL7sjEHTHWBipShyvC3TyBa5GQ5"
+wewe_token_launch_pad = "AvBFyeWVxa297Xjj2qDpBsMU1VDWfNhGxWRT9eaZLnoY"
 
 [programs.localnet]
-wewe_token_launch_pad = "668qx8PESTjHLfkeNgL7sjEHTHWBipShyvC3TyBa5GQ5"
+wewe_token_launch_pad = "AvBFyeWVxa297Xjj2qDpBsMU1VDWfNhGxWRT9eaZLnoY"
 
 [registry]
 url = "https://api.apr.dev"
@@ -24,6 +24,14 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 startup_wait = 5000
 shutdown_wait = 2000
 upgradeable = false
+
+[[test.genesis]]
+address = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"
+program = "genesis/cp_amm.so"
+
+[[test.validator.account]]
+address = "8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF"
+filename = "genesis/config.json"
 
 [test.validator]
 bind_address = "0.0.0.0"

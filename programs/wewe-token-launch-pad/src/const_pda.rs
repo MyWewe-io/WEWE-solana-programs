@@ -6,7 +6,7 @@ pub mod pool_authority {
 
     const POOL_AUTHORITY_AND_BUMP: ([u8; 32], u8) = ed25519::derive_program_address(
         &[crate::constant::POOL_AUTHORITY_PREFIX],
-        &crate::ID_CONST.to_bytes(),
+        &cp_amm::ID_CONST.to_bytes(),
     );
 
     pub const ID: Pubkey = Pubkey::new_from_array(POOL_AUTHORITY_AND_BUMP.0);
