@@ -57,6 +57,7 @@ export const createDammConfig = (programId: anchor.web3.PublicKey, index: anchor
 
 export const derivePoolPDAs = (
   programId: anchor.web3.PublicKey,
+  cpAmmProgramId: anchor.web3.PublicKey,
   baseMint: anchor.web3.PublicKey,
   quoteMint: anchor.web3.PublicKey,
   maker: anchor.web3.PublicKey,
@@ -69,49 +70,49 @@ export const derivePoolPDAs = (
 
   const [poolAuthority, poolAuthorityBump] = anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from("pool_authority"),
-  ], programId);
+  ], cpAmmProgramId);
 
   const [pool] = anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from("pool"),
     config.toBuffer(),
     maxKey(baseMint, quoteMint).toBuffer(),
     minKey(baseMint, quoteMint).toBuffer(),
-  ], programId);
+  ], cpAmmProgramId);
 
   const positionNftMint = anchor.web3.Keypair.generate();
 
   const [position] = anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from("position"),
     positionNftMint.publicKey.toBuffer(),
-  ], programId);
+  ], cpAmmProgramId);
 
   const [positionNftAccount] = anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from("position_nft_account"),
     positionNftMint.publicKey.toBuffer(),
-  ], programId);
+  ], cpAmmProgramId);
 
-  const dammEventAuthority = anchor.web3.Keypair.generate();
+  const [dammEventAuthority] = anchor.web3.PublicKey.findProgramAddressSync([
+    Buffer.from("__event_authority"),
+  ], cpAmmProgramId);
 
   const [tokenAVault] = anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from("token_vault"),
     baseMint.toBuffer(),
     pool.toBuffer(),
-  ], programId);
+  ], cpAmmProgramId);
 
   const [tokenBVault] = anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from("token_vault"),
     quoteMint.toBuffer(),
     pool.toBuffer(),
-  ], programId);
+  ], cpAmmProgramId);
 
   const [quoteVault] = anchor.web3.PublicKey.findProgramAddressSync([
-    Buffer.from("quote_vault"),
     maker.toBuffer(),
     quoteMint.toBuffer(),
   ], programId);
 
   const [baseVault] = anchor.web3.PublicKey.findProgramAddressSync([
-    Buffer.from("base_vault"),
     maker.toBuffer(),
     baseMint.toBuffer(),
   ], programId);

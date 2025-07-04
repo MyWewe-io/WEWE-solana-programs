@@ -11,7 +11,8 @@ import {
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
 import type { CpAmm } from '../target/types/cp_amm';
-import CpAmmIDL from '../idls/damm_v2.json';
+import CpAmmIDL from '../idls/cp_amm.json';
+import { ComputeBudgetProgram } from '@solana/web3.js';
 
 import {
   confirm,
@@ -187,42 +188,23 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .then(confirm);
 
     console.log('Proposal rejected. Tx:', tx);
+
   });
 
   it('Launches coin and creates DAMM pool', async () => {
-    const liquidity = new BN(100_000_000_000);
-    const sqrtPrice = new BN(1000);
-    const CONFIG_INDEX = new BN(10);
+    const liquidity = new BN(387_298_335);
+    const sqrtPrice = new BN("47629288392818304032");
     const admin = anchor.web3.Keypair.generate();
     await confirm(provider.connection.requestAirdrop(admin.publicKey, 1e9));
 
     const config = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
-    // const config = createDammConfig(cpAmm.programId, CONFIG_INDEX);
-    // await cpAmm.methods
-    //   .createConfig(CONFIG_INDEX, {
-    //     poolFees: {
-    //       baseFee: { cliffFeeNumerator: new BN(2_500_000), numberOfPeriod: 0, reductionFactor: new BN(0), periodFrequency: new BN(0), feeSchedulerMode: 0 },
-    //       protocolFeePercent: 10,
-    //       partnerFeePercent: 0,
-    //       referralFeePercent: 0,
-    //       dynamicFee: null,
-    //     },
-    //     sqrtMinPrice: new BN("4295048016"),
-    //     sqrtMaxPrice: new BN("79226673521066979257578248091"),
-    //     vaultConfigKey: anchor.web3.PublicKey.default,
-    //     poolCreatorAuthority: anchor.web3.PublicKey.default,
-    //     activationType: 0,
-    //     collectFeeMode: 0,
-    //   })
-    //   .accountsPartial({ config, admin: admin.publicKey, systemProgram: anchor.web3.SystemProgram.programId })
-    //   .signers([admin])
-    //   .rpc()
-    //   .then(confirm);
 
-    const pdas = derivePoolPDAs(program.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
+    const pdas = derivePoolPDAs(program.programId, cpAmm.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
 
     let capturedEvent: any = null;
     const listener = await program.addEventListener('coinLaunched', (event) => capturedEvent = event);
+
+    const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
     const tx = await program.methods
       .createPool(liquidity, sqrtPrice, pdas.poolAuthorityBump)
@@ -233,32 +215,33 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         wsolVault,
         makerTokenAccount: pdas.baseVault,
         poolAuthority: pdas.poolAuthority,
+        dammPoolAuthority: pdas.poolAuthority,
         poolConfig: config,
         pool: pdas.pool,
-        firstPositionNftMint: pdas.positionNftMint.publicKey,
-        firstPositionNftAccount: pdas.positionNftAccount,
-        firstPosition: pdas.position,
+        positionNftMint: pdas.positionNftMint.publicKey,
+        positionNftAccount: pdas.positionNftAccount,
+        position: pdas.position,
         ammProgram: cpAmm.programId,
         baseMint: mint.publicKey,
         quoteMint: WSOL_MINT,
         tokenAVault: pdas.tokenAVault,
         tokenBVault: pdas.tokenBVault,
-        baseVault: pdas.baseVault,
-        quoteVault: pdas.quoteVault,
         payer: maker.publicKey,
         tokenBaseProgram: TOKEN_PROGRAM_ID,
         tokenQuoteProgram: TOKEN_PROGRAM_ID,
         token2022Program: TOKEN_2022_PROGRAM_ID,
-        dammEventAuthority: pdas.dammEventAuthority.publicKey,
+        dammEventAuthority: pdas.dammEventAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([maker, pdas.positionNftMint])
-      .rpc()
+      .transaction();
+
+    tx.instructions.unshift(computeUnitsIx); // optionally add computePriceIx before this
+    const signature = await provider.sendAndConfirm(tx, [maker, pdas.positionNftMint]);
 
     await program.removeEventListener(listener);
 
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(proposal.toBase58());
     expect(capturedEvent.mintAccount.toBase58()).to.equal(mint.publicKey.toBase58());
-    console.log('Pool created. Tx:', tx);
   });
 });

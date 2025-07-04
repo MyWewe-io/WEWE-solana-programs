@@ -43,4 +43,5 @@ pub struct AirdropClaimed {
 pub struct CoinLaunched {
     pub mint_account: Pubkey,
     pub proposal_address: Pubkey,
+    pub total_sol_raised: u64,
 }
