@@ -4,9 +4,9 @@ import { Program } from '@coral-xyz/anchor';
 import BN from 'bn.js';
 import { assert, expect } from 'chai';
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
@@ -44,17 +44,20 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   const proposal2 = findProposalPDA(program.programId, maker.publicKey, proposalIndex);
 
   const backerAccount = findBackerAccountPDA(program.programId, proposal, backer.publicKey);
+  const backerAccount2 = findBackerAccountPDA(program.programId, proposal2, backer.publicKey);
   const makerAccount = findMakerAccountPDA(program.programId, maker.publicKey);
 
   const metadata = getMetadata();
-  const vault = getTokenVaultAddress(mint.publicKey, proposal);
-  const vault2 = getTokenVaultAddress(mint2.publicKey, proposal2);
-  const wsolVault = getTokenVaultAddress(WSOL_MINT, proposal);
-  const wsolVault2 = getTokenVaultAddress(WSOL_MINT, proposal2);
+  const [vaultAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("vault_authority")],
+    program.programId
+  );
+  const [vault] = getTokenVaultAddress(vaultAuthority, mint.publicKey, program.programId);
+  const [vault2] = getTokenVaultAddress(vaultAuthority, mint2.publicKey, program.programId);
 
   it('Airdrops funds to test accounts', async () => {
     await confirm(provider.connection.requestAirdrop(maker.publicKey, 1e9));
-    await confirm(provider.connection.requestAirdrop(backer.publicKey, 2e9));
+    await confirm(provider.connection.requestAirdrop(backer.publicKey, 3e9));
     await confirm(provider.connection.requestAirdrop(authority.publicKey, 1e9));
   });
 
@@ -63,18 +66,16 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const listener = await program.addEventListener('proposalCreated', (event) => capturedEvent = event);
 
     const tx = await program.methods
-      .createProposal(9, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri, 0)
+      .createProposal(0, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
         maker: maker.publicKey,
         makerAccount,
+        vaultAuthority,
         proposal,
         mintAccount: mint.publicKey,
         tokenVault: vault,
-        wsolVault,
-        wsolMint: WSOL_MINT,
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
       .signers([maker, mint])
       .rpc()
@@ -88,7 +89,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const expectedEvent = {
       maker: maker.publicKey.toBase58(),
       proposalAddress: proposal.toBase58(),
-      duration: 9,
+      duration: 0,
     };
 
     // Assert event fields
@@ -102,18 +103,16 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const listener = await program.addEventListener('proposalCreated', (event) => capturedEvent = event);
 
     const tx = await program.methods
-      .createProposal(9, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri, 100)
+      .createProposal(100, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
         maker: maker.publicKey,
         makerAccount,
+        vaultAuthority,
         proposal: proposal2,
         mintAccount: mint2.publicKey,
         tokenVault: vault2,
-        wsolVault: wsolVault2,
-        wsolMint: WSOL_MINT,
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
       .signers([maker, mint2])
       .rpc()
@@ -123,7 +122,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const expectedEvent = {
       maker: maker.publicKey.toBase58(),
       proposalAddress: proposal2.toBase58(),
-      duration: 9,
+      duration: 100,
     };
 
     // Assert event fields
@@ -139,17 +138,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backer: backer.publicKey,
         proposal,
         backerAccount,
-        wsolVault,
-        wsolMint: WSOL_MINT,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        vaultAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([backer])
       .rpc()
       .then(confirm);
-
-    console.log('Backed proposal with SOL. Tx:', tx);
   });
 
   it('Fails when user backs same proposal twice', async () => {
@@ -159,11 +153,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .accountsPartial({
           backer: backer.publicKey,
           proposal,
+          vaultAuthority,
           backerAccount,
-          wsolVault,
-          wsolMint: WSOL_MINT,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([backer])
@@ -173,6 +164,21 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     } catch (err) {
       expect(err.message).to.match(/custom program error/);
     }
+  });
+
+  it('Backs the second proposal', async () => {
+    const tx = await program.methods
+      .depositSol()
+      .accountsPartial({
+        backer: backer.publicKey,
+        proposal: proposal2,
+        backerAccount: backerAccount2,
+        vaultAuthority,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
   });
 
   it('Authority rejects a proposal', async () => {
@@ -186,9 +192,22 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([authority])
       .rpc()
       .then(confirm);
+  });
 
-    console.log('Proposal rejected. Tx:', tx);
-
+  it("Refunds SOL to backer after proposal ends or is rejected", async () => {  
+    const tx = await program.methods
+      .refund()
+      .accounts({
+        backer: backer.publicKey,
+        proposal: proposal2,
+        vaultAuthority,
+        backerAccount: backerAccount2,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
   });
 
   it('Launches coin and creates DAMM pool', async () => {
@@ -196,6 +215,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const sqrtPrice = new BN("47629288392818304032");
     const admin = anchor.web3.Keypair.generate();
     await confirm(provider.connection.requestAirdrop(admin.publicKey, 1e9));
+
+    const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
 
     const config = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
 
@@ -207,13 +228,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
     const tx = await program.methods
-      .createPool(liquidity, sqrtPrice, pdas.poolAuthorityBump)
+      .createPool(liquidity, sqrtPrice)
       .accountsPartial({
         proposal,
+        vaultAuthority,
         maker: maker.publicKey,
         tokenVault: vault,
         wsolVault,
-        makerTokenAccount: pdas.baseVault,
+        // makerTokenAccount: pdas.makerTokenAccount,
         poolAuthority: pdas.poolAuthority,
         dammPoolAuthority: pdas.poolAuthority,
         poolConfig: config,
@@ -232,12 +254,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         token2022Program: TOKEN_2022_PROGRAM_ID,
         dammEventAuthority: pdas.dammEventAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
       .signers([maker, pdas.positionNftMint])
       .transaction();
 
     tx.instructions.unshift(computeUnitsIx); // optionally add computePriceIx before this
     const signature = await provider.sendAndConfirm(tx, [maker, pdas.positionNftMint]);
+ 
 
     await program.removeEventListener(listener);
 
