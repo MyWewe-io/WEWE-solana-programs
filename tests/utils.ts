@@ -1,6 +1,6 @@
 // utils/helpers.ts
 import * as anchor from '@coral-xyz/anchor';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 
 export const WSOL_MINT = new anchor.web3.PublicKey("So11111111111111111111111111111111111111112");
 
@@ -46,8 +46,20 @@ export const findMakerAccountPDA = (programId: anchor.web3.PublicKey, maker: anc
     maker.toBuffer(),
   ], programId)[0];
 
-export const getTokenVaultAddress = (mint: anchor.web3.PublicKey, owner: anchor.web3.PublicKey) =>
-  getAssociatedTokenAddressSync(mint, owner, true);
+  export const getTokenVaultAddress = (
+    vaultAuthority: anchor.web3.PublicKey,
+    mint: anchor.web3.PublicKey,
+    programId: anchor.web3.PublicKey
+  ): [anchor.web3.PublicKey, number] => {
+    return anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_vault"),
+        vaultAuthority.toBuffer(),
+        mint.toBuffer(),
+      ],
+      programId
+    );
+  };
 
 export const createDammConfig = (programId: anchor.web3.PublicKey, index: anchor.BN) =>
   anchor.web3.PublicKey.findProgramAddressSync([
@@ -117,6 +129,14 @@ export const derivePoolPDAs = (
     baseMint.toBuffer(),
   ], programId);
 
+  const makerTokenAccount = getAssociatedTokenAddressSync(
+    baseMint,
+    maker,
+    false,
+    programId,
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+
   return {
     poolAuthority,
     poolAuthorityBump,
@@ -129,5 +149,6 @@ export const derivePoolPDAs = (
     quoteVault,
     baseVault,
     dammEventAuthority,
+    makerTokenAccount
   };
 };

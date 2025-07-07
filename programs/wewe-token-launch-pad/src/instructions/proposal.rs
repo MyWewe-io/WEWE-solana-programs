@@ -1,23 +1,18 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    event::ProposalCreated,
-    state::{maker::MakerAccount, proposer::Proposal},
+    event::ProposalCreated, state::{maker::MakerAccount, proposal::Proposal},
+    constant::{ANCHOR_DISCRIMINATOR, VAULT_AUTHORITY, TOTAL_MINT},
 };
-use {
-    crate::constant::{ANCHOR_DISCRIMINATOR, TOTAL_MINT},
-    anchor_spl::{
-        associated_token::AssociatedToken,
-        metadata::{
-            create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
-            CreateMetadataAccountsV3, Metadata,
-        },
-        token::{mint_to, Mint, MintTo, Token, TokenAccount},
+use anchor_spl::{
+    metadata::{
+        create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
+        CreateMetadataAccountsV3, Metadata,
     },
+    token::{mint_to, Mint, MintTo, Token, TokenAccount},
 };
 
 #[derive(Accounts)]
-#[instruction(_token_decimals: u8)]
 pub struct CreateProposal<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
@@ -40,10 +35,20 @@ pub struct CreateProposal<'info> {
     )]
     pub proposal: Account<'info, Proposal>,
 
+    /// CHECK: vault authority
+    #[account(
+        mut,
+        seeds = [
+            VAULT_AUTHORITY.as_ref(),
+        ],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
     #[account(
         init,
         payer = maker,
-        mint::decimals = _token_decimals,
+        mint::decimals = 9,
         mint::authority = proposal.key(),
         mint::freeze_authority = proposal.key(),
     )]
@@ -60,23 +65,14 @@ pub struct CreateProposal<'info> {
 
     #[account(
         init,
+        seeds = [b"token_vault", vault_authority.key().as_ref(), mint_account.key().as_ref()],
         payer = maker,
-        associated_token::mint = mint_account,
-        associated_token::authority = proposal,
+        token::mint = mint_account,
+        token::authority = vault_authority,
+        bump,
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
-    #[account(
-        init,
-        payer = maker,
-        associated_token::mint = wsol_mint,
-        associated_token::authority = proposal,
-    )]
-    pub wsol_vault: Account<'info, TokenAccount>,
-
-    pub wsol_mint: Account<'info, Mint>,
-    pub wsol_token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
     pub token_metadata_program: Program<'info, Metadata>,
     pub system_program: Program<'info, System>,
@@ -86,7 +82,6 @@ pub struct CreateProposal<'info> {
 impl<'info> CreateProposal<'info> {
     pub fn create_proposal(
         &mut self,
-        _token_decimals: u8,
         backing_goal: u64,
         token_name: String,
         token_symbol: String,
@@ -146,13 +141,15 @@ impl<'info> CreateProposal<'info> {
 
         self.proposal.set_inner(Proposal {
             maker: self.maker.key(),
-            current_amount: 0,
+            total_backing: 0,
             time_started: Clock::get()?.unix_timestamp,
             duration,
             bump: bumps.proposal,
             backing_goal,
             is_rejected: false,
             proposal_id: self.maker_account.proposal_count,
+            is_pool_launched: false,
+            total_backers: 0,
         });
         // increment proposal count for maker
         self.maker_account.proposal_count += 1;

@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{event::ProposalRejected, state::proposer::Proposal};
+use crate::{event::ProposalRejected, state::proposal::Proposal};
 
 #[derive(Accounts)]
 pub struct RejectProposal<'info> {

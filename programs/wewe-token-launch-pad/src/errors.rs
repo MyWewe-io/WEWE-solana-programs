@@ -2,22 +2,31 @@ use anchor_lang::error_code;
 
 #[error_code]
 pub enum ProposalError {
-    #[msg("The amount to raise has not been met")]
+    #[msg("Minimum funding goal has not been reached yet.")]
     TargetNotMet,
-    #[msg("The amount to raise has been achieved")]
-    TargetMet,
-    #[msg("The contribution is too big")]
+
+    #[msg("Maximum funding goal has already been reached.")]
+    BackingGoalReached,
+
+    #[msg("Your contribution exceeds the remaining required amount.")]
     ContributionTooBig,
-    #[msg("The contribution is too small")]
+
+    #[msg("Your contribution is below the minimum required amount.")]
     ContributionTooSmall,
-    #[msg("The proposal can't be backed twice")]
+
+    #[msg("You have already backed this proposal.")]
     ProposalAlreadyBacked,
-    #[msg("The backing has not ended yet")]
+
+    #[msg("Backing period is still active. Please wait until it ends.")]
     BackingNotEnded,
-    #[msg("The backing has ended")]
+
+    #[msg("Backing period has ended. You can no longer contribute.")]
     BackingEnded,
-    #[msg("Only owner can call this function!")]
+
+    #[msg("Only the proposal owner is authorized to perform this action.")]
     NotOwner,
-    #[msg("This proposal is rejected, Claim your refund")]
+
+    #[msg("This proposal has been rejected. You may claim your refund.")]
     ProposalRejected,
 }
+

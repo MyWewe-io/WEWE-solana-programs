@@ -26,10 +26,8 @@ pub mod wewe_token_launch_pad {
         token_name: String,
         token_symbol: String,
         token_uri: String,
-        token_decimals: u8,
     ) -> Result<()> {
         ctx.accounts.create_proposal(
-            token_decimals,
             backing_goal,
             token_name,
             token_symbol,
@@ -60,10 +58,9 @@ pub mod wewe_token_launch_pad {
         ctx: Context<DammV2>,
         liquidity: u128,
         sqrt_price: u128,
-        bump: u8,
     ) -> Result<()> {
     
-        ctx.accounts.create_pool(liquidity, sqrt_price, bump)
+        ctx.accounts.create_pool(liquidity, sqrt_price)
     }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
