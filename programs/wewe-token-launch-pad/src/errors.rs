@@ -8,12 +8,6 @@ pub enum ProposalError {
     #[msg("Maximum funding goal has already been reached.")]
     BackingGoalReached,
 
-    #[msg("Your contribution exceeds the remaining required amount.")]
-    ContributionTooBig,
-
-    #[msg("Your contribution is below the minimum required amount.")]
-    ContributionTooSmall,
-
     #[msg("You have already backed this proposal.")]
     ProposalAlreadyBacked,
 

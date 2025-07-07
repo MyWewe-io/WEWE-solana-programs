@@ -98,7 +98,7 @@ pub struct DammV2<'info> {
 
 impl<'info> DammV2<'info> {
     pub fn create_pool(&self, liquidity: u128, sqrt_price: u128) -> Result<()> {
-        if self.proposal.is_rejected {
+        if !self.proposal.is_rejected {
             // Check if the fundraising duration has been reached
             let current_time = Clock::get()?.unix_timestamp;
             require!(
@@ -107,8 +107,8 @@ impl<'info> DammV2<'info> {
                 ProposalError::BackingNotEnded
             );
             require! (
-                self.proposal.total_backers < MINIMUM_BACKERS,
-                ProposalError::BackingGoalReached
+                self.proposal.total_backers >= MINIMUM_BACKERS,
+                ProposalError::TargetNotMet
             );
         }
 

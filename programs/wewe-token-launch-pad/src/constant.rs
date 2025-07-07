@@ -7,5 +7,5 @@ pub const OWNER: &str = "D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe";
 pub const MAKER_TOKEN_AMOUNT: u64 = 10_000_000;// 1% of the 1 Billion Token supply 
 pub const POOL_AUTHORITY_PREFIX: &[u8] = b"pool_authority";
 pub const VAULT_AUTHORITY: &[u8] = b"vault_authority";
-pub const MINIMUM_BACKERS: u64 = 1;
+pub const MINIMUM_BACKERS: u64 = 1; // shud be 50
 pub const MAXIMUM_BACKERS: u64 = 1000;
