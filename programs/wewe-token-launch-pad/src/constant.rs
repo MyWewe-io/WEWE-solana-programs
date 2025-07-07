@@ -1,12 +1,11 @@
 pub const ANCHOR_DISCRIMINATOR: usize = 8;
 pub const SECONDS_TO_DAYS: i64 = 86400;
 pub const AMOUNT_TO_RAISE_PER_USER: u64 = 1_000_000_000;  //1 SOL
-pub const TOTAL_AMOUNT_TO_RAISE: u64 = 50_000_000_000;  // 50 SOL
 pub const FEE_TO_DEDUCT: u64 = 20000000;   //0.02 SOl ~ 3$
 pub const TOTAL_MINT: u64 = 1_000_000_000; // 1 billion supply
 pub const OWNER: &str = "D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe";
 pub const MAKER_TOKEN_AMOUNT: u64 = 10_000_000;// 1% of the 1 Billion Token supply 
 pub const POOL_AUTHORITY_PREFIX: &[u8] = b"pool_authority";
 pub const VAULT_AUTHORITY: &[u8] = b"vault_authority";
-pub const MINIMUM_BACKERS: u64 = 50;
+pub const MINIMUM_BACKERS: u64 = 1;
 pub const MAXIMUM_BACKERS: u64 = 1000;

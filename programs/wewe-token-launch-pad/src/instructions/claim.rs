@@ -1,6 +1,6 @@
 use {
     crate::{
-        constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE}, errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposal::Proposal}
+        errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposal::Proposal}
     },
     anchor_lang::prelude::*,
     anchor_spl::{
@@ -48,17 +48,13 @@ pub struct Claim<'info> {
 
 impl<'info> Claim<'info> {
     pub fn claim(&mut self) -> Result<()> {
-        // Check if the fundraising duration has been reached
-        let current_time = Clock::get()?.unix_timestamp;
-
         require!(
-            self.proposal.duration
-                >= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
-            ProposalError::BackingNotEnded
+            self.proposal.is_rejected == true,
+            ProposalError::ProposalRejected
         );
 
         require!(
-            TOTAL_AMOUNT_TO_RAISE >= self.proposal.total_backing,
+            self.proposal.is_pool_launched == true,
             ProposalError::TargetNotMet
         );
 
