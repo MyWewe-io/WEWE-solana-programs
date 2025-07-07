@@ -1,6 +1,6 @@
 use {
     crate::{
-        constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE}, errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposer::Proposal}
+        constant::{SECONDS_TO_DAYS, TOTAL_AMOUNT_TO_RAISE}, errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposal::Proposal}
     },
     anchor_lang::prelude::*,
     anchor_spl::{
@@ -58,7 +58,7 @@ impl<'info> Claim<'info> {
         );
 
         require!(
-            TOTAL_AMOUNT_TO_RAISE >= self.proposal.current_amount,
+            TOTAL_AMOUNT_TO_RAISE >= self.proposal.total_backing,
             ProposalError::TargetNotMet
         );
 
