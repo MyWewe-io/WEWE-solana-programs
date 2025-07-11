@@ -5,10 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-wewe_token_launch_pad = "AvBFyeWVxa297Xjj2qDpBsMU1VDWfNhGxWRT9eaZLnoY"
+wewe_token_launch_pad = "GK1gjRGXjoRPD9LuzsSX8BWeEzT8pJNwFcbA8rY1g6E9"
 
 [programs.localnet]
-wewe_token_launch_pad = "AvBFyeWVxa297Xjj2qDpBsMU1VDWfNhGxWRT9eaZLnoY"
+wewe_token_launch_pad = "GK1gjRGXjoRPD9LuzsSX8BWeEzT8pJNwFcbA8rY1g6E9"
 
 [registry]
 url = "https://api.apr.dev"
@@ -29,15 +29,15 @@ upgradeable = false
 address = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"
 program = "genesis/cp_amm.so"
 
-[[test.validator.account]]
-address = "8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF"
-filename = "genesis/config.json"
-
 [test.validator]
 bind_address = "0.0.0.0"
 url = "https://api.mainnet-beta.solana.com"
 ledger = ".anchor/test-ledger"
 rpc_port = 8899
+
+[[test.validator.account]]
+address = "8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF"
+filename = "genesis/config.json"
 
 [[test.validator.clone]]
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
