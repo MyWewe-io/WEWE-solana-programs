@@ -79,7 +79,7 @@ impl<'info> Claim<'info> {
 
         let claim_amount = self.backer_account.claim_amount;
         // Transfer the funds from the vault to the contributor
-        transfer(cpi_ctx, claim_amount)?;
+        transfer(cpi_ctx, claim_amount * 10u64.pow(self.mint_account.decimals as u32))?;
 
         // set claim amount to zero, for succesive airdrops
         self.backer_account.claim_amount = 0;
