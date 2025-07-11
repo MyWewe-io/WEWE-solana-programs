@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    event::ProposalCreated, state::{maker::MakerAccount, proposal::Proposal},
-    constant::{ANCHOR_DISCRIMINATOR, VAULT_AUTHORITY, TOTAL_MINT},
+    const_pda, constant::{ANCHOR_DISCRIMINATOR, TOTAL_MINT, VAULT_AUTHORITY}, errors::ProposalError, event::ProposalCreated, state::{maker::MakerAccount, proposal::Proposal}
 };
 use anchor_spl::{
     metadata::{
@@ -72,6 +71,18 @@ pub struct CreateProposal<'info> {
         bump,
     )]
     pub token_vault: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        address = const_pda::const_authority::MINT,
+    )]
+    pub mint: Account<'info, Mint>,
+    #[account(
+        associated_token::mint = mint,
+        associated_token::authority = maker,
+        constraint = user_token_account.amount == 1 @ ProposalError::NotAuthorised
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
     pub token_metadata_program: Program<'info, Metadata>,

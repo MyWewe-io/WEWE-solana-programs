@@ -18,7 +18,8 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
 anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
-anchor-spl = { version = "0.31.0", features = ["metadata"]}
+anchor-spl = { version = "0.31.0", features = ["metadata",  "token_2022_extensions"]}
+spl-transfer-hook-interface = "0.10.0"
 bytemuck = { version = "1.13.1", features = ["derive", "min_const_generics"] }
 solana-program = "2.1.0"
 const-crypto = "0.3.0"

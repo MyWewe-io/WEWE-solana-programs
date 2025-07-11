@@ -13,7 +13,7 @@ use instructions::*;
 use utils::*;
 use errors::*;
 
-declare_id!("AvBFyeWVxa297Xjj2qDpBsMU1VDWfNhGxWRT9eaZLnoY");
+declare_id!("GK1gjRGXjoRPD9LuzsSX8BWeEzT8pJNwFcbA8rY1g6E9");
 
 #[program]
 pub mod wewe_token_launch_pad {
@@ -79,6 +79,13 @@ pub mod wewe_token_launch_pad {
     #[access_control(check(&ctx.accounts.authority))]
     pub fn update_airdrop_amount(ctx: Context<UpdateBacker>, amount: u64) -> Result<()> {
         ctx.accounts.update_airdrop_amount(amount)?;
+
+        Ok(())
+    }
+
+    #[access_control(check(&ctx.accounts.payer))]
+    pub fn mint_soulbound_to_user(ctx: Context<MintSoulboundToUser>) -> Result<()> {
+        ctx.accounts.mint_soulbound_to_user(&ctx.bumps)?;
 
         Ok(())
     }

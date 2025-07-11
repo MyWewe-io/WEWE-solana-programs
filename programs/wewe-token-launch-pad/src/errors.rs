@@ -22,5 +22,11 @@ pub enum ProposalError {
 
     #[msg("This proposal has been rejected. You may claim your refund.")]
     ProposalRejected,
+
+    #[msg("Pool for this proposal is already launched.")]
+    PoolAlreadyLaunched,
+
+    #[msg("Create a wallet from wewe app to contribute")]
+    NotAuthorised,
 }
 

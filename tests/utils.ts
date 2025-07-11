@@ -46,26 +46,48 @@ export const findMakerAccountPDA = (programId: anchor.web3.PublicKey, maker: anc
     maker.toBuffer(),
   ], programId)[0];
 
-  export const getTokenVaultAddress = (
-    vaultAuthority: anchor.web3.PublicKey,
-    mint: anchor.web3.PublicKey,
-    programId: anchor.web3.PublicKey
-  ): [anchor.web3.PublicKey, number] => {
-    return anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("token_vault"),
-        vaultAuthority.toBuffer(),
-        mint.toBuffer(),
-      ],
-      programId
-    );
-  };
+export const getTokenVaultAddress = (
+  vaultAuthority: anchor.web3.PublicKey,
+  mint: anchor.web3.PublicKey,
+  programId: anchor.web3.PublicKey
+): [anchor.web3.PublicKey, number] => {
+  return anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("token_vault"),
+      vaultAuthority.toBuffer(),
+      mint.toBuffer(),
+    ],
+    programId
+  );
+};
 
-export const createDammConfig = (programId: anchor.web3.PublicKey, index: anchor.BN) =>
-  anchor.web3.PublicKey.findProgramAddressSync([
-    Buffer.from('config'),
-    index.toArrayLike(Buffer, "le", 8),
-  ], programId)[0];
+export function findMintAccount(programId: anchor.web3.PublicKey): anchor.web3.PublicKey {
+  const [mintAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("mint_soulbound")],
+    programId
+  );
+  return mintAccount;
+}
+
+export function findFreezeAuthority(programId: anchor.web3.PublicKey): anchor.web3.PublicKey {
+  const [freezeAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("freeze_authority")],
+    programId
+  );
+  return freezeAuthority;
+}
+
+export function findMintAuthority(programId: anchor.web3.PublicKey): anchor.web3.PublicKey {
+  const [freezeAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("mint_authority")],
+    programId
+  );
+  return freezeAuthority;
+}
+
+export function findUserAta(user: anchor.web3.PublicKey, mint: anchor.web3.PublicKey): anchor.web3.PublicKey {
+  return getAssociatedTokenAddressSync(mint, user, false, undefined, undefined);
+}
 
 export const derivePoolPDAs = (
   programId: anchor.web3.PublicKey,

@@ -10,7 +10,7 @@ import {
 } from '@solana/spl-token';
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
-import type { CpAmm } from '../target/types/cp_amm';
+import type { CpAmm } from './cp_amm';
 import CpAmmIDL from '../idls/cp_amm.json';
 import { ComputeBudgetProgram } from '@solana/web3.js';
 
@@ -23,8 +23,11 @@ import {
   getMetadata,
   generateKeypairs,
   getTokenVaultAddress,
-  createDammConfig,
   derivePoolPDAs,
+  findFreezeAuthority,
+  findUserAta,
+  findMintAccount,
+  findMintAuthority,
 } from './utils';
 
 
@@ -55,10 +58,77 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   const [vault] = getTokenVaultAddress(vaultAuthority, mint.publicKey, program.programId);
   const [vault2] = getTokenVaultAddress(vaultAuthority, mint2.publicKey, program.programId);
 
+  const mintAccount = findMintAccount(program.programId);
+  const userAta = findUserAta(backer.publicKey, mintAccount);
+  const makerAta = findUserAta(maker.publicKey, mintAccount);
+  const freezeAuthority = findFreezeAuthority(program.programId);
+  const mintAuthority = findMintAuthority(program.programId);
+
   it('Airdrops funds to test accounts', async () => {
-    await confirm(provider.connection.requestAirdrop(maker.publicKey, 1e9));
-    await confirm(provider.connection.requestAirdrop(backer.publicKey, 3e9));
-    await confirm(provider.connection.requestAirdrop(authority.publicKey, 1e9));
+    await confirm(provider.connection.requestAirdrop(provider.wallet.publicKey, 5e9)); // 5 SOL total
+
+    // Transfer 1 SOL to maker
+    await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: maker.publicKey,
+        lamports: 1e9,
+      })
+    ));
+
+    // Transfer 3 SOL to backer
+    await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: backer.publicKey,
+        lamports: 3e9,
+      })
+    ));
+
+    // Transfer 1 SOL to authority
+    await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: authority.publicKey,
+        lamports: 1e9,
+      })
+    ));
+  });
+
+  it("mints and freezes nft to user", async () => {
+    const tx = await program.methods
+      .mintSoulboundToUser()
+      .accounts({
+        payer: authority.publicKey,
+        user: backer.publicKey,
+        mint: mintAccount,
+        freezeAuthority,
+        mintAuthority,
+        userTokenAccount: userAta,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc();
+
+      const tx2 = await program.methods
+      .mintSoulboundToUser()
+      .accounts({
+        payer: authority.publicKey,
+        user: maker.publicKey,
+        mint: mintAccount,
+        mintAuthority,
+        userTokenAccount: makerAta,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc();
+
+    const accountInfo = await provider.connection.getTokenAccountBalance(userAta);
+    assert.strictEqual(accountInfo.value.uiAmount, 1);
   });
 
   it('Creates first proposal', async () => {
@@ -136,6 +206,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
+        mint: mintAccount,
+        userTokenAccount: userAta,
         proposal,
         backerAccount,
         vaultAuthority,
@@ -194,7 +266,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .then(confirm);
   });
 
-  it("Refunds SOL to backer after proposal ends or is rejected", async () => {  
+  it("Refunds SOL to backer after proposal ends or is rejected", async () => {
     const tx = await program.methods
       .refund()
       .accounts({
@@ -235,7 +307,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         maker: maker.publicKey,
         tokenVault: vault,
         wsolVault,
-        // makerTokenAccount: pdas.makerTokenAccount,
         poolAuthority: pdas.poolAuthority,
         dammPoolAuthority: pdas.poolAuthority,
         poolConfig: config,
@@ -261,7 +332,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     tx.instructions.unshift(computeUnitsIx); // optionally add computePriceIx before this
     const signature = await provider.sendAndConfirm(tx, [maker, pdas.positionNftMint]);
- 
+
 
     await program.removeEventListener(listener);
 

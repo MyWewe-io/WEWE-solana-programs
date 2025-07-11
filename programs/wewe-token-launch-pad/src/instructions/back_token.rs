@@ -2,9 +2,11 @@ use anchor_lang::{
     prelude::*,
     system_program::{transfer, Transfer},
 };
+use anchor_spl::token::{Mint, TokenAccount};
 
 use crate::{
-    constant::{AMOUNT_TO_RAISE_PER_USER, ANCHOR_DISCRIMINATOR, MAXIMUM_BACKERS, SECONDS_TO_DAYS, VAULT_AUTHORITY},
+    const_pda,
+    constant::*,
     errors::ProposalError,
     event::ProposalBacked,
     state::{backers::Backers, proposal::Proposal},
@@ -25,6 +27,19 @@ pub struct Contribute<'info> {
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        address = const_pda::const_authority::MINT,
+    )]
+    pub mint: Account<'info, Mint>,
+    #[account(
+        associated_token::mint = mint,
+        associated_token::authority = backer,
+        constraint = user_token_account.amount == 1 @ ProposalError::NotAuthorised
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
+
     #[account(
         init,
         payer = backer,
@@ -51,7 +66,7 @@ impl<'info> Contribute<'info> {
             ProposalError::ProposalRejected
         );
 
-        require! (
+        require!(
             self.proposal.total_backers < MAXIMUM_BACKERS,
             ProposalError::BackingGoalReached
         );

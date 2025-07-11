@@ -2,11 +2,11 @@ use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{token_interface::{TokenAccount, TokenInterface}, associated_token::AssociatedToken, token, token::Transfer as TokenTransfer};
 use std::u64;
 
-use crate::constant::{MAKER_TOKEN_AMOUNT, MINIMUM_BACKERS, SECONDS_TO_DAYS, VAULT_AUTHORITY};
+use crate::constant::{MAKER_TOKEN_AMOUNT, MINIMUM_BACKERS, OWNER, SECONDS_TO_DAYS, VAULT_AUTHORITY};
 use crate::event::CoinLaunched;
 use crate::state::proposal::Proposal;
 use crate::{const_pda, *};
-use crate::const_pda::pool_authority::VAULT_BUMP;
+use crate::const_pda::const_authority::VAULT_BUMP;
 
 #[derive(Accounts)]
 pub struct DammV2<'info> {
@@ -46,7 +46,7 @@ pub struct DammV2<'info> {
     /// CHECK: pool authority
     #[account(
         mut,
-        address = const_pda::pool_authority::POOL_ID,
+        address = const_pda::const_authority::POOL_ID,
     )]
     pub pool_authority: AccountInfo<'info>,
     /// CHECK: pool config
@@ -98,19 +98,29 @@ pub struct DammV2<'info> {
 
 impl<'info> DammV2<'info> {
     pub fn create_pool(&self, liquidity: u128, sqrt_price: u128) -> Result<()> {
-        if !self.proposal.is_rejected {
-            // Check if the fundraising duration has been reached
-            let current_time = Clock::get()?.unix_timestamp;
-            require!(
-                self.proposal.duration
-                    <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
-                ProposalError::BackingNotEnded
-            );
-            require! (
-                self.proposal.total_backers >= MINIMUM_BACKERS,
-                ProposalError::TargetNotMet
-            );
-        }
+
+        require!(
+            self.proposal.maker == self.payer.key() || self.payer.key() == OWNER.parse::<Pubkey>().unwrap(),
+            ProposalError::ProposalRejected
+        );
+        require! (
+            self.proposal.is_rejected == false,
+            ProposalError::ProposalRejected
+        );
+        require!(
+            self.proposal.is_pool_launched == false,
+            ProposalError::PoolAlreadyLaunched
+        );
+        let current_time = Clock::get()?.unix_timestamp;
+        require!(
+            self.proposal.duration
+                <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
+            ProposalError::BackingNotEnded
+        );
+        require! (
+            self.proposal.total_backers >= MINIMUM_BACKERS,
+            ProposalError::TargetNotMet
+        );
 
         let pool_authority_seeds: &[&[u8]] = &[b"vault_authority", &[VAULT_BUMP]];
 
@@ -227,7 +237,7 @@ pub fn fund_creator_authority<'b, 'info>(
             },
             signer_seeds,
         ),
-        MAKER_TOKEN_AMOUNT,
+        MAKER_TOKEN_AMOUNT * 10u64.pow(9 as u32),
     )?;
 
     let program_id = system_program.to_account_info();
