@@ -60,6 +60,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   const mintAccount = findMintAccount(program.programId);
   const userAta = findUserAta(backer.publicKey, mintAccount);
+  const makerAta = findUserAta(maker.publicKey, mintAccount);
   const freezeAuthority = findFreezeAuthority(program.programId);
   const mintAuthority = findMintAuthority(program.programId);
 
@@ -105,7 +106,22 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mintAuthority,
         userTokenAccount: userAta,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        tokenProgram2022: TOKEN_2022_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc();
+
+      const tx2 = await program.methods
+      .mintSoulboundToUser()
+      .accounts({
+        payer: authority.publicKey,
+        user: maker.publicKey,
+        mint: mintAccount,
+        mintAuthority,
+        userTokenAccount: makerAta,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([authority])
@@ -291,7 +307,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         maker: maker.publicKey,
         tokenVault: vault,
         wsolVault,
-        // makerTokenAccount: pdas.makerTokenAccount,
         poolAuthority: pdas.poolAuthority,
         dammPoolAuthority: pdas.poolAuthority,
         poolConfig: config,

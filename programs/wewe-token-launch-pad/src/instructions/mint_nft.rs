@@ -12,7 +12,7 @@ pub struct MintSoulboundToUser<'info> {
         payer = payer,
         mint::decimals = 0,
         mint::authority = mint_authority,
-        mint::freeze_authority = freeze_authority,
+        mint::freeze_authority = mint_authority,
         seeds = [b"mint_soulbound"],
         bump,
     )]
@@ -24,13 +24,6 @@ pub struct MintSoulboundToUser<'info> {
         bump,
     )]
     pub mint_authority: UncheckedAccount<'info>,
-
-    /// CHECK: freeze authority PDA
-    #[account(
-        seeds = [b"freeze_authority"],
-        bump,
-    )]
-    pub freeze_authority: UncheckedAccount<'info>,
 
     /// CHECK: user
     pub user: UncheckedAccount<'info>,
@@ -51,7 +44,6 @@ pub struct MintSoulboundToUser<'info> {
 impl<'info> MintSoulboundToUser<'info> {
     pub fn mint_soulbound_to_user(&mut self, bumps: &MintSoulboundToUserBumps) -> Result<()> {
         let mint_authority_seeds: &[&[u8]] = &[b"mint_authority", &[bumps.mint_authority]];
-        let freeze_authority_seeds: &[&[u8]] = &[b"freeze_authority", &[bumps.freeze_authority]];
 
         anchor_spl::token::mint_to(
             CpiContext::new_with_signer(
@@ -72,9 +64,9 @@ impl<'info> MintSoulboundToUser<'info> {
             anchor_spl::token::FreezeAccount {
                 account: self.user_token_account.to_account_info(),
                 mint: self.mint.to_account_info(),
-                authority: self.freeze_authority.to_account_info(),
+                authority: self.mint_authority.to_account_info(),
             },
-            &[freeze_authority_seeds],
+            &[mint_authority_seeds],
         ))?;
 
         Ok(())
