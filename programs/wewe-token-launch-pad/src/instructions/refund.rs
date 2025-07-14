@@ -43,8 +43,8 @@ impl<'info> Refund<'info> {
         if !self.proposal.is_rejected {
             let current_time = Clock::get()?.unix_timestamp;
             require!(
-                self.proposal.duration
-                    <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
+                SECONDS_TO_DAYS
+                    <= (current_time - self.proposal.time_started),
                 ProposalError::BackingNotEnded
             );
         }

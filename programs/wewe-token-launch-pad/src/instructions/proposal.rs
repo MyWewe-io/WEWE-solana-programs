@@ -93,11 +93,9 @@ pub struct CreateProposal<'info> {
 impl<'info> CreateProposal<'info> {
     pub fn create_proposal(
         &mut self,
-        backing_goal: u64,
         token_name: String,
         token_symbol: String,
         token_uri: String,
-        duration: u16,
         bumps: &CreateProposalBumps,
     ) -> Result<()> {
         // PDA signer seeds
@@ -154,9 +152,7 @@ impl<'info> CreateProposal<'info> {
             maker: self.maker.key(),
             total_backing: 0,
             time_started: Clock::get()?.unix_timestamp,
-            duration,
             bump: bumps.proposal,
-            backing_goal,
             is_rejected: false,
             proposal_id: self.maker_account.proposal_count,
             is_pool_launched: false,
@@ -169,12 +165,10 @@ impl<'info> CreateProposal<'info> {
             maker: self.maker.key(),
             proposal_address: self.proposal.key(),
             start_time: Clock::get()?.unix_timestamp,
-            duration,
             token_name,
             token_symbol,
             token_uri,
             mint_account: self.mint_account.key(),
-            backing_goal,
             proposal_index: self.maker_account.proposal_count,
         });
 

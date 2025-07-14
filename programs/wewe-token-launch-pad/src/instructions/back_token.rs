@@ -56,8 +56,8 @@ impl<'info> Contribute<'info> {
         // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
         require!(
-            self.proposal.duration
-                >= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
+            SECONDS_TO_DAYS
+                >= (current_time - self.proposal.time_started),
             ProposalError::BackingEnded
         );
 

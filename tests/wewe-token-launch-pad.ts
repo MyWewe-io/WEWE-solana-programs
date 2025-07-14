@@ -136,7 +136,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const listener = await program.addEventListener('proposalCreated', (event) => capturedEvent = event);
 
     const tx = await program.methods
-      .createProposal(0, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri)
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
         maker: maker.publicKey,
         makerAccount,
@@ -159,13 +159,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const expectedEvent = {
       maker: maker.publicKey.toBase58(),
       proposalAddress: proposal.toBase58(),
-      duration: 0,
     };
 
     // Assert event fields
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
-    expect(capturedEvent.duration).to.equal(expectedEvent.duration);
   });
 
   it('Creates second proposal with same maker', async () => {
@@ -173,7 +171,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const listener = await program.addEventListener('proposalCreated', (event) => capturedEvent = event);
 
     const tx = await program.methods
-      .createProposal(100, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri)
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
         maker: maker.publicKey,
         makerAccount,
@@ -192,13 +190,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const expectedEvent = {
       maker: maker.publicKey.toBase58(),
       proposalAddress: proposal2.toBase58(),
-      duration: 100,
     };
 
     // Assert event fields
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
-    expect(capturedEvent.duration).to.equal(expectedEvent.duration);
   });
 
   it('Backs the first proposal with SOL', async () => {
