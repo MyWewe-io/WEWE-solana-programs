@@ -2,7 +2,7 @@ use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{token_interface::{TokenAccount, TokenInterface}, associated_token::AssociatedToken, token, token::Transfer as TokenTransfer};
 use std::u64;
 
-use crate::constant::{MAKER_TOKEN_AMOUNT, MINIMUM_BACKERS, OWNER, SECONDS_TO_DAYS, VAULT_AUTHORITY};
+use crate::{constant::{MAKER_TOKEN_AMOUNT, MINIMUM_BACKERS, OWNER, SECONDS_TO_DAYS, VAULT_AUTHORITY}, event::ProposalRejected};
 use crate::event::CoinLaunched;
 use crate::state::proposal::Proposal;
 use crate::{const_pda, *};
@@ -97,33 +97,28 @@ pub struct DammV2<'info> {
 }
 
 impl<'info> DammV2<'info> {
-    pub fn create_pool(&self, liquidity: u128, sqrt_price: u128) -> Result<()> {
-
-        require!(
-            self.proposal.maker == self.payer.key() || self.payer.key() == OWNER.parse::<Pubkey>().unwrap(),
-            ProposalError::ProposalRejected
-        );
-        require! (
-            self.proposal.is_rejected == false,
-            ProposalError::ProposalRejected
-        );
-        require!(
-            self.proposal.is_pool_launched == false,
-            ProposalError::PoolAlreadyLaunched
-        );
+    pub fn create_pool(&mut self, liquidity: u128, sqrt_price: u128) -> Result<()> {
+        let is_owner = self.payer.key() == OWNER.parse::<Pubkey>().unwrap();
+        let is_maker = self.payer.key() == self.proposal.maker;
+        require!(is_maker || is_owner, ProposalError::NotOwner);
+    
         let current_time = Clock::get()?.unix_timestamp;
-        require!(
-            SECONDS_TO_DAYS
-                <= (current_time - self.proposal.time_started),
-            ProposalError::BackingNotEnded
-        );
-        require! (
-            self.proposal.total_backers >= MINIMUM_BACKERS,
-            ProposalError::TargetNotMet
-        );
-
+        let time_passed = current_time - self.proposal.time_started;
+    
+        if time_passed >= SECONDS_TO_DAYS && self.proposal.total_backers < MINIMUM_BACKERS {
+            self.proposal.is_rejected = true;
+            emit!(ProposalRejected {
+                maker: self.proposal.maker,
+                proposal_address: self.proposal.key(),
+            });
+        }
+    
+        require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
+        require!(!self.proposal.is_pool_launched, ProposalError::PoolAlreadyLaunched);
+        require!(self.proposal.total_backers >= MINIMUM_BACKERS, ProposalError::TargetNotMet);
+    
         let pool_authority_seeds: &[&[u8]] = &[b"vault_authority", &[VAULT_BUMP]];
-
+    
         fund_creator_authority(FundCreatorAuthorityAccounts {
             proposal: &self.proposal,
             wsol_vault: &self.wsol_vault,
@@ -134,7 +129,7 @@ impl<'info> DammV2<'info> {
             token_program_a: &self.token_base_program,
             token_vault: &self.token_vault,
         })?;
-
+    
         cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
@@ -168,15 +163,15 @@ impl<'info> DammV2<'info> {
                 activation_point: None,
             },
         )?;
-
+    
         emit!(CoinLaunched {
             proposal_address: self.proposal.key(),
             mint_account: self.base_mint.key(),
             total_sol_raised: self.proposal.total_backing,
         });
-
+    
         Ok(())
-    }
+    }    
 }
 
 pub struct FundCreatorAuthorityAccounts<'b, 'info> {

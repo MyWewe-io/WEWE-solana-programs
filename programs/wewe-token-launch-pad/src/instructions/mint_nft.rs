@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
+use crate::constant::MINT_ACCOUNT;
+
 #[derive(Accounts)]
 pub struct MintSoulboundToUser<'info> {
     #[account(mut)]
@@ -13,7 +15,7 @@ pub struct MintSoulboundToUser<'info> {
         mint::decimals = 0,
         mint::authority = mint_authority,
         mint::freeze_authority = mint_authority,
-        seeds = [b"mint_soulbound"],
+        seeds = [MINT_ACCOUNT],
         bump,
     )]
     pub mint: Account<'info, Mint>,
