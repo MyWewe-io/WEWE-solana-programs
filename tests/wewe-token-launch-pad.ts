@@ -138,6 +138,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const tx = await program.methods
       .createProposal(metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
+        payer: authority.publicKey,
         maker: maker.publicKey,
         makerAccount,
         vaultAuthority,
@@ -147,7 +148,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .signers([maker, mint])
+      .signers([authority, mint, maker])
       .rpc()
       .then(confirm);
 
@@ -173,6 +174,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const tx = await program.methods
       .createProposal(metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
+        payer: authority.publicKey,
         maker: maker.publicKey,
         makerAccount,
         vaultAuthority,
@@ -182,7 +184,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .signers([maker, mint2])
+      .signers([authority, mint2, maker])
       .rpc()
       .then(confirm);
 

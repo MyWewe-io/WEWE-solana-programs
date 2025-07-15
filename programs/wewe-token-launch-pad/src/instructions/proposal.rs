@@ -14,11 +14,15 @@ use anchor_spl::{
 #[derive(Accounts)]
 pub struct CreateProposal<'info> {
     #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: maker of the proposal
+    #[account(mut)]
     pub maker: Signer<'info>,
 
     #[account(
         init_if_needed,
-        payer = maker,
+        payer = payer,
         seeds = [b"maker", maker.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR + MakerAccount::INIT_SPACE,
@@ -27,7 +31,7 @@ pub struct CreateProposal<'info> {
 
     #[account(
         init,
-        payer = maker,
+        payer = payer,
         seeds = [b"proposal", maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
         bump,
         space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
@@ -46,7 +50,7 @@ pub struct CreateProposal<'info> {
 
     #[account(
         init,
-        payer = maker,
+        payer = payer,
         mint::decimals = 9,
         mint::authority = proposal.key(),
         mint::freeze_authority = proposal.key(),
@@ -65,7 +69,7 @@ pub struct CreateProposal<'info> {
     #[account(
         init,
         seeds = [b"token_vault", vault_authority.key().as_ref(), mint_account.key().as_ref()],
-        payer = maker,
+        payer = payer,
         token::mint = mint_account,
         token::authority = vault_authority,
         bump,
@@ -114,7 +118,7 @@ impl<'info> CreateProposal<'info> {
                     mint: self.mint_account.to_account_info(),
                     mint_authority: self.proposal.to_account_info(),
                     update_authority: self.maker.to_account_info(),
-                    payer: self.maker.to_account_info(),
+                    payer: self.payer.to_account_info(),
                     system_program: self.system_program.to_account_info(),
                     rent: self.rent.to_account_info(),
                 },
