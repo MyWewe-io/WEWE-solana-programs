@@ -1,8 +1,8 @@
 use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{token_interface::{TokenAccount, TokenInterface}, associated_token::AssociatedToken, token, token::Transfer as TokenTransfer};
-use std::u64;
+use std::{ops::Mul, u64};
 
-use crate::{constant::{MAKER_TOKEN_AMOUNT, MINIMUM_BACKERS, OWNER, SECONDS_TO_DAYS, VAULT_AUTHORITY}, event::ProposalRejected};
+use crate::{constant::{FEE_TO_DEDUCT, MAKER_TOKEN_AMOUNT, MINIMUM_BACKERS, OWNER, SECONDS_TO_DAYS, VAULT_AUTHORITY}, event::ProposalRejected};
 use crate::event::CoinLaunched;
 use crate::state::proposal::Proposal;
 use crate::{const_pda, *};
@@ -116,6 +116,22 @@ impl<'info> DammV2<'info> {
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(!self.proposal.is_pool_launched, ProposalError::PoolAlreadyLaunched);
         require!(self.proposal.total_backers >= MINIMUM_BACKERS, ProposalError::TargetNotMet);
+
+        let fee_collected = self.proposal.total_backers.mul(FEE_TO_DEDUCT);
+
+        let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
+
+        anchor_lang::system_program::transfer(
+            CpiContext::new_with_signer(
+                self.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: self.vault_authority.to_account_info(),
+                    to: self.authority.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            fee_collected,
+        )?;
     
         let pool_authority_seeds: &[&[u8]] = &[b"vault_authority", &[VAULT_BUMP]];
     
@@ -168,6 +184,7 @@ impl<'info> DammV2<'info> {
             proposal_address: self.proposal.key(),
             mint_account: self.base_mint.key(),
             total_sol_raised: self.proposal.total_backing,
+            pool_address: self.pool.key(),
         });
     
         Ok(())

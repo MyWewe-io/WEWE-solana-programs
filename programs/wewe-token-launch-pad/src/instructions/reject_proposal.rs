@@ -1,7 +1,7 @@
 use std::ops::Mul;
 use anchor_lang::prelude::*;
 
-use crate::{const_pda::const_authority::VAULT_BUMP, constant::{FEE_TO_DEDUCT, VAULT_AUTHORITY}, event::ProposalRejected, state::proposal::Proposal};
+use crate::{const_pda::const_authority::VAULT_BUMP, constant::{FEE_TO_DEDUCT, VAULT_AUTHORITY}, errors::ProposalError, event::ProposalRejected, state::proposal::Proposal};
 
 #[derive(Accounts)]
 pub struct RejectProposal<'info> {
@@ -23,6 +23,7 @@ pub struct RejectProposal<'info> {
 
 impl<'info> RejectProposal<'info> {
     pub fn reject_proposal(&mut self) -> Result<()> {
+        require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         self.proposal.is_rejected = true;
 
         let fee_collected = self.proposal.total_backers.mul(FEE_TO_DEDUCT);

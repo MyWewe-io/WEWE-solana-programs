@@ -23,6 +23,9 @@ pub enum ProposalError {
     #[msg("This proposal has been rejected. You may claim your refund.")]
     ProposalRejected,
 
+    #[msg("This proposal is already rejected")]
+    ProposalAlreadyRejected,
+
     #[msg("Pool for this proposal is already launched.")]
     PoolAlreadyLaunched,
 
