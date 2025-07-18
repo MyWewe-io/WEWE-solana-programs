@@ -298,7 +298,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
     const tx = await program.methods
-      .createPool(liquidity, sqrtPrice)
+      .createPool()
       .accountsPartial({
         proposal,
         vaultAuthority,
@@ -328,9 +328,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([maker, pdas.positionNftMint])
       .transaction();
 
-    tx.instructions.unshift(computeUnitsIx); // optionally add computePriceIx before this
+    tx.instructions.unshift(computeUnitsIx); 
     const signature = await provider.sendAndConfirm(tx, [maker, pdas.positionNftMint]);
-
 
     await program.removeEventListener(listener);
 

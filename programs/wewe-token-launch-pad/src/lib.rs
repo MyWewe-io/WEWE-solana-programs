@@ -52,11 +52,10 @@ pub mod wewe_token_launch_pad {
 
     pub fn create_pool(
         ctx: Context<DammV2>,
-        liquidity: u128,
-        sqrt_price: u128,
-    ) -> Result<()> {
-    
-        ctx.accounts.create_pool(liquidity, sqrt_price)
+    ) -> Result<()> {    
+        ctx.accounts.create_pool()?;
+
+        Ok(())
     }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
@@ -82,6 +81,13 @@ pub mod wewe_token_launch_pad {
     #[access_control(check(&ctx.accounts.payer))]
     pub fn mint_soulbound_to_user(ctx: Context<MintSoulboundToUser>) -> Result<()> {
         ctx.accounts.mint_soulbound_to_user(&ctx.bumps)?;
+
+        Ok(())
+    }
+
+    #[access_control(check(&ctx.accounts.payer))]
+    pub fn claim_pool_fee(ctx: Context<ClaimPositionFee>, user_wsol_amount: u64, user_token_amount: u64) -> Result<()> {
+        ctx.accounts.claim_position_fee(user_wsol_amount, user_token_amount)?;
 
         Ok(())
     }

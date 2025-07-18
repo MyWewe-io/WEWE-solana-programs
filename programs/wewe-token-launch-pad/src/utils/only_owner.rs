@@ -6,7 +6,7 @@ pub fn check(signer_account: &AccountInfo) -> Result<()> {
     // Check if signer === owner
     require_keys_eq!(
         signer_account.key(),
-        OWNER.parse::<Pubkey>().unwrap(),
+        OWNER,
         ProposalError::NotOwner
     );
 
