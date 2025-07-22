@@ -63,8 +63,13 @@ impl<'info> Contribute<'info> {
         );
 
         require!(
-            self.proposal.is_rejected == false,
+            !self.proposal.is_rejected,
             ProposalError::ProposalRejected
+        );
+
+        require!(
+            !self.proposal.is_pool_launched,
+            ProposalError::PoolAlreadyLaunched
         );
 
         require!(

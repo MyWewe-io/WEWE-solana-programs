@@ -22,6 +22,7 @@ pub struct RejectProposal<'info> {
 
 impl<'info> RejectProposal<'info> {
     pub fn reject_proposal(&mut self) -> Result<()> {
+        require!(!self.proposal.is_pool_launched, ProposalError::PoolAlreadyLaunched);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         self.proposal.is_rejected = true;
 

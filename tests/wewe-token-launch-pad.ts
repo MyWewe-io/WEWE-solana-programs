@@ -30,7 +30,6 @@ import {
   findMintAuthority,
 } from './utils';
 
-
 describe('Wewe Token Launch Pad - Integration Tests', () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -90,6 +89,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       anchor.web3.SystemProgram.transfer({
         fromPubkey: provider.wallet.publicKey,
         toPubkey: authority.publicKey,
+        lamports: 1e9,
+      })
+    ));
+
+    await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: vaultAuthority,
         lamports: 1e9,
       })
     ));
@@ -327,7 +334,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       })
       .signers([maker, pdas.positionNftMint])
       .transaction();
-
+    
     tx.instructions.unshift(computeUnitsIx); 
     const signature = await provider.sendAndConfirm(tx, [maker, pdas.positionNftMint]);
 
