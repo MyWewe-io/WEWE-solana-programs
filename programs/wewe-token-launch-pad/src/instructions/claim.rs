@@ -49,12 +49,7 @@ pub struct Claim<'info> {
 impl<'info> Claim<'info> {
     pub fn claim(&mut self) -> Result<()> {
         require!(
-            self.proposal.is_rejected == true,
-            ProposalError::ProposalRejected
-        );
-
-        require!(
-            self.proposal.is_pool_launched == true,
+            self.proposal.is_pool_launched,
             ProposalError::TargetNotMet
         );
 

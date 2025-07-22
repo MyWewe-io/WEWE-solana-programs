@@ -1,12 +1,19 @@
 use anchor_lang::system_program::{transfer, Transfer};
-use anchor_spl::{token_interface::{TokenAccount, TokenInterface}, associated_token::AssociatedToken, token, token::Transfer as TokenTransfer};
-use std::u64;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token,
+    token::Transfer as TokenTransfer,
+    token_interface::{TokenAccount, TokenInterface},
+};
+use std::{ops::Sub, u64};
 
-use crate::constant::{MAKER_TOKEN_AMOUNT, MINIMUM_BACKERS, OWNER, SECONDS_TO_DAYS, VAULT_AUTHORITY};
-use crate::event::CoinLaunched;
+use crate::const_pda::const_authority::VAULT_BUMP;
 use crate::state::proposal::Proposal;
 use crate::{const_pda, *};
-use crate::const_pda::const_authority::VAULT_BUMP;
+use crate::{
+    constant::*,
+    event::{CoinLaunched, ProposalRejected},
+};
 
 #[derive(Accounts)]
 pub struct DammV2<'info> {
@@ -97,37 +104,37 @@ pub struct DammV2<'info> {
 }
 
 impl<'info> DammV2<'info> {
-    pub fn create_pool(&self, liquidity: u128, sqrt_price: u128) -> Result<()> {
+    pub fn create_pool(&mut self) -> Result<()> {
+        let is_owner = self.payer.key() == OWNER;
+        let is_maker = self.payer.key() == self.proposal.maker;
+        require!(is_maker || is_owner, ProposalError::NotOwner);
 
+        let current_time = Clock::get()?.unix_timestamp;
+        let time_passed = current_time - self.proposal.time_started;
+
+        if time_passed >= SECONDS_TO_DAYS && self.proposal.total_backers < MINIMUM_BACKERS {
+            self.proposal.is_rejected = true;
+            emit!(ProposalRejected {
+                maker: self.proposal.maker,
+                proposal_address: self.proposal.key(),
+            });
+        }
+
+        require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(
-            self.proposal.maker == self.payer.key() || self.payer.key() == OWNER.parse::<Pubkey>().unwrap(),
-            ProposalError::ProposalRejected
-        );
-        require! (
-            self.proposal.is_rejected == false,
-            ProposalError::ProposalRejected
-        );
-        require!(
-            self.proposal.is_pool_launched == false,
+            !self.proposal.is_pool_launched,
             ProposalError::PoolAlreadyLaunched
         );
-        let current_time = Clock::get()?.unix_timestamp;
         require!(
-            self.proposal.duration
-                <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
-            ProposalError::BackingNotEnded
-        );
-        require! (
             self.proposal.total_backers >= MINIMUM_BACKERS,
             ProposalError::TargetNotMet
         );
 
-        let pool_authority_seeds: &[&[u8]] = &[b"vault_authority", &[VAULT_BUMP]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
 
         fund_creator_authority(FundCreatorAuthorityAccounts {
             proposal: &self.proposal,
             wsol_vault: &self.wsol_vault,
-            payer: &self.payer,
             system_program: &self.system_program,
             creator_authority: &self.vault_authority,
             maker_token_account: &self.maker_token_account,
@@ -135,11 +142,19 @@ impl<'info> DammV2<'info> {
             token_vault: &self.token_vault,
         })?;
 
+        let base_amount: u128 = TOTAL_POOL_TOKENS as u128;
+        let quote_amount: u128 = self.proposal.total_backing as u128;
+
+        let liquidity = integer_sqrt(base_amount.checked_mul(quote_amount).unwrap());
+
+        let ratio = (quote_amount << 64) / base_amount;
+        let sqrt_price = integer_sqrt(ratio);
+
         cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
                 cp_amm::cpi::accounts::InitializePoolCtx {
-                    creator: self.pool_authority.to_account_info(),
+                    creator: self.vault_authority.to_account_info(),
                     position_nft_mint: self.position_nft_mint.to_account_info(),
                     position_nft_account: self.position_nft_account.to_account_info(),
                     payer: self.vault_authority.to_account_info(),
@@ -160,7 +175,7 @@ impl<'info> DammV2<'info> {
                     event_authority: self.damm_event_authority.to_account_info(),
                     program: self.amm_program.to_account_info(),
                 },
-                &[&pool_authority_seeds[..]],
+                signer_seeds,
             ),
             cp_amm::InitializePoolParameters {
                 liquidity,
@@ -173,6 +188,7 @@ impl<'info> DammV2<'info> {
             proposal_address: self.proposal.key(),
             mint_account: self.base_mint.key(),
             total_sol_raised: self.proposal.total_backing,
+            pool_address: self.pool.key(),
         });
 
         Ok(())
@@ -184,7 +200,6 @@ pub struct FundCreatorAuthorityAccounts<'b, 'info> {
     pub token_program_a: &'b Interface<'info, TokenInterface>,
     pub token_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub wsol_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
-    pub payer: &'b Signer<'info>,
     pub system_program: &'b Program<'info, System>,
     pub creator_authority: &'b AccountInfo<'info>,
     pub maker_token_account: &'b Box<InterfaceAccount<'info, TokenAccount>>,
@@ -196,7 +211,6 @@ pub fn fund_creator_authority<'b, 'info>(
     let FundCreatorAuthorityAccounts {
         proposal,
         wsol_vault,
-        payer,
         system_program,
         creator_authority,
         maker_token_account,
@@ -205,6 +219,8 @@ pub fn fund_creator_authority<'b, 'info>(
     } = accounts;
 
     let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
+
+    let wsol_amount = wsol_vault.amount;
 
     let program_id = system_program.to_account_info();
     let cpi_context = CpiContext::new_with_signer(
@@ -216,9 +232,8 @@ pub fn fund_creator_authority<'b, 'info>(
         signer_seeds,
     );
 
-    transfer(cpi_context, proposal.total_backing)?;
+    transfer(cpi_context, proposal.total_backing.sub(wsol_amount))?;
 
-    // Sync the native token to reflect the new SOL balance as wSOL
     let cpi_accounts = token::SyncNative {
         account: wsol_vault.to_account_info(),
     };
@@ -240,16 +255,18 @@ pub fn fund_creator_authority<'b, 'info>(
         MAKER_TOKEN_AMOUNT * 10u64.pow(9 as u32),
     )?;
 
-    let program_id = system_program.to_account_info();
-    let cpi_context = CpiContext::new(
-        program_id,
-        Transfer {
-            from: payer.to_account_info(),
-            to: creator_authority.to_account_info(),
-        },
-    );
-
-    transfer(cpi_context, 50_000_000)?;
-
     Ok(())
+}
+
+fn integer_sqrt(value: u128) -> u128 {
+    if value == 0 {
+        return 0;
+    }
+    let mut z = value;
+    let mut x = (value >> 1) + 1;
+    while x < z {
+        z = x;
+        x = (value / x + x) >> 1;
+    }
+    z
 }

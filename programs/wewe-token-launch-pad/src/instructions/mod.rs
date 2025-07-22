@@ -6,6 +6,7 @@ pub mod claim;
 pub mod reject_proposal;
 pub mod update_airdrop_amount;
 pub mod mint_nft;
+pub mod collect_pool_fees;
 
 pub use back_token::*;
 pub use create_pool::*;
@@ -15,3 +16,4 @@ pub use claim::*;
 pub use reject_proposal::*;
 pub use update_airdrop_amount::*;
 pub use mint_nft::*;
+pub use collect_pool_fees::*;

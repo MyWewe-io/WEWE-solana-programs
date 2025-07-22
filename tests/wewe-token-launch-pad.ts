@@ -30,7 +30,6 @@ import {
   findMintAuthority,
 } from './utils';
 
-
 describe('Wewe Token Launch Pad - Integration Tests', () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -93,6 +92,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         lamports: 1e9,
       })
     ));
+
+    await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: vaultAuthority,
+        lamports: 1e9,
+      })
+    ));
   });
 
   it("mints and freezes nft to user", async () => {
@@ -136,8 +143,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const listener = await program.addEventListener('proposalCreated', (event) => capturedEvent = event);
 
     const tx = await program.methods
-      .createProposal(0, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri)
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
+        payer: authority.publicKey,
         maker: maker.publicKey,
         makerAccount,
         vaultAuthority,
@@ -147,7 +155,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .signers([maker, mint])
+      .signers([authority, mint, maker])
       .rpc()
       .then(confirm);
 
@@ -159,13 +167,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const expectedEvent = {
       maker: maker.publicKey.toBase58(),
       proposalAddress: proposal.toBase58(),
-      duration: 0,
     };
 
     // Assert event fields
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
-    expect(capturedEvent.duration).to.equal(expectedEvent.duration);
   });
 
   it('Creates second proposal with same maker', async () => {
@@ -173,8 +179,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const listener = await program.addEventListener('proposalCreated', (event) => capturedEvent = event);
 
     const tx = await program.methods
-      .createProposal(100, new BN(50_000_000), metadata.name, metadata.symbol, metadata.uri)
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
       .accountsPartial({
+        payer: authority.publicKey,
         maker: maker.publicKey,
         makerAccount,
         vaultAuthority,
@@ -184,7 +191,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .signers([maker, mint2])
+      .signers([authority, mint2, maker])
       .rpc()
       .then(confirm);
 
@@ -192,13 +199,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const expectedEvent = {
       maker: maker.publicKey.toBase58(),
       proposalAddress: proposal2.toBase58(),
-      duration: 100,
     };
 
     // Assert event fields
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
-    expect(capturedEvent.duration).to.equal(expectedEvent.duration);
   });
 
   it('Backs the first proposal with SOL', async () => {
@@ -300,7 +305,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
     const tx = await program.methods
-      .createPool(liquidity, sqrtPrice)
+      .createPool()
       .accountsPartial({
         proposal,
         vaultAuthority,
@@ -329,10 +334,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       })
       .signers([maker, pdas.positionNftMint])
       .transaction();
-
-    tx.instructions.unshift(computeUnitsIx); // optionally add computePriceIx before this
+    
+    tx.instructions.unshift(computeUnitsIx); 
     const signature = await provider.sendAndConfirm(tx, [maker, pdas.positionNftMint]);
-
 
     await program.removeEventListener(listener);
 

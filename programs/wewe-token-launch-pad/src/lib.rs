@@ -13,7 +13,7 @@ use instructions::*;
 use utils::*;
 use errors::*;
 
-declare_id!("GK1gjRGXjoRPD9LuzsSX8BWeEzT8pJNwFcbA8rY1g6E9");
+declare_id!("5gPUSc2hYLsmWzi8Vgz6hjxvUoMGLcKHj66LsEjsgW3p");
 
 #[program]
 pub mod wewe_token_launch_pad {
@@ -21,18 +21,14 @@ pub mod wewe_token_launch_pad {
 
     pub fn create_proposal(
         ctx: Context<CreateProposal>,
-        duration: u16,
-        backing_goal: u64,
         token_name: String,
         token_symbol: String,
         token_uri: String,
     ) -> Result<()> {
         ctx.accounts.create_proposal(
-            backing_goal,
             token_name,
             token_symbol,
             token_uri,
-            duration,
             &ctx.bumps,
         )?;
 
@@ -55,12 +51,11 @@ pub mod wewe_token_launch_pad {
     }
 
     pub fn create_pool(
-        ctx: Context<DammV2>,
-        liquidity: u128,
-        sqrt_price: u128,
-    ) -> Result<()> {
-    
-        ctx.accounts.create_pool(liquidity, sqrt_price)
+        ctx: Context<DammV2>
+    ) -> Result<()> {    
+        ctx.accounts.create_pool()?;
+
+        Ok(())
     }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
@@ -86,6 +81,13 @@ pub mod wewe_token_launch_pad {
     #[access_control(check(&ctx.accounts.payer))]
     pub fn mint_soulbound_to_user(ctx: Context<MintSoulboundToUser>) -> Result<()> {
         ctx.accounts.mint_soulbound_to_user(&ctx.bumps)?;
+
+        Ok(())
+    }
+
+    #[access_control(check(&ctx.accounts.payer))]
+    pub fn claim_pool_fee(ctx: Context<ClaimPositionFee>, user_wsol_amount: u64, user_token_amount: u64) -> Result<()> {
+        ctx.accounts.claim_position_fee(user_wsol_amount, user_token_amount)?;
 
         Ok(())
     }

@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
 
 use crate::const_pda::const_authority::VAULT_BUMP;
-use crate::constant::{AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT, SECONDS_TO_DAYS, VAULT_AUTHORITY};
+use crate::constant::{AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT, VAULT_AUTHORITY};
 use crate::errors::ProposalError;
 use crate::event::BackerRefunded;
 use crate::state::{backers::Backers, proposal::Proposal};
@@ -40,15 +40,10 @@ pub struct Refund<'info> {
 
 impl<'info> Refund<'info> {
     pub fn refund(&mut self) -> Result<()> {
-        if !self.proposal.is_rejected {
-            let current_time = Clock::get()?.unix_timestamp;
-            require!(
-                self.proposal.duration
-                    <= ((current_time - self.proposal.time_started) / SECONDS_TO_DAYS) as u16,
-                ProposalError::BackingNotEnded
-            );
-        }
-
+        require!(
+            self.proposal.is_rejected,
+            ProposalError::BackingNotEnded
+        );
         let refund_amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
 
         let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];

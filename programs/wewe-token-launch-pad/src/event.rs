@@ -6,12 +6,10 @@ pub struct ProposalCreated {
     pub proposal_address: Pubkey,
     pub proposal_index: u64,
     pub start_time: i64,
-    pub duration: u16,
     pub token_name: String,
     pub token_symbol: String,
     pub token_uri: String,
     pub mint_account: Pubkey,
-    pub backing_goal: u64,
 }
 
 #[event]
@@ -44,4 +42,5 @@ pub struct CoinLaunched {
     pub mint_account: Pubkey,
     pub proposal_address: Pubkey,
     pub total_sol_raised: u64,
+    pub pool_address: Pubkey,
 }
