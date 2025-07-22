@@ -2,7 +2,7 @@ use anchor_lang::{prelude::Pubkey, pubkey};
 
 pub const ANCHOR_DISCRIMINATOR: usize = 8;
 pub const SECONDS_TO_DAYS: i64 = 86400;
-pub const AMOUNT_TO_RAISE_PER_USER: u64 = 10_000_000;  //0.01 SOL // 998,997,760 SOL 
+pub const AMOUNT_TO_RAISE_PER_USER: u64 = 10_000_000; //0.01 SOL // 998,997,760 SOL 
 pub const FEE_TO_DEDUCT: u64 = 2_000_000;   //0.002 SOl 
 pub const TOTAL_MINT: u64 = 1_000_000_000; // 1 billion supply
 pub const TOTAL_POOL_TOKENS: u64 = 150_000_000; // 15% of i billion

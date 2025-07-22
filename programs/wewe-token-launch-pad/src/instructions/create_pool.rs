@@ -131,11 +131,10 @@ impl<'info> DammV2<'info> {
         );
 
         let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
-    
+
         fund_creator_authority(FundCreatorAuthorityAccounts {
             proposal: &self.proposal,
             wsol_vault: &self.wsol_vault,
-            payer: &self.payer,
             system_program: &self.system_program,
             creator_authority: &self.vault_authority,
             maker_token_account: &self.maker_token_account,
@@ -155,7 +154,7 @@ impl<'info> DammV2<'info> {
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
                 cp_amm::cpi::accounts::InitializePoolCtx {
-                    creator: self.pool_authority.to_account_info(),
+                    creator: self.vault_authority.to_account_info(),
                     position_nft_mint: self.position_nft_mint.to_account_info(),
                     position_nft_account: self.position_nft_account.to_account_info(),
                     payer: self.vault_authority.to_account_info(),
@@ -201,7 +200,6 @@ pub struct FundCreatorAuthorityAccounts<'b, 'info> {
     pub token_program_a: &'b Interface<'info, TokenInterface>,
     pub token_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub wsol_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
-    pub payer: &'b Signer<'info>,
     pub system_program: &'b Program<'info, System>,
     pub creator_authority: &'b AccountInfo<'info>,
     pub maker_token_account: &'b Box<InterfaceAccount<'info, TokenAccount>>,
@@ -213,7 +211,6 @@ pub fn fund_creator_authority<'b, 'info>(
     let FundCreatorAuthorityAccounts {
         proposal,
         wsol_vault,
-        payer,
         system_program,
         creator_authority,
         maker_token_account,
@@ -237,7 +234,6 @@ pub fn fund_creator_authority<'b, 'info>(
 
     transfer(cpi_context, proposal.total_backing.sub(wsol_amount))?;
 
-    // Sync the native token to reflect the new SOL balance as wSOL
     let cpi_accounts = token::SyncNative {
         account: wsol_vault.to_account_info(),
     };
@@ -258,17 +254,6 @@ pub fn fund_creator_authority<'b, 'info>(
         ),
         MAKER_TOKEN_AMOUNT * 10u64.pow(9 as u32),
     )?;
-
-    let program_id = system_program.to_account_info();
-    let cpi_context = CpiContext::new(
-        program_id,
-        Transfer {
-            from: payer.to_account_info(),
-            to: creator_authority.to_account_info(),
-        },
-    );
-
-    transfer(cpi_context, 50_000_000)?;
 
     Ok(())
 }
