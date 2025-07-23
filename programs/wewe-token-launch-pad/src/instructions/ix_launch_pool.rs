@@ -7,12 +7,15 @@ use anchor_spl::{
 };
 use std::{ops::Sub, u64};
 
-use crate::const_pda::const_authority::VAULT_BUMP;
-use crate::state::proposal::Proposal;
-use crate::{const_pda, *};
 use crate::{
-    constant::*,
+    const_pda::{self, const_authority::VAULT_BUMP},
+    constant::{
+        seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
+        *,
+    },
     event::{CoinLaunched, ProposalRejected},
+    state::proposal::Proposal,
+    *,
 };
 
 #[derive(Accounts)]
@@ -33,7 +36,7 @@ pub struct DammV2<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [b"token_vault", vault_authority.key().as_ref(), quote_mint.key().as_ref()],
+        seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), quote_mint.key().as_ref()],
         token::authority = vault_authority,
         token::mint = quote_mint,
         token::token_program = token_quote_program,
@@ -105,7 +108,7 @@ pub struct DammV2<'info> {
 
 impl<'info> DammV2<'info> {
     pub fn create_pool(&mut self) -> Result<()> {
-        let is_owner = self.payer.key() == OWNER;
+        let is_owner = self.payer.key() == admin_pubkey::ID;
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
 
@@ -130,7 +133,7 @@ impl<'info> DammV2<'info> {
             ProposalError::TargetNotMet
         );
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
         fund_creator_authority(FundCreatorAuthorityAccounts {
             proposal: &self.proposal,
@@ -218,7 +221,7 @@ pub fn fund_creator_authority<'b, 'info>(
         token_vault,
     } = accounts;
 
-    let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
+    let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
     let wsol_amount = wsol_vault.amount;
 

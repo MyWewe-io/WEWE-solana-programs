@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
-use crate::constant::MINT_ACCOUNT;
+use crate::constant::seeds::{MINT_ACCOUNT, MINT_AUTHORITY};
 
 #[derive(Accounts)]
 pub struct MintSoulboundToUser<'info> {
@@ -22,7 +22,7 @@ pub struct MintSoulboundToUser<'info> {
 
     /// CHECK: mint authority PDA
     #[account(
-        seeds = [b"mint_authority"],
+        seeds = [MINT_AUTHORITY],
         bump,
     )]
     pub mint_authority: UncheckedAccount<'info>,
@@ -45,7 +45,7 @@ pub struct MintSoulboundToUser<'info> {
 
 impl<'info> MintSoulboundToUser<'info> {
     pub fn mint_soulbound_to_user(&mut self, bumps: &MintSoulboundToUserBumps) -> Result<()> {
-        let mint_authority_seeds: &[&[u8]] = &[b"mint_authority", &[bumps.mint_authority]];
+        let mint_authority_seeds: &[&[u8]] = &[MINT_AUTHORITY, &[bumps.mint_authority]];
 
         anchor_spl::token::mint_to(
             CpiContext::new_with_signer(

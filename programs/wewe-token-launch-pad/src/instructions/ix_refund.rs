@@ -3,11 +3,13 @@ use std::ops::Sub;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
 
-use crate::const_pda::const_authority::VAULT_BUMP;
-use crate::constant::{AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT, VAULT_AUTHORITY};
-use crate::errors::ProposalError;
-use crate::event::BackerRefunded;
-use crate::state::{backers::Backers, proposal::Proposal};
+use crate::{
+    const_pda::const_authority::VAULT_BUMP,
+    constant::{seeds::*, AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT},
+    errors::ProposalError,
+    event::BackerRefunded,
+    state::{backers::Backers, proposal::Proposal},
+};
 
 #[derive(Accounts)]
 pub struct Refund<'info> {
@@ -29,7 +31,7 @@ pub struct Refund<'info> {
 
     #[account(
         mut,
-        seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
+        seeds = [BACKER, proposal.key().as_ref(), backer.key().as_ref()],
         bump,
         close = backer,
     )]
@@ -40,13 +42,10 @@ pub struct Refund<'info> {
 
 impl<'info> Refund<'info> {
     pub fn refund(&mut self) -> Result<()> {
-        require!(
-            self.proposal.is_rejected,
-            ProposalError::BackingNotEnded
-        );
+        require!(self.proposal.is_rejected, ProposalError::BackingNotEnded);
         let refund_amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
         // Transfer SOL from proposal to backer
         anchor_lang::system_program::transfer(

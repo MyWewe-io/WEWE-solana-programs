@@ -1,14 +1,17 @@
 use anchor_lang::prelude::*;
-
-use crate::{
-    const_pda, constant::{ANCHOR_DISCRIMINATOR, TOTAL_MINT, VAULT_AUTHORITY}, errors::ProposalError, event::ProposalCreated, state::{maker::MakerAccount, proposal::Proposal}
-};
 use anchor_spl::{
     metadata::{
-        create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
-        CreateMetadataAccountsV3, Metadata,
+        create_metadata_accounts_v3, mpl_token_metadata::types::DataV2, CreateMetadataAccountsV3,
+        Metadata,
     },
     token::{mint_to, Mint, MintTo, Token, TokenAccount},
+};
+use crate::{
+    const_pda,
+    constant::{seeds::{PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY, MAKER}, ANCHOR_DISCRIMINATOR, TOTAL_MINT},
+    errors::ProposalError,
+    event::ProposalCreated,
+    state::{maker::MakerAccount, proposal::Proposal},
 };
 
 #[derive(Accounts)]
@@ -23,7 +26,7 @@ pub struct CreateProposal<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        seeds = [b"maker", maker.key().as_ref()],
+        seeds = [MAKER, maker.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR + MakerAccount::INIT_SPACE,
     )]
@@ -32,7 +35,7 @@ pub struct CreateProposal<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [b"proposal", maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
+        seeds = [PROPOSAL, maker.key().as_ref(), &maker_account.proposal_count.to_le_bytes()],
         bump,
         space = ANCHOR_DISCRIMINATOR + Proposal::INIT_SPACE,
     )]
@@ -68,7 +71,7 @@ pub struct CreateProposal<'info> {
 
     #[account(
         init,
-        seeds = [b"token_vault", vault_authority.key().as_ref(), mint_account.key().as_ref()],
+        seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), mint_account.key().as_ref()],
         payer = payer,
         token::mint = mint_account,
         token::authority = vault_authority,

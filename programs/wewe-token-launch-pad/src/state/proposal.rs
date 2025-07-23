@@ -12,4 +12,3 @@ pub struct Proposal {
     pub is_pool_launched: bool,
     pub total_backers: u64,
 }
-
