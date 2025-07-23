@@ -7,24 +7,29 @@ use anchor_lang::{
 use anchor_spl::token::{Mint, TokenAccount};
 
 use crate::{
-    const_pda, constant::*, errors::ProposalError, event::ProposalBacked, state::{backers::Backers, proposal::Proposal}
+    const_pda,
+    constant::{seeds::{VAULT_AUTHORITY, BACKER}, *},
+    errors::ProposalError,
+    event::ProposalBacked,
+    state::{backers::Backers, proposal::Proposal},
 };
 
 #[derive(Accounts)]
 pub struct Contribute<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
+
     /// CHECK: protocol treasury
-    #[account(mut, address = WEWE_VAULT)]
+    #[account(mut, address = treasury::ID)]
     pub wewe_vault: UncheckedAccount<'info>,
+
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
+
     /// CHECK: vault authority
     #[account(
         mut,
-        seeds = [
-            VAULT_AUTHORITY.as_ref(),
-        ],
+        seeds = [VAULT_AUTHORITY.as_ref()],
         bump,
     )]
     pub vault_authority: UncheckedAccount<'info>,
@@ -34,31 +39,32 @@ pub struct Contribute<'info> {
         address = const_pda::const_authority::MINT,
     )]
     pub mint: Account<'info, Mint>,
+
     #[account(
         associated_token::mint = mint,
         associated_token::authority = backer,
-        constraint = user_token_account.amount == 1 @ ProposalError::NotAuthorised
+        constraint = user_token_account.amount == 1 @ ProposalError::NotAuthorised,
     )]
     pub user_token_account: Account<'info, TokenAccount>,
 
     #[account(
         init,
         payer = backer,
-        seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
+        seeds = [BACKER, proposal.key().as_ref(), backer.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR + Backers::INIT_SPACE,
     )]
     pub backer_account: Account<'info, Backers>,
+
     pub system_program: Program<'info, System>,
 }
 
 impl<'info> Contribute<'info> {
     pub fn deposit_sol(&mut self) -> Result<()> {
-        // Check if the fundraising duration has been reached
         let current_time = Clock::get()?.unix_timestamp;
+
         require!(
-            SECONDS_TO_DAYS
-                >= (current_time - self.proposal.time_started),
+            SECONDS_TO_DAYS >= (current_time - self.proposal.time_started),
             ProposalError::BackingEnded
         );
 
@@ -79,26 +85,29 @@ impl<'info> Contribute<'info> {
 
         let amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
         let program_id = self.system_program.to_account_info();
-        let transfer_to_vault = CpiContext::new(
-            program_id.clone(),
-            Transfer {
-                from: self.backer.to_account_info(),
-                to: self.vault_authority.to_account_info(),
-            },
-        );
 
-        transfer(transfer_to_vault, amount)?;
+        transfer(
+            CpiContext::new(
+                program_id.clone(),
+                Transfer {
+                    from: self.backer.to_account_info(),
+                    to: self.vault_authority.to_account_info(),
+                },
+            ),
+            amount,
+        )?;
 
-        let transfer_to_protocol = CpiContext::new(
-            program_id,
-            Transfer {
-                from: self.backer.to_account_info(),
-                to: self.wewe_vault.to_account_info(),
-            },
-        );
-        transfer(transfer_to_protocol, FEE_TO_DEDUCT)?;
+        transfer(
+            CpiContext::new(
+                program_id,
+                Transfer {
+                    from: self.backer.to_account_info(),
+                    to: self.wewe_vault.to_account_info(),
+                },
+            ),
+            FEE_TO_DEDUCT,
+        )?;
 
-        // Update the proposal and backer accounts with the new amounts
         self.proposal.total_backing += amount;
         self.proposal.total_backers += 1;
 

@@ -1,10 +1,17 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken, token::{self, Token, Transfer as TokenTransfer}, token_interface::{TokenAccount, TokenInterface}
+    associated_token::AssociatedToken,
+    token::{self, Token, Transfer as TokenTransfer},
+    token_interface::{TokenAccount, TokenInterface},
 };
 
 use crate::{
-    const_pda::const_authority::VAULT_BUMP, constant::{POOL_AUTHORITY_PREFIX, VAULT_AUTHORITY, WEWE_VAULT}, state::proposal::Proposal
+    const_pda::const_authority::VAULT_BUMP,
+    constant::{
+        seeds::{POOL_AUTHORITY_PREFIX, VAULT_AUTHORITY},
+        treasury,
+    },
+    state::proposal::Proposal,
 };
 
 #[derive(Accounts)]
@@ -25,7 +32,7 @@ pub struct ClaimPositionFee<'info> {
     pub maker: UncheckedAccount<'info>,
 
     /// CHECK: owner of the propposal
-    #[account(address = WEWE_VAULT)]
+    #[account(address = treasury::ID)]
     pub wewe_vault: UncheckedAccount<'info>,
 
     #[account(mut)]
@@ -124,7 +131,7 @@ pub struct ClaimPositionFee<'info> {
 
 impl<'info> ClaimPositionFee<'info> {
     pub fn claim_position_fee(&self, user_wsol_amount: u64, user_token_amount: u64) -> Result<()> {
-        let pool_authority_seeds: &[&[u8]] = &[b"vault_authority", &[VAULT_BUMP]];
+        let pool_authority_seeds: &[&[u8]] = &[VAULT_AUTHORITY, &[VAULT_BUMP]];
 
         cp_amm::cpi::claim_position_fee(CpiContext::new_with_signer(
             self.amm_program.to_account_info(),
@@ -148,7 +155,7 @@ impl<'info> ClaimPositionFee<'info> {
             &[&pool_authority_seeds[..]],
         ))?;
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"vault_authority", &[VAULT_BUMP]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
         // transfer tokens to user
         anchor_spl::token::transfer(
@@ -200,7 +207,7 @@ impl<'info> ClaimPositionFee<'info> {
             ),
             user_wsol_amount,
         )?;
-        
+
         Ok(())
     }
 }

@@ -1,12 +1,13 @@
-use {
-    crate::{
-        errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposal::Proposal}
-    },
-    anchor_lang::prelude::*,
-    anchor_spl::{
-        associated_token::AssociatedToken,
-        token::{transfer, Mint, Token, TokenAccount, Transfer},
-    },
+use anchor_lang::prelude::*;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{transfer, Mint, Token, TokenAccount, Transfer},
+};
+use crate::{
+    constant::seeds::{BACKER, PROPOSAL}, 
+    errors::ProposalError, 
+    event::AirdropClaimed, 
+    state::{backers::Backers, proposal::Proposal}
 };
 
 #[derive(Accounts)]
@@ -27,7 +28,7 @@ pub struct Claim<'info> {
 
     #[account(
         mut,
-        seeds = [b"backer", proposal.key().as_ref(), backer.key().as_ref()],
+        seeds = [BACKER, proposal.key().as_ref(), backer.key().as_ref()],
         bump,
         close=backer,
     )]
@@ -48,10 +49,7 @@ pub struct Claim<'info> {
 
 impl<'info> Claim<'info> {
     pub fn claim(&mut self) -> Result<()> {
-        require!(
-            self.proposal.is_pool_launched,
-            ProposalError::TargetNotMet
-        );
+        require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
 
         let cpi_program = self.token_program.to_account_info();
 
@@ -64,7 +62,7 @@ impl<'info> Claim<'info> {
 
         // Signer seeds to sign the CPI on behalf of the fundraiser account
         let signer_seeds: [&[&[u8]]; 1] = [&[
-            b"proposal".as_ref(),
+            PROPOSAL.as_ref(),
             self.maker.to_account_info().key.as_ref(),
             &[self.proposal.bump],
         ]];
@@ -74,7 +72,10 @@ impl<'info> Claim<'info> {
 
         let claim_amount = self.backer_account.claim_amount;
         // Transfer the funds from the vault to the contributor
-        transfer(cpi_ctx, claim_amount * 10u64.pow(self.mint_account.decimals as u32))?;
+        transfer(
+            cpi_ctx,
+            claim_amount * 10u64.pow(self.mint_account.decimals as u32),
+        )?;
 
         // set claim amount to zero, for succesive airdrops
         self.backer_account.claim_amount = 0;
