@@ -6,12 +6,10 @@ use anchor_spl::{
 };
 
 use crate::{
-    const_pda::const_authority::VAULT_BUMP,
-    constant::{
+    const_pda::const_authority::VAULT_BUMP, constant::{
         seeds::{POOL_AUTHORITY_PREFIX, VAULT_AUTHORITY},
         treasury,
-    },
-    state::proposal::Proposal,
+    }, event::PositionFeeClaimed, state::proposal::Proposal
 };
 
 #[derive(Accounts)]
@@ -207,6 +205,16 @@ impl<'info> ClaimPositionFee<'info> {
             ),
             user_wsol_amount,
         )?;
+
+        emit!(PositionFeeClaimed {
+            proposal: self.proposal.key(),
+            maker: self.maker.key(),
+            user: self.payer.key(),
+            user_token_amount,
+            user_wsol_amount,
+            token_mint: self.token_a_mint.key(),
+            wsol_mint: self.token_b_mint.key(),
+        });
 
         Ok(())
     }

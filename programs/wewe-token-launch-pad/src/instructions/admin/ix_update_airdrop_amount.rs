@@ -1,5 +1,10 @@
 use {
-    crate::state::backers::Backers,
+    crate::{
+        constant::TOTAL_AIRDROP_AMOUNT_PER_MILESTONE,
+        errors::ProposalError,
+        event::AirdropClaimUpdated,
+        state::{backers::Backers, proposal::Proposal},
+    },
     anchor_lang::prelude::*,
 };
 
@@ -7,13 +12,34 @@ use {
 pub struct UpdateBacker<'info> {
     pub authority: Signer<'info>,
     #[account(mut)]
+    pub proposal: Account<'info, Proposal>,
     pub backer_account: Account<'info, Backers>,
     pub system_program: Program<'info, System>,
 }
 
 impl<'info> UpdateBacker<'info> {
     pub fn update_airdrop_amount(&mut self, amount: u64) -> Result<()> {
-        self.backer_account.claim_amount += amount;     
+        let max_per_user = TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
+            .checked_div(self.proposal.total_backers)
+            .ok_or(ProposalError::NumericalOverflow)?;
+        require!(
+            amount <= max_per_user,
+            ProposalError::AmountTooBig
+        );
+
+        require!(
+            self.backer_account.amount_updated_upto_cycle < self.proposal.current_airdrop_cycle,
+            ProposalError::AmountAlreadyUpdated
+        );
+
+        self.backer_account.claim_amount += amount;
+
+        emit!(AirdropClaimUpdated {
+            proposal: self.proposal.key(),
+            backer: self.backer_account.key(),
+            amount,
+            cycle: self.proposal.current_airdrop_cycle,
+        });
 
         Ok(())
     }

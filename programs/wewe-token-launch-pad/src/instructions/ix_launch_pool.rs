@@ -120,6 +120,7 @@ impl<'info> DammV2<'info> {
             emit!(ProposalRejected {
                 maker: self.proposal.maker,
                 proposal_address: self.proposal.key(),
+                mint_account: self.proposal.mint_account.key(),
             });
         }
 
@@ -190,8 +191,15 @@ impl<'info> DammV2<'info> {
         emit!(CoinLaunched {
             proposal_address: self.proposal.key(),
             mint_account: self.base_mint.key(),
+            quote_mint: self.quote_mint.key(),
             total_sol_raised: self.proposal.total_backing,
             pool_address: self.pool.key(),
+            token_vault: self.token_vault.key(),
+            wsol_vault: self.wsol_vault.key(),
+            maker: self.proposal.maker,
+            maker_token_account: self.maker_token_account.key(),
+            sqrt_price,
+            liquidity,
         });
 
         Ok(())

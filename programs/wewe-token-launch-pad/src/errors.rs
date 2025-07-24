@@ -2,6 +2,9 @@ use anchor_lang::error_code;
 
 #[error_code]
 pub enum ProposalError {
+    #[msg("Numerical overflow occurred.")]
+    NumericalOverflow,
+    
     #[msg("Minimum funding goal has not been reached yet.")]
     TargetNotMet,
 
@@ -29,7 +32,15 @@ pub enum ProposalError {
     #[msg("Pool for this proposal is already launched.")]
     PoolAlreadyLaunched,
 
-    #[msg("Create a wallet from wewe app to contribute")]
+    #[msg("Create a wallet through wewe app to contribute")]
     NotAuthorised,
-}
 
+    #[msg("You cannot back your own proposal")]
+    CantBackOwnProposal,
+
+    #[msg("Amount can't be higher than the allowed amount per user per airdrop")]
+    AmountTooBig,
+
+    #[msg("Amount already updated for the current airdrop cycle of the proposal.")]
+    AmountAlreadyUpdated,
+}

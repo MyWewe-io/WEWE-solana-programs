@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use anchor_lang::prelude::*;
 use anchor_spl::{
     metadata::{
@@ -157,6 +159,7 @@ impl<'info> CreateProposal<'info> {
 
         self.proposal.set_inner(Proposal {
             maker: self.maker.key(),
+            mint_account: self.mint_account.key(),
             total_backing: 0,
             time_started: Clock::get()?.unix_timestamp,
             bump: bumps.proposal,
@@ -164,6 +167,7 @@ impl<'info> CreateProposal<'info> {
             proposal_id: self.maker_account.proposal_count,
             is_pool_launched: false,
             total_backers: 0,
+            current_airdrop_cycle: 0,
         });
         // increment proposal count for maker
         self.maker_account.proposal_count += 1;
@@ -171,12 +175,16 @@ impl<'info> CreateProposal<'info> {
         emit!(ProposalCreated {
             maker: self.maker.key(),
             proposal_address: self.proposal.key(),
+            proposal_index: self.maker_account.proposal_count.sub(1),
             start_time: Clock::get()?.unix_timestamp,
             token_name,
             token_symbol,
             token_uri,
             mint_account: self.mint_account.key(),
-            proposal_index: self.maker_account.proposal_count,
+            token_vault: self.token_vault.key(),
+            metadata_account: self.metadata_account.key(),
+            maker_account: self.maker_account.key(),
+            proposal_bump: bumps.proposal,
         });
 
         Ok(())
