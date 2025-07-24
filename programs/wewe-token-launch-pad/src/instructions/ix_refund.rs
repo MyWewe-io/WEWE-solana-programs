@@ -65,6 +65,8 @@ impl<'info> Refund<'info> {
         emit!(BackerRefunded {
             backer: self.backer.key(),
             amount: refund_amount,
+            backer_account: self.backer_account.key(),
+            proposal_address: self.proposal.key(),
         });
 
         Ok(())

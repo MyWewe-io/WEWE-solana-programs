@@ -83,6 +83,10 @@ impl<'info> Claim<'info> {
         emit!(AirdropClaimed {
             proposal_address: self.proposal.key(),
             backer: self.backer.key(),
+            backer_account: self.backer_account.key(),
+            mint_account: self.mint_account.key(),
+            vault_account: self.token_vault.key(),
+            recipient_account: self.backer_token_account.key(),
             amount: claim_amount,
         });
 

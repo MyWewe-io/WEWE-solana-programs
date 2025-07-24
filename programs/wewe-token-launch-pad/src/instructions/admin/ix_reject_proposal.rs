@@ -36,6 +36,7 @@ impl<'info> RejectProposal<'info> {
         emit!(ProposalRejected {
             maker: self.proposal.maker,
             proposal_address: self.proposal.key(),
+            mint_account: self.proposal.mint_account.key(),
         });
 
         Ok(())

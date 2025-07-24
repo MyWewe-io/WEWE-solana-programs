@@ -8,7 +8,10 @@ use anchor_spl::token::{Mint, TokenAccount};
 
 use crate::{
     const_pda,
-    constant::{seeds::{VAULT_AUTHORITY, BACKER}, *},
+    constant::{
+        seeds::{BACKER, VAULT_AUTHORITY},
+        *,
+    },
     errors::ProposalError,
     event::ProposalBacked,
     state::{backers::Backers, proposal::Proposal},
@@ -68,10 +71,7 @@ impl<'info> Contribute<'info> {
             ProposalError::BackingEnded
         );
 
-        require!(
-            !self.proposal.is_rejected,
-            ProposalError::ProposalRejected
-        );
+        require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
 
         require!(
             !self.proposal.is_pool_launched,
@@ -81,6 +81,11 @@ impl<'info> Contribute<'info> {
         require!(
             self.proposal.total_backers < MAXIMUM_BACKERS,
             ProposalError::BackingGoalReached
+        );
+
+        require!(
+            self.backer.key() != self.proposal.maker,
+            ProposalError::CantBackOwnProposal
         );
 
         let amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
@@ -114,6 +119,7 @@ impl<'info> Contribute<'info> {
         emit!(ProposalBacked {
             backer: self.backer.key(),
             proposal_backed: self.proposal.key(),
+            backer_account: self.backer_account.key(),
         });
 
         Ok(())
