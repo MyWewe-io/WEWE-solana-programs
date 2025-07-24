@@ -47,29 +47,29 @@ pub struct ClaimPositionFee<'info> {
     pub vault_authority: UncheckedAccount<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = payer,
         associated_token::mint = token_b_mint,
         associated_token::authority = wewe_vault,
-        token::token_program = token_b_program,
+        associated_token::token_program = token_b_program,
     )]
     pub wewe_wsol_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = payer,
         associated_token::mint = token_a_mint,
         associated_token::authority = wewe_vault,
-        token::token_program = token_a_program,
+        associated_token::token_program = token_a_program,
     )]
     pub wewe_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = payer,
-        token::authority = maker,
-        token::mint = token_b_mint,
-        token::token_program = token_b_program,
+        associated_token::authority = maker,
+        associated_token::mint = token_b_mint,
+        associated_token::token_program = token_b_program,
     )]
     pub maker_wsol_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
