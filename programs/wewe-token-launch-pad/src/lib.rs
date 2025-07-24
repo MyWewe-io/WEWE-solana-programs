@@ -1,17 +1,17 @@
 #![allow(unexpected_cfgs)]
 use anchor_lang::prelude::*;
 
+mod const_pda;
 mod constant;
 pub mod errors;
 mod event;
 pub mod instructions;
 pub mod state;
 mod utils;
-mod const_pda;
 
+use errors::*;
 use instructions::*;
 use utils::*;
-use errors::*;
 
 declare_id!("5gPUSc2hYLsmWzi8Vgz6hjxvUoMGLcKHj66LsEjsgW3p");
 
@@ -25,19 +25,15 @@ pub mod wewe_token_launch_pad {
         token_symbol: String,
         token_uri: String,
     ) -> Result<()> {
-        ctx.accounts.create_proposal(
-            token_name,
-            token_symbol,
-            token_uri,
-            &ctx.bumps,
-        )?;
+        ctx.accounts
+            .create_proposal(token_name, token_symbol, token_uri, &ctx.bumps)?;
 
         Ok(())
     }
 
     pub fn deposit_sol(ctx: Context<Contribute>) -> Result<()> {
         match ctx.accounts.deposit_sol() {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(_) => return Err(error!(ProposalError::ProposalAlreadyBacked)),
         }
 
@@ -50,9 +46,7 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn create_pool(
-        ctx: Context<DammV2>
-    ) -> Result<()> {    
+    pub fn create_pool(ctx: Context<DammV2>) -> Result<()> {
         ctx.accounts.create_pool()?;
 
         Ok(())
@@ -86,9 +80,19 @@ pub mod wewe_token_launch_pad {
     }
 
     #[access_control(check(&ctx.accounts.payer))]
-    pub fn claim_pool_fee(ctx: Context<ClaimPositionFee>, user_wsol_amount: u64, user_token_amount: u64) -> Result<()> {
-        ctx.accounts.claim_position_fee(user_wsol_amount, user_token_amount)?;
+    pub fn claim_pool_fee(
+        ctx: Context<ClaimPositionFee>,
+        user_wsol_amount: u64,
+        user_token_amount: u64,
+    ) -> Result<()> {
+        ctx.accounts
+            .claim_position_fee(user_wsol_amount, user_token_amount)?;
 
         Ok(())
+    }
+
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn burn(ctx: Context<BurnTokens>, amount: u64) -> Result<()> {
+        ctx.accounts.burn_tokens(amount)
     }
 }
