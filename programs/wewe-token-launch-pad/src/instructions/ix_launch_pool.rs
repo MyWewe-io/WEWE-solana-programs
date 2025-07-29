@@ -188,6 +188,8 @@ impl<'info> DammV2<'info> {
             },
         )?;
 
+        self.proposal.is_pool_launched = true;
+        
         emit!(CoinLaunched {
             proposal_address: self.proposal.key(),
             mint_account: self.base_mint.key(),

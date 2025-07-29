@@ -341,6 +341,114 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     expect(capturedEvent.mintAccount.toBase58()).to.equal(mint.publicKey.toBase58());
   });
 
+  it('Burns tokens from vault', async () => {
+    const burnAmount = 2;
+  
+    // Fetch current proposal state
+    const proposalAccountBefore = await program.account.proposal.fetch(proposal);
+    const currentCycleBefore = proposalAccountBefore.currentAirdropCycle;
+  
+    const [vaultAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_authority')],
+      program.programId
+    );
+  
+    const [tokenVault] = getTokenVaultAddress(vaultAuthority, mint.publicKey, program.programId);
+  
+    // Burn the tokens
+    const tx = await program.methods
+      .burn(new BN(burnAmount))
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+        vaultAuthority,
+        tokenVault,
+        mint: mint.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    // Fetch updated proposal account
+    const proposalAccountAfter = await program.account.proposal.fetch(proposal);
+    const currentCycleAfter = proposalAccountAfter.currentAirdropCycle;
+  
+    // Assert airdrop cycle increment
+    expect(currentCycleAfter).to.equal(currentCycleBefore + 1);
+  });
+
+  it('Updates backer airdrop claim amount', async () => {
+    const claimAmount = new BN(200); // 200 tokens 
+  
+    // Fetch proposal and backer account before update
+    const proposalAccount = await program.account.proposal.fetch(proposal);
+    const backerAccountBefore = await program.account.backers.fetch(backerAccount);
+  
+    const currentCycle = proposalAccount.currentAirdropCycle;
+    const alreadyUpdated = backerAccountBefore.amountUpdatedUptoCycle;
+  
+    expect(currentCycle).to.be.greaterThan(alreadyUpdated);
+
+    // Update the backer's airdrop claim
+    const tx = await program.methods
+      .updateAirdropAmount(claimAmount)
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+        backerAccount,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    // Fetch updated backer account
+    const backerAccountAfter = await program.account.backers.fetch(backerAccount);
+  
+    // Assert claim amount increased by 200 tokens
+    const claimed = new BN(backerAccountAfter.claimAmount.toString());
+    expect(200).to.equal(claimed.toNumber());
+  
+    // Ensure the cycle was updated
+    expect(backerAccountAfter.amountUpdatedUptoCycle).to.equal(currentCycle);
+  });  
+
+  it("Backer claims airdrop successfully", async () => {
+    // Assumes proposal, mint, vault, and backer account are already setup
+    const backerTokenAccount = findUserAta(backer.publicKey, mint.publicKey);
+  
+    const tx = await program.methods
+      .claim()
+      .accounts({
+        backer: backer.publicKey,
+        maker: maker.publicKey,
+        proposal,
+        vaultAuthority,
+        mintAccount: mint.publicKey,
+        tokenVault: vault,
+        backerAccount,
+        backerTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
+  
+    // Validate the token balance has increased
+    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(backerTokenAccount);
+    const balance = tokenAccountInfo.value.uiAmount;
+  
+    assert.ok(balance && balance > 0, "Backer should receive airdropped tokens");
+  
+    // Verify claim_amount reset
+    const backerData = await program.account.backers.fetch(backerAccount);
+    assert.strictEqual(backerData.claimAmount.toNumber(), 0, "Claim amount should be reset to zero");
+  });
+  
   it('Claims position fee and distributes tokens', async () => {
     const userTokenAmount = new BN(10e9); // 10 tokens
     const userWsolAmount = new BN(1e9); // 1 WSOL (in lamports)

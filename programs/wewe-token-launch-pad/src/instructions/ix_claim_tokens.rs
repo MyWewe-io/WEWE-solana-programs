@@ -1,13 +1,10 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{transfer, Mint, Token, TokenAccount, Transfer},
+    token::{Mint, Token, TokenAccount, Transfer},
 };
 use crate::{
-    constant::seeds::{BACKER, PROPOSAL}, 
-    errors::ProposalError, 
-    event::AirdropClaimed, 
-    state::{backers::Backers, proposal::Proposal}
+    const_pda::const_authority::VAULT_BUMP, constant::seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY}, errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposal::Proposal}
 };
 
 #[derive(Accounts)]
@@ -17,12 +14,25 @@ pub struct Claim<'info> {
     pub maker: SystemAccount<'info>,
     pub proposal: Account<'info, Proposal>,
 
+    /// CHECK: vault authority
+    #[account(
+        mut,
+        seeds = [
+            VAULT_AUTHORITY.as_ref(),
+        ],
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+
     #[account(mut)]
     pub mint_account: Account<'info, Mint>,
 
     #[account(
-        associated_token::mint = mint_account,
-        associated_token::authority = proposal,
+        mut,
+        seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), mint_account.key().as_ref()],
+        token::mint = mint_account,
+        token::authority = vault_authority,
+        bump,
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
@@ -30,7 +40,6 @@ pub struct Claim<'info> {
         mut,
         seeds = [BACKER, proposal.key().as_ref(), backer.key().as_ref()],
         bump,
-        close=backer,
     )]
     pub backer_account: Account<'info, Backers>,
 
@@ -51,30 +60,20 @@ impl<'info> Claim<'info> {
     pub fn claim(&mut self) -> Result<()> {
         require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
 
-        let cpi_program = self.token_program.to_account_info();
-
-        // Transfer the funds from the vault to the contributor
-        let cpi_accounts = Transfer {
-            from: self.token_vault.to_account_info(),
-            to: self.backer_token_account.to_account_info(),
-            authority: self.proposal.to_account_info(),
-        };
-
-        // Signer seeds to sign the CPI on behalf of the fundraiser account
-        let signer_seeds: [&[&[u8]]; 1] = [&[
-            PROPOSAL.as_ref(),
-            self.maker.to_account_info().key.as_ref(),
-            &[self.proposal.bump],
-        ]];
-
-        // CPI context with signer since the fundraiser account is a PDA
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
+        let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
         let claim_amount = self.backer_account.claim_amount;
-        // Transfer the funds from the vault to the contributor
-        transfer(
-            cpi_ctx,
-            claim_amount * 10u64.pow(self.mint_account.decimals as u32),
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                self.token_program.to_account_info(),
+                Transfer {
+                    from: self.token_vault.to_account_info(),
+                    to: self.backer_token_account.to_account_info(),
+                    authority: self.vault_authority.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            claim_amount * 10u64.pow(9 as u32),
         )?;
 
         // set claim amount to zero, for succesive airdrops

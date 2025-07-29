@@ -11,8 +11,8 @@ use {
 #[derive(Accounts)]
 pub struct UpdateBacker<'info> {
     pub authority: Signer<'info>,
-    #[account(mut)]
     pub proposal: Account<'info, Proposal>,
+    #[account(mut)]
     pub backer_account: Account<'info, Backers>,
     pub system_program: Program<'info, System>,
 }
@@ -33,6 +33,7 @@ impl<'info> UpdateBacker<'info> {
         );
 
         self.backer_account.claim_amount += amount;
+        self.backer_account.amount_updated_upto_cycle += 1;
 
         emit!(AirdropClaimUpdated {
             proposal: self.proposal.key(),

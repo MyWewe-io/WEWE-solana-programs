@@ -44,7 +44,7 @@ impl<'info> BurnTokens<'info> {
                 },
                 signer_seeds,
             ),
-            amount,
+            amount * 10u64.pow(9 as u32),
         )?;
 
         self.proposal.current_airdrop_cycle += 1;
