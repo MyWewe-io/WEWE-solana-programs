@@ -151,13 +151,7 @@ export const derivePoolPDAs = (
     baseMint.toBuffer(),
   ], programId);
 
-  const makerTokenAccount = getAssociatedTokenAddressSync(
-    baseMint,
-    maker,
-    false,
-    programId,
-    ASSOCIATED_TOKEN_PROGRAM_ID
-  );
+  const makerTokenAccount = getAssociatedTokenAddressSync(baseMint, maker, true, undefined, undefined);
 
   return {
     poolAuthority,
