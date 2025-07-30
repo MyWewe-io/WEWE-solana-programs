@@ -5,7 +5,7 @@ use anchor_spl::{
     token::Transfer as TokenTransfer,
     token_interface::{TokenAccount, TokenInterface},
 };
-use std::{ops::Sub, u64};
+use std::u64;
 
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
@@ -146,13 +146,13 @@ impl<'info> DammV2<'info> {
             token_vault: &self.token_vault,
         })?;
 
-        let base_amount: u128 = TOTAL_POOL_TOKENS as u128;
+        let base_amount: u128 = (TOTAL_POOL_TOKENS * 10u64.pow(9 as u32)) as u128;
         let quote_amount: u128 = self.proposal.total_backing as u128;
 
         let liquidity = integer_sqrt(base_amount.checked_mul(quote_amount).unwrap());
 
-        let ratio = (quote_amount << 64) / base_amount;
-        let sqrt_price = integer_sqrt(ratio);
+        // For DAMM invariant: x * y = L^2 => sqrt_price = L / x
+        let sqrt_price = liquidity / base_amount;
 
         cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(
@@ -189,7 +189,7 @@ impl<'info> DammV2<'info> {
         )?;
 
         self.proposal.is_pool_launched = true;
-        
+
         emit!(CoinLaunched {
             proposal_address: self.proposal.key(),
             mint_account: self.base_mint.key(),
@@ -233,8 +233,6 @@ pub fn fund_creator_authority<'b, 'info>(
 
     let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
-    let wsol_amount = wsol_vault.amount;
-
     let program_id = system_program.to_account_info();
     let cpi_context = CpiContext::new_with_signer(
         program_id,
@@ -245,7 +243,7 @@ pub fn fund_creator_authority<'b, 'info>(
         signer_seeds,
     );
 
-    transfer(cpi_context, proposal.total_backing.sub(wsol_amount))?;
+    transfer(cpi_context, proposal.total_backing)?;
 
     let cpi_accounts = token::SyncNative {
         account: wsol_vault.to_account_info(),

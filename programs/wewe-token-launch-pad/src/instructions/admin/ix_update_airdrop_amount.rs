@@ -19,6 +19,7 @@ pub struct UpdateBacker<'info> {
 
 impl<'info> UpdateBacker<'info> {
     pub fn update_airdrop_amount(&mut self, amount: u64) -> Result<()> {
+        require!(self.proposal.is_pool_launched, ProposalError::BackingNotEnded);
         let max_per_user = TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
             .checked_div(self.proposal.total_backers)
             .ok_or(ProposalError::NumericalOverflow)?;
