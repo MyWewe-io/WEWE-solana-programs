@@ -29,6 +29,7 @@ import {
   findUserAta,
   findMintAccount,
   findMintAuthority,
+  calculateInitSqrtPrice,
 } from './utils';
 
 describe('Wewe Token Launch Pad - Integration Tests', () => {
@@ -64,9 +65,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   const freezeAuthority = findFreezeAuthority(program.programId);
   const mintAuthority = findMintAuthority(program.programId);
 
-  const config = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
+  const config = new anchor.web3.PublicKey('DJN8YHxQKZnF7bL2GwuKNB2UcfhKCqRspfLe7YYEN3rr');
   
-    const pdas = derivePoolPDAs(program.programId, cpAmm.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
+  const pdas = derivePoolPDAs(program.programId, cpAmm.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
 
   it('Airdrops funds to test accounts', async () => {
     await confirm(provider.connection.requestAirdrop(provider.wallet.publicKey, 5e9)); // 5 SOL total
@@ -297,11 +298,13 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     let capturedEvent: any = null;
     const listener = await program.addEventListener('coinLaunched', (event) => capturedEvent = event);
+    const config_account =  await cpAmm.account.config.fetch(config);
 
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
+    const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
     const tx = await program.methods
-      .createPool()
+      .createPool(sqrtPrice)
       .accountsPartial({
         proposal,
         vaultAuthority,
@@ -500,6 +503,5 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .preInstructions([computeUnitsIx])
       .rpc()
       .then(confirm);
-  
   });  
 });

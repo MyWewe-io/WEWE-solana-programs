@@ -5,10 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-wewe_token_launch_pad = "5gPUSc2hYLsmWzi8Vgz6hjxvUoMGLcKHj66LsEjsgW3p"
+wewe_token_launch_pad = "Fdx44e3vhtkyDyc2wmGDoADGCp5T7UHdSkt938GTADCj"
 
 [programs.localnet]
-wewe_token_launch_pad = "5gPUSc2hYLsmWzi8Vgz6hjxvUoMGLcKHj66LsEjsgW3p"
+wewe_token_launch_pad = "Fdx44e3vhtkyDyc2wmGDoADGCp5T7UHdSkt938GTADCj"
 
 [programs.mainnet]
 wewe_token_launch_pad = "CmM3vJ6VCaH8SVB9wYTFoVc56wK5pEugkyMwrnE1XU2Y"
@@ -17,7 +17,7 @@ wewe_token_launch_pad = "CmM3vJ6VCaH8SVB9wYTFoVc56wK5pEugkyMwrnE1XU2Y"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
@@ -39,7 +39,7 @@ ledger = ".anchor/test-ledger"
 rpc_port = 8899
 
 [[test.validator.account]]
-address = "8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF"
+address = "DJN8YHxQKZnF7bL2GwuKNB2UcfhKCqRspfLe7YYEN3rr"
 filename = "genesis/config.json"
 
 [[test.validator.clone]]

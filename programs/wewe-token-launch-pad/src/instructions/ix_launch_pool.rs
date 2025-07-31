@@ -5,6 +5,7 @@ use anchor_spl::{
     token::Transfer as TokenTransfer,
     token_interface::{TokenAccount, TokenInterface},
 };
+use cp_amm::state::Config;
 use std::u64;
 
 use crate::{
@@ -60,7 +61,7 @@ pub struct DammV2<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
     /// CHECK: pool config
-    pool_config: AccountInfo<'info>,
+    pool_config: AccountLoader<'info, Config>,
     /// CHECK: pool
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
@@ -107,7 +108,7 @@ pub struct DammV2<'info> {
 }
 
 impl<'info> DammV2<'info> {
-    pub fn create_pool(&mut self) -> Result<()> {
+    pub fn create_pool(&mut self, sqrt_price: u128) -> Result<()> {
         let is_owner = self.payer.key() == admin_pubkey::ID;
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
@@ -146,13 +147,11 @@ impl<'info> DammV2<'info> {
             token_vault: &self.token_vault,
         })?;
 
-        let base_amount: u128 = (TOTAL_POOL_TOKENS * 10u64.pow(9 as u32)) as u128;
-        let quote_amount: u128 = self.proposal.total_backing as u128;
+        let config = self.pool_config.load()?;
+        let base_amount: u64 = TOTAL_POOL_TOKENS * 10u64.pow(9 as u32);
+        let quote_amount: u64 = self.proposal.total_backing;
 
-        let liquidity = integer_sqrt(base_amount.checked_mul(quote_amount).unwrap());
-
-        // For DAMM invariant: x * y = L^2 => sqrt_price = L / x
-        let sqrt_price = liquidity / base_amount;
+        let liquidity = get_liquidity_for_adding_liquidity(base_amount, quote_amount, sqrt_price, config.sqrt_min_price, config.sqrt_max_price)?;
 
         cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(
@@ -267,17 +266,4 @@ pub fn fund_creator_authority<'b, 'info>(
     )?;
 
     Ok(())
-}
-
-fn integer_sqrt(value: u128) -> u128 {
-    if value == 0 {
-        return 0;
-    }
-    let mut z = value;
-    let mut x = (value >> 1) + 1;
-    while x < z {
-        z = x;
-        x = (value / x + x) >> 1;
-    }
-    z
 }

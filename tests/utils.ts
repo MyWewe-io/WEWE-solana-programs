@@ -1,8 +1,10 @@
 // utils/helpers.ts
 import * as anchor from '@coral-xyz/anchor';
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import Decimal from "decimal.js";
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 
 export const WSOL_MINT = new anchor.web3.PublicKey("So11111111111111111111111111111111111111112");
+const { BN } = anchor;
 
 export const confirm = async (promise: Promise<string>, provider = anchor.AnchorProvider.env()): Promise<string> => {
   const signature = await promise;
@@ -21,8 +23,8 @@ export const generateKeypairs = () => ({
 });
 
 export const getMetadata = () => ({
-  name: 'Solana Gold',
-  symbol: 'GOLDSOL',
+  name: 'Gold',
+  symbol: 'GOLD',
   uri: 'https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/spl-token.json',
 });
 
@@ -168,3 +170,43 @@ export const derivePoolPDAs = (
     makerTokenAccount
   };
 };
+
+export function calculateInitSqrtPrice(
+  tokenAAmount: BN,
+  tokenBAmount: BN,
+  minSqrtPrice: BN,
+  maxSqrtPrice: BN
+): BN {
+  if (tokenAAmount.isZero() || tokenBAmount.isZero()) {
+    throw new Error("Amount cannot be zero");
+  }
+
+  const amountADecimal = new Decimal(tokenAAmount.toString());
+  const amountBDecimal = new Decimal(tokenBAmount.toString());
+  const minSqrtPriceDecimal = new Decimal(minSqrtPrice.toString()).div(
+    Decimal.pow(2, 64)
+  );
+  const maxSqrtPriceDecimal = new Decimal(maxSqrtPrice.toString()).div(
+    Decimal.pow(2, 64)
+  );
+
+  const x = new Decimal(1).div(maxSqrtPriceDecimal);
+  const y = amountBDecimal.div(amountADecimal);
+  const xy = x.mul(y);
+
+  const paMinusXY = minSqrtPriceDecimal.sub(xy);
+  const xyMinusPa = xy.sub(minSqrtPriceDecimal);
+
+  const fourY = new Decimal(4).mul(y);
+
+  const discriminant = xyMinusPa.mul(xyMinusPa).add(fourY);
+
+  // sqrt_discriminant = √discriminant
+  const sqrtDiscriminant = discriminant.sqrt();
+  const result = paMinusXY
+    .add(sqrtDiscriminant)
+    .div(new Decimal(2))
+    .mul(Decimal.pow(2, 64));
+
+  return new BN(result.floor().toFixed());
+}

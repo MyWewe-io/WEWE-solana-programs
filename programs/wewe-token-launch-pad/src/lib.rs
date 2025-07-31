@@ -46,8 +46,8 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn create_pool(ctx: Context<DammV2>) -> Result<()> {
-        ctx.accounts.create_pool()?;
+    pub fn create_pool(ctx: Context<DammV2>, sqrt_price: u128) -> Result<()> {
+        ctx.accounts.create_pool(sqrt_price)?;
 
         Ok(())
     }
