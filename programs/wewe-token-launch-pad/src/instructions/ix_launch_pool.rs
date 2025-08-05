@@ -199,6 +199,8 @@ impl<'info> DammV2<'info> {
             wsol_vault: self.wsol_vault.key(),
             maker: self.proposal.maker,
             maker_token_account: self.maker_token_account.key(),
+            position: self.position.key(),
+            position_nft_account: self.position_nft_account.key(),
             sqrt_price,
             liquidity,
         });

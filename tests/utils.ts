@@ -210,3 +210,62 @@ export function calculateInitSqrtPrice(
 
   return new BN(result.floor().toFixed());
 }
+
+const SHIFT_128 = new Decimal(2).pow(128);
+
+export function getInitialLiquidityFromDeltaBase(
+  baseAmount: BN,
+  sqrtMaxPrice: BN,
+  sqrtPrice: BN
+): Decimal {
+  const delta = new Decimal(sqrtMaxPrice.toString()).minus(sqrtPrice.toString());
+  if (delta.lte(0)) throw new Error("Math overflow: sqrt_max_price must be > sqrt_price");
+
+  const base = new Decimal(baseAmount.toString());
+  const sqrtP = new Decimal(sqrtPrice.toString());
+  const sqrtMax = new Decimal(sqrtMaxPrice.toString());
+
+  const prod = base.mul(sqrtP).mul(sqrtMax);
+  const liquidity = prod.div(delta);
+
+  return liquidity;
+}
+
+export function getInitialLiquidityFromDeltaQuote(
+  quoteAmount: BN,
+  sqrtMinPrice: BN,
+  sqrtPrice: BN
+): Decimal {
+  const delta = new Decimal(sqrtPrice.toString()).minus(sqrtMinPrice.toString());
+  if (delta.lte(0)) throw new Error("Math overflow: sqrt_price must be > sqrt_min_price");
+
+  const quote = new Decimal(quoteAmount.toString());
+  const shiftedQuote = quote.mul(SHIFT_128);
+
+  const liquidity = shiftedQuote.div(delta);
+
+  return liquidity;
+}
+
+export function getLiquidityForAddingLiquidity(
+  baseAmount: BN,
+  quoteAmount: BN,
+  sqrtPrice: BN,
+  minSqrtPrice: BN,
+  maxSqrtPrice: BN
+): BN {
+  const liquidityFromBase = getInitialLiquidityFromDeltaBase(
+    baseAmount,
+    maxSqrtPrice,
+    sqrtPrice
+  );
+
+  const liquidityFromQuote = getInitialLiquidityFromDeltaQuote(
+    quoteAmount,
+    minSqrtPrice,
+    sqrtPrice
+  );
+
+  const minLiquidity = Decimal.min(liquidityFromBase, liquidityFromQuote);
+  return new BN(minLiquidity.floor().toFixed());
+}

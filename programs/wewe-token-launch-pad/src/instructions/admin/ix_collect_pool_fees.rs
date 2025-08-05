@@ -1,3 +1,5 @@
+use std::ops::Div;
+
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -163,7 +165,7 @@ impl<'info> ClaimPositionFee<'info> {
                 },
                 &[&vault_authority_seeds[..]],
             ),
-            user_token_amount * 10u64.pow(9 as u32),
+            user_token_amount.div(2),
         )?;
 
         token::transfer(
@@ -176,7 +178,7 @@ impl<'info> ClaimPositionFee<'info> {
                 },
                 &[&vault_authority_seeds[..]],
             ),
-            user_token_amount * 10u64.pow(9 as u32),
+            user_token_amount.div(2),
         )?;
 
         token::transfer(
@@ -189,7 +191,7 @@ impl<'info> ClaimPositionFee<'info> {
                 },
                 &[&vault_authority_seeds[..]],
             ),
-            user_wsol_amount * 10u64.pow(9 as u32),
+            user_wsol_amount.div(2),
         )?;
 
         token::transfer(
@@ -202,7 +204,7 @@ impl<'info> ClaimPositionFee<'info> {
                 },
                 &[&vault_authority_seeds[..]],
             ),
-            user_wsol_amount * 10u64.pow(9 as u32),
+            user_wsol_amount.div(2),
         )?;
 
         emit!(PositionFeeClaimed {

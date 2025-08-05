@@ -11,7 +11,6 @@ use crate::{
 pub struct Claim<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
-    pub maker: SystemAccount<'info>,
     pub proposal: Account<'info, Proposal>,
 
     /// CHECK: vault authority

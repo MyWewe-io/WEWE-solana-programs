@@ -30,6 +30,7 @@ import {
   findMintAccount,
   findMintAuthority,
   calculateInitSqrtPrice,
+  getLiquidityForAddingLiquidity,
 } from './utils';
 
 describe('Wewe Token Launch Pad - Integration Tests', () => {
@@ -303,6 +304,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
     const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+
     const tx = await program.methods
       .createPool(sqrtPrice)
       .accountsPartial({
@@ -339,7 +341,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const signature = await provider.sendAndConfirm(tx, [authority, pdas.positionNftMint]);
 
     await program.removeEventListener(listener);
-
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(proposal.toBase58());
     expect(capturedEvent.mintAccount.toBase58()).to.equal(mint.publicKey.toBase58());
   });
@@ -426,7 +427,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .claim()
       .accounts({
         backer: backer.publicKey,
-        maker: maker.publicKey,
         proposal,
         vaultAuthority,
         mintAccount: mint.publicKey,
