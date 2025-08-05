@@ -6,7 +6,8 @@
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
-    "@solana/spl-token": "^0.4.13"
+    "@solana/spl-token": "^0.4.13",
+    "decimal.js": "^10.6.0"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",

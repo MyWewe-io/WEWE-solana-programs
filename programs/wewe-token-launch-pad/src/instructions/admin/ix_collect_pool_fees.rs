@@ -1,3 +1,5 @@
+use std::ops::Div;
+
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -6,8 +8,8 @@ use anchor_spl::{
 };
 
 use crate::{
-    const_pda::const_authority::VAULT_BUMP, constant::{
-        seeds::{POOL_AUTHORITY_PREFIX, VAULT_AUTHORITY},
+    const_pda::{self, const_authority::VAULT_BUMP}, constant::{
+        seeds::VAULT_AUTHORITY,
         treasury,
     }, event::PositionFeeClaimed, state::proposal::Proposal
 };
@@ -16,10 +18,8 @@ use crate::{
 pub struct ClaimPositionFee<'info> {
     /// CHECK: pool authority
     #[account(
-        seeds = [
-            POOL_AUTHORITY_PREFIX.as_ref(),
-        ],
-        bump,
+        mut,
+        address = const_pda::const_authority::POOL_ID,
     )]
     pub pool_authority: UncheckedAccount<'info>,
 
@@ -31,7 +31,7 @@ pub struct ClaimPositionFee<'info> {
 
     /// CHECK: owner of the propposal
     #[account(address = treasury::ID)]
-    pub wewe_vault: UncheckedAccount<'info>,
+    pub wewe_treasury: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
@@ -50,7 +50,7 @@ pub struct ClaimPositionFee<'info> {
         init_if_needed,
         payer = payer,
         associated_token::mint = token_b_mint,
-        associated_token::authority = wewe_vault,
+        associated_token::authority = wewe_treasury,
         associated_token::token_program = token_b_program,
     )]
     pub wewe_wsol_account: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -59,7 +59,7 @@ pub struct ClaimPositionFee<'info> {
         init_if_needed,
         payer = payer,
         associated_token::mint = token_a_mint,
-        associated_token::authority = wewe_vault,
+        associated_token::authority = wewe_treasury,
         associated_token::token_program = token_a_program,
     )]
     pub wewe_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -85,6 +85,7 @@ pub struct ClaimPositionFee<'info> {
     pub pool: UncheckedAccount<'info>,
 
     /// CHECK: position address
+    #[account(mut)]
     pub position: UncheckedAccount<'info>,
 
     /// The user token a account
@@ -129,7 +130,7 @@ pub struct ClaimPositionFee<'info> {
 
 impl<'info> ClaimPositionFee<'info> {
     pub fn claim_position_fee(&self, user_wsol_amount: u64, user_token_amount: u64) -> Result<()> {
-        let pool_authority_seeds: &[&[u8]] = &[VAULT_AUTHORITY, &[VAULT_BUMP]];
+        let vault_authority_seeds: &[&[u8]] = &[VAULT_AUTHORITY, &[VAULT_BUMP]];
 
         cp_amm::cpi::claim_position_fee(CpiContext::new_with_signer(
             self.amm_program.to_account_info(),
@@ -150,13 +151,11 @@ impl<'info> ClaimPositionFee<'info> {
                 event_authority: self.event_authority.to_account_info(),
                 program: self.amm_program.to_account_info(),
             },
-            &[&pool_authority_seeds[..]],
+            &[&vault_authority_seeds[..]],
         ))?;
 
-        let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
-
         // transfer tokens to user
-        anchor_spl::token::transfer(
+        token::transfer(
             CpiContext::new_with_signer(
                 self.token_a_program.to_account_info(),
                 TokenTransfer {
@@ -164,12 +163,12 @@ impl<'info> ClaimPositionFee<'info> {
                     to: self.maker_token_account.to_account_info(),
                     authority: self.vault_authority.to_account_info(),
                 },
-                signer_seeds,
+                &[&vault_authority_seeds[..]],
             ),
-            user_token_amount * 10u64.pow(9 as u32),
+            user_token_amount.div(2),
         )?;
 
-        anchor_spl::token::transfer(
+        token::transfer(
             CpiContext::new_with_signer(
                 self.token_a_program.to_account_info(),
                 TokenTransfer {
@@ -177,33 +176,35 @@ impl<'info> ClaimPositionFee<'info> {
                     to: self.wewe_token_account.to_account_info(),
                     authority: self.vault_authority.to_account_info(),
                 },
-                signer_seeds,
+                &[&vault_authority_seeds[..]],
             ),
-            user_token_amount * 10u64.pow(9 as u32),
+            user_token_amount.div(2),
         )?;
 
         token::transfer(
-            CpiContext::new(
+            CpiContext::new_with_signer(
                 self.token_b_program.to_account_info(),
                 TokenTransfer {
                     from: self.token_b_account.to_account_info(),
                     to: self.wewe_wsol_account.to_account_info(),
-                    authority: self.payer.to_account_info(), // user is signer
+                    authority: self.vault_authority.to_account_info(), // user is signer
                 },
+                &[&vault_authority_seeds[..]],
             ),
-            user_wsol_amount,
+            user_wsol_amount.div(2),
         )?;
 
         token::transfer(
-            CpiContext::new(
+            CpiContext::new_with_signer(
                 self.token_b_program.to_account_info(),
                 TokenTransfer {
                     from: self.token_b_account.to_account_info(),
                     to: self.maker_wsol_account.to_account_info(),
                     authority: self.vault_authority.to_account_info(),
                 },
+                &[&vault_authority_seeds[..]],
             ),
-            user_wsol_amount,
+            user_wsol_amount.div(2),
         )?;
 
         emit!(PositionFeeClaimed {

@@ -5,7 +5,8 @@ use anchor_spl::{
     token::Transfer as TokenTransfer,
     token_interface::{TokenAccount, TokenInterface},
 };
-use std::{ops::Sub, u64};
+use cp_amm::state::Config;
+use std::u64;
 
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
@@ -60,7 +61,7 @@ pub struct DammV2<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
     /// CHECK: pool config
-    pool_config: AccountInfo<'info>,
+    pool_config: AccountLoader<'info, Config>,
     /// CHECK: pool
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
@@ -107,7 +108,7 @@ pub struct DammV2<'info> {
 }
 
 impl<'info> DammV2<'info> {
-    pub fn create_pool(&mut self) -> Result<()> {
+    pub fn create_pool(&mut self, sqrt_price: u128) -> Result<()> {
         let is_owner = self.payer.key() == admin_pubkey::ID;
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
@@ -146,13 +147,11 @@ impl<'info> DammV2<'info> {
             token_vault: &self.token_vault,
         })?;
 
-        let base_amount: u128 = TOTAL_POOL_TOKENS as u128;
-        let quote_amount: u128 = self.proposal.total_backing as u128;
+        let config = self.pool_config.load()?;
+        let base_amount: u64 = TOTAL_POOL_TOKENS * 10u64.pow(9 as u32);
+        let quote_amount: u64 = self.proposal.total_backing;
 
-        let liquidity = integer_sqrt(base_amount.checked_mul(quote_amount).unwrap());
-
-        let ratio = (quote_amount << 64) / base_amount;
-        let sqrt_price = integer_sqrt(ratio);
+        let liquidity = get_liquidity_for_adding_liquidity(base_amount, quote_amount, sqrt_price, config.sqrt_min_price, config.sqrt_max_price)?;
 
         cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(
@@ -188,6 +187,8 @@ impl<'info> DammV2<'info> {
             },
         )?;
 
+        self.proposal.is_pool_launched = true;
+
         emit!(CoinLaunched {
             proposal_address: self.proposal.key(),
             mint_account: self.base_mint.key(),
@@ -198,6 +199,8 @@ impl<'info> DammV2<'info> {
             wsol_vault: self.wsol_vault.key(),
             maker: self.proposal.maker,
             maker_token_account: self.maker_token_account.key(),
+            position: self.position.key(),
+            position_nft_account: self.position_nft_account.key(),
             sqrt_price,
             liquidity,
         });
@@ -231,8 +234,6 @@ pub fn fund_creator_authority<'b, 'info>(
 
     let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
-    let wsol_amount = wsol_vault.amount;
-
     let program_id = system_program.to_account_info();
     let cpi_context = CpiContext::new_with_signer(
         program_id,
@@ -243,7 +244,7 @@ pub fn fund_creator_authority<'b, 'info>(
         signer_seeds,
     );
 
-    transfer(cpi_context, proposal.total_backing.sub(wsol_amount))?;
+    transfer(cpi_context, proposal.total_backing)?;
 
     let cpi_accounts = token::SyncNative {
         account: wsol_vault.to_account_info(),
@@ -267,17 +268,4 @@ pub fn fund_creator_authority<'b, 'info>(
     )?;
 
     Ok(())
-}
-
-fn integer_sqrt(value: u128) -> u128 {
-    if value == 0 {
-        return 0;
-    }
-    let mut z = value;
-    let mut x = (value >> 1) + 1;
-    while x < z {
-        z = x;
-        x = (value / x + x) >> 1;
-    }
-    z
 }

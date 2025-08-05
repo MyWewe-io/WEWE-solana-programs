@@ -54,9 +54,6 @@ pub struct AirdropClaimed {
 pub struct CoinLaunched {
     pub proposal_address: Pubkey,
     pub mint_account: Pubkey,
-    // pub token_name: String,
-    // pub token_symbol: String,
-    // pub token_uri: String,
     pub quote_mint: Pubkey,
     pub total_sol_raised: u64,
     pub pool_address: Pubkey,
@@ -64,6 +61,8 @@ pub struct CoinLaunched {
     pub wsol_vault: Pubkey,
     pub maker: Pubkey,
     pub maker_token_account: Pubkey,
+    pub position: Pubkey,
+    pub position_nft_account: Pubkey,
     pub sqrt_price: u128,
     pub liquidity: u128,
 }

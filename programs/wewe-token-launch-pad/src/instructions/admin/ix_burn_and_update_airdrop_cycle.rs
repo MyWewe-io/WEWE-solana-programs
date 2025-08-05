@@ -31,6 +31,8 @@ pub struct BurnTokens<'info> {
 
 impl<'info> BurnTokens<'info> {
     pub fn burn_tokens(&mut self, amount: u64) -> Result<()> {
+        require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
+        require!(self.proposal.is_pool_launched, ProposalError::BackingNotEnded);
         require!(amount <= TOTAL_AIRDROP_AMOUNT_PER_MILESTONE, ProposalError::AmountTooBig);
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
@@ -44,7 +46,7 @@ impl<'info> BurnTokens<'info> {
                 },
                 signer_seeds,
             ),
-            amount,
+            amount * 10u64.pow(9 as u32),
         )?;
 
         self.proposal.current_airdrop_cycle += 1;

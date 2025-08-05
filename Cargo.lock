@@ -3528,6 +3528,7 @@ dependencies = [
  "bytemuck",
  "const-crypto",
  "cp-amm",
+ "ruint",
  "solana-program",
  "spl-transfer-hook-interface 0.10.0",
 ]

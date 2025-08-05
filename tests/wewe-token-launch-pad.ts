@@ -7,6 +7,7 @@ import {
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
@@ -28,6 +29,8 @@ import {
   findUserAta,
   findMintAccount,
   findMintAuthority,
+  calculateInitSqrtPrice,
+  getLiquidityForAddingLiquidity,
 } from './utils';
 
 describe('Wewe Token Launch Pad - Integration Tests', () => {
@@ -62,6 +65,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   const makerAta = findUserAta(maker.publicKey, mintAccount);
   const freezeAuthority = findFreezeAuthority(program.programId);
   const mintAuthority = findMintAuthority(program.programId);
+
+  const config = new anchor.web3.PublicKey('DJN8YHxQKZnF7bL2GwuKNB2UcfhKCqRspfLe7YYEN3rr');
+  
+  const pdas = derivePoolPDAs(program.programId, cpAmm.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
 
   it('Airdrops funds to test accounts', async () => {
     await confirm(provider.connection.requestAirdrop(provider.wallet.publicKey, 5e9)); // 5 SOL total
@@ -288,24 +295,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('Launches coin and creates DAMM pool', async () => {
-    const liquidity = new BN(387_298_335);
-    const sqrtPrice = new BN("47629288392818304032");
-    const admin = anchor.web3.Keypair.generate();
-    await confirm(provider.connection.requestAirdrop(admin.publicKey, 1e9));
-
     const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
-
-    const config = new anchor.web3.PublicKey('8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF');
-
-    const pdas = derivePoolPDAs(program.programId, cpAmm.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
 
     let capturedEvent: any = null;
     const listener = await program.addEventListener('coinLaunched', (event) => capturedEvent = event);
+    const config_account =  await cpAmm.account.config.fetch(config);
 
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
+    const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+
     const tx = await program.methods
-      .createPool()
+      .createPool(sqrtPrice)
       .accountsPartial({
         proposal,
         vaultAuthority,
@@ -321,10 +322,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         position: pdas.position,
         ammProgram: cpAmm.programId,
         baseMint: mint.publicKey,
+        makerTokenAccount: pdas.makerTokenAccount,
         quoteMint: WSOL_MINT,
         tokenAVault: pdas.tokenAVault,
         tokenBVault: pdas.tokenBVault,
-        payer: maker.publicKey,
+        payer: authority.publicKey,
         tokenBaseProgram: TOKEN_PROGRAM_ID,
         tokenQuoteProgram: TOKEN_PROGRAM_ID,
         token2022Program: TOKEN_2022_PROGRAM_ID,
@@ -332,15 +334,174 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         systemProgram: anchor.web3.SystemProgram.programId,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
-      .signers([maker, pdas.positionNftMint])
+      .signers([authority, pdas.positionNftMint])
       .transaction();
     
     tx.instructions.unshift(computeUnitsIx); 
-    const signature = await provider.sendAndConfirm(tx, [maker, pdas.positionNftMint]);
+    const signature = await provider.sendAndConfirm(tx, [authority, pdas.positionNftMint]);
 
     await program.removeEventListener(listener);
-
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(proposal.toBase58());
     expect(capturedEvent.mintAccount.toBase58()).to.equal(mint.publicKey.toBase58());
   });
+
+  it('Burns tokens from vault', async () => {
+    const burnAmount = 2;
+  
+    // Fetch current proposal state
+    const proposalAccountBefore = await program.account.proposal.fetch(proposal);
+    const currentCycleBefore = proposalAccountBefore.currentAirdropCycle;
+  
+    const [vaultAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_authority')],
+      program.programId
+    );
+  
+    const [tokenVault] = getTokenVaultAddress(vaultAuthority, mint.publicKey, program.programId);
+  
+    // Burn the tokens
+    const tx = await program.methods
+      .burn(new BN(burnAmount))
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+        vaultAuthority,
+        tokenVault,
+        mint: mint.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    // Fetch updated proposal account
+    const proposalAccountAfter = await program.account.proposal.fetch(proposal);
+    const currentCycleAfter = proposalAccountAfter.currentAirdropCycle;
+  
+    // Assert airdrop cycle increment
+    expect(currentCycleAfter).to.equal(currentCycleBefore + 1);
+  });
+
+  it('Updates backer airdrop claim amount', async () => {
+    const claimAmount = new BN(200); // 200 tokens 
+  
+    // Fetch proposal and backer account before update
+    const proposalAccount = await program.account.proposal.fetch(proposal);
+    const backerAccountBefore = await program.account.backers.fetch(backerAccount);
+  
+    const currentCycle = proposalAccount.currentAirdropCycle;
+    const alreadyUpdated = backerAccountBefore.amountUpdatedUptoCycle;
+  
+    expect(currentCycle).to.be.greaterThan(alreadyUpdated);
+
+    // Update the backer's airdrop claim
+    const tx = await program.methods
+      .updateAirdropAmount(claimAmount)
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+        backerAccount,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    // Fetch updated backer account
+    const backerAccountAfter = await program.account.backers.fetch(backerAccount);
+  
+    // Assert claim amount increased by 200 tokens
+    const claimed = new BN(backerAccountAfter.claimAmount.toString());
+    expect(200).to.equal(claimed.toNumber());
+  
+    // Ensure the cycle was updated
+    expect(backerAccountAfter.amountUpdatedUptoCycle).to.equal(currentCycle);
+  });  
+
+  it("Backer claims airdrop successfully", async () => {
+    // Assumes proposal, mint, vault, and backer account are already setup
+    const backerTokenAccount = findUserAta(backer.publicKey, mint.publicKey);
+  
+    const tx = await program.methods
+      .claim()
+      .accounts({
+        backer: backer.publicKey,
+        proposal,
+        vaultAuthority,
+        mintAccount: mint.publicKey,
+        tokenVault: vault,
+        backerAccount,
+        backerTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
+  
+    // Validate the token balance has increased
+    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(backerTokenAccount);
+    const balance = tokenAccountInfo.value.uiAmount;
+  
+    assert.ok(balance && balance > 0, "Backer should receive airdropped tokens");
+  
+    // Verify claim_amount reset
+    const backerData = await program.account.backers.fetch(backerAccount);
+    assert.strictEqual(backerData.claimAmount.toNumber(), 0, "Claim amount should be reset to zero");
+  });
+  
+  it('Claims position fee and distributes tokens', async () => {
+    const userTokenAmount = new BN(10e9); // 10 tokens
+    const userWsolAmount = new BN(1e9); // 1 WSOL (in lamports)
+    const weweTreasury = new anchor.web3.PublicKey("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
+  
+    const [vaultAuthority] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_authority')],
+      program.programId
+    );
+  
+    const weweWsolAccount = getAssociatedTokenAddressSync(WSOL_MINT, weweTreasury, true, undefined, undefined);
+    const weweTokenAccount = getAssociatedTokenAddressSync(mint.publicKey, weweTreasury, true, undefined, undefined);
+    const makerWsolAccount = getAssociatedTokenAddressSync(WSOL_MINT, maker.publicKey, true, undefined, undefined);
+    const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+
+    const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
+
+    const tx = await program.methods
+      .claimPoolFee(userWsolAmount, userTokenAmount)
+      .accounts({
+        poolAuthority: pdas.poolAuthority,
+        payer: authority.publicKey,
+        maker: maker.publicKey,
+        weweTreasury,
+        proposal,
+        vaultAuthority,
+        weweWsolAccount,
+        weweTokenAccount,
+        makerWsolAccount,
+        makerTokenAccount: pdas.makerTokenAccount,
+        pool: pdas.pool,
+        position: pdas.position,
+        tokenAAccount: vault,
+        tokenBAccount: wsolVault,
+        tokenAVault: pdas.tokenAVault,
+        tokenBVault: pdas.tokenBVault,
+        tokenAMint: mint.publicKey,
+        tokenBMint: WSOL_MINT,
+        positionNftAccount: pdas.positionNftAccount,
+        tokenAProgram: TOKEN_PROGRAM_ID,
+        tokenBProgram: TOKEN_PROGRAM_ID,
+        ammProgram: cpAmm.programId,
+        eventAuthority: pdas.dammEventAuthority,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      })
+      .signers([authority])
+      .preInstructions([computeUnitsIx])
+      .rpc()
+      .then(confirm);
+  });  
 });

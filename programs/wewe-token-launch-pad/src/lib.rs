@@ -13,7 +13,7 @@ use errors::*;
 use instructions::*;
 use utils::*;
 
-declare_id!("5gPUSc2hYLsmWzi8Vgz6hjxvUoMGLcKHj66LsEjsgW3p");
+declare_id!("Fdx44e3vhtkyDyc2wmGDoADGCp5T7UHdSkt938GTADCj");
 
 #[program]
 pub mod wewe_token_launch_pad {
@@ -46,8 +46,8 @@ pub mod wewe_token_launch_pad {
         Ok(())
     }
 
-    pub fn create_pool(ctx: Context<DammV2>) -> Result<()> {
-        ctx.accounts.create_pool()?;
+    pub fn create_pool(ctx: Context<DammV2>, sqrt_price: u128) -> Result<()> {
+        ctx.accounts.create_pool(sqrt_price)?;
 
         Ok(())
     }

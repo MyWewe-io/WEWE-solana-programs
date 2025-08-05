@@ -1,8 +1,10 @@
 // utils/helpers.ts
 import * as anchor from '@coral-xyz/anchor';
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import Decimal from "decimal.js";
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 
 export const WSOL_MINT = new anchor.web3.PublicKey("So11111111111111111111111111111111111111112");
+const { BN } = anchor;
 
 export const confirm = async (promise: Promise<string>, provider = anchor.AnchorProvider.env()): Promise<string> => {
   const signature = await promise;
@@ -21,8 +23,8 @@ export const generateKeypairs = () => ({
 });
 
 export const getMetadata = () => ({
-  name: 'Solana Gold',
-  symbol: 'GOLDSOL',
+  name: 'Gold',
+  symbol: 'GOLD',
   uri: 'https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/spl-token.json',
 });
 
@@ -151,13 +153,7 @@ export const derivePoolPDAs = (
     baseMint.toBuffer(),
   ], programId);
 
-  const makerTokenAccount = getAssociatedTokenAddressSync(
-    baseMint,
-    maker,
-    false,
-    programId,
-    ASSOCIATED_TOKEN_PROGRAM_ID
-  );
+  const makerTokenAccount = getAssociatedTokenAddressSync(baseMint, maker, true, undefined, undefined);
 
   return {
     poolAuthority,
@@ -174,3 +170,102 @@ export const derivePoolPDAs = (
     makerTokenAccount
   };
 };
+
+export function calculateInitSqrtPrice(
+  tokenAAmount: BN,
+  tokenBAmount: BN,
+  minSqrtPrice: BN,
+  maxSqrtPrice: BN
+): BN {
+  if (tokenAAmount.isZero() || tokenBAmount.isZero()) {
+    throw new Error("Amount cannot be zero");
+  }
+
+  const amountADecimal = new Decimal(tokenAAmount.toString());
+  const amountBDecimal = new Decimal(tokenBAmount.toString());
+  const minSqrtPriceDecimal = new Decimal(minSqrtPrice.toString()).div(
+    Decimal.pow(2, 64)
+  );
+  const maxSqrtPriceDecimal = new Decimal(maxSqrtPrice.toString()).div(
+    Decimal.pow(2, 64)
+  );
+
+  const x = new Decimal(1).div(maxSqrtPriceDecimal);
+  const y = amountBDecimal.div(amountADecimal);
+  const xy = x.mul(y);
+
+  const paMinusXY = minSqrtPriceDecimal.sub(xy);
+  const xyMinusPa = xy.sub(minSqrtPriceDecimal);
+
+  const fourY = new Decimal(4).mul(y);
+
+  const discriminant = xyMinusPa.mul(xyMinusPa).add(fourY);
+
+  // sqrt_discriminant = √discriminant
+  const sqrtDiscriminant = discriminant.sqrt();
+  const result = paMinusXY
+    .add(sqrtDiscriminant)
+    .div(new Decimal(2))
+    .mul(Decimal.pow(2, 64));
+
+  return new BN(result.floor().toFixed());
+}
+
+const SHIFT_128 = new Decimal(2).pow(128);
+
+export function getInitialLiquidityFromDeltaBase(
+  baseAmount: BN,
+  sqrtMaxPrice: BN,
+  sqrtPrice: BN
+): Decimal {
+  const delta = new Decimal(sqrtMaxPrice.toString()).minus(sqrtPrice.toString());
+  if (delta.lte(0)) throw new Error("Math overflow: sqrt_max_price must be > sqrt_price");
+
+  const base = new Decimal(baseAmount.toString());
+  const sqrtP = new Decimal(sqrtPrice.toString());
+  const sqrtMax = new Decimal(sqrtMaxPrice.toString());
+
+  const prod = base.mul(sqrtP).mul(sqrtMax);
+  const liquidity = prod.div(delta);
+
+  return liquidity;
+}
+
+export function getInitialLiquidityFromDeltaQuote(
+  quoteAmount: BN,
+  sqrtMinPrice: BN,
+  sqrtPrice: BN
+): Decimal {
+  const delta = new Decimal(sqrtPrice.toString()).minus(sqrtMinPrice.toString());
+  if (delta.lte(0)) throw new Error("Math overflow: sqrt_price must be > sqrt_min_price");
+
+  const quote = new Decimal(quoteAmount.toString());
+  const shiftedQuote = quote.mul(SHIFT_128);
+
+  const liquidity = shiftedQuote.div(delta);
+
+  return liquidity;
+}
+
+export function getLiquidityForAddingLiquidity(
+  baseAmount: BN,
+  quoteAmount: BN,
+  sqrtPrice: BN,
+  minSqrtPrice: BN,
+  maxSqrtPrice: BN
+): BN {
+  const liquidityFromBase = getInitialLiquidityFromDeltaBase(
+    baseAmount,
+    maxSqrtPrice,
+    sqrtPrice
+  );
+
+  const liquidityFromQuote = getInitialLiquidityFromDeltaQuote(
+    quoteAmount,
+    minSqrtPrice,
+    sqrtPrice
+  );
+
+  const minLiquidity = Decimal.min(liquidityFromBase, liquidityFromQuote);
+  return new BN(minLiquidity.floor().toFixed());
+}
