@@ -289,7 +289,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([backer])
+      .signers([])
       .rpc()
       .then(confirm);
   });
