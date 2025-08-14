@@ -451,6 +451,37 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const backerData = await program.account.backers.fetch(backerAccount);
     assert.strictEqual(backerData.claimAmount.toNumber(), 0, "Claim amount should be reset to zero");
   });
+
+  it("Airdrop launched coin successfully", async () => {
+    const claimAmount = new BN(200);
+    // Assumes proposal, mint, vault, and backer account are already setup
+    const backerTokenAccount = findUserAta(backer.publicKey, mint.publicKey);
+  
+    const tx = await program.methods
+      .airdrop(claimAmount)
+      .accounts({
+        authority: authority.publicKey,
+        backer: backer.publicKey,
+        proposal,
+        vaultAuthority,
+        mintAccount: mint.publicKey,
+        tokenVault: vault,
+        backerAccount,
+        backerTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    // Validate the token balance has increased
+    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(backerTokenAccount);
+    const balance = tokenAccountInfo.value.uiAmount;
+  
+    assert.ok(balance && balance > 0, "Backer should receive airdropped tokens");
+  });
   
   it('Claims position fee and distributes tokens', async () => {
     const userTokenAmount = new BN(10e9); // 10 tokens
