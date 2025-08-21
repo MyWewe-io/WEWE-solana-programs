@@ -1,5 +1,3 @@
-use std::ops::Sub;
-
 use anchor_lang::{
     prelude::*,
     system_program::{transfer, Transfer},
@@ -35,7 +33,7 @@ pub struct Contribute<'info> {
         seeds = [VAULT_AUTHORITY.as_ref()],
         bump,
     )]
-    pub vault_authority: UncheckedAccount<'info>,
+    pub vault_authority: SystemAccount<'info>,
 
     #[account(
         mut,
@@ -64,31 +62,27 @@ pub struct Contribute<'info> {
 
 impl<'info> Contribute<'info> {
     pub fn deposit_sol(&mut self) -> Result<()> {
-        let current_time = Clock::get()?.unix_timestamp;
+        let now = Clock::get()?.unix_timestamp;
+        let elapsed = now.saturating_sub(self.proposal.time_started);
 
-        require!(
-            SECONDS_TO_DAYS >= (current_time - self.proposal.time_started),
-            ProposalError::BackingEnded
-        );
-
+        require!(elapsed <= SECONDS_TO_DAYS, ProposalError::BackingEnded);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
-
         require!(
             !self.proposal.is_pool_launched,
             ProposalError::PoolAlreadyLaunched
         );
-
         require!(
             self.proposal.total_backers < MAXIMUM_BACKERS,
             ProposalError::BackingGoalReached
         );
-
         require!(
             self.backer.key() != self.proposal.maker,
             ProposalError::CantBackOwnProposal
         );
 
-        let amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
+        let amount = AMOUNT_TO_RAISE_PER_USER
+            .checked_sub(FEE_TO_DEDUCT)
+            .ok_or(ProposalError::NumericalOverflow)?;
         let program_id = self.system_program.to_account_info();
 
         transfer(
@@ -113,8 +107,16 @@ impl<'info> Contribute<'info> {
             FEE_TO_DEDUCT,
         )?;
 
-        self.proposal.total_backing += amount;
-        self.proposal.total_backers += 1;
+        self.proposal.total_backing = self
+            .proposal
+            .total_backing
+            .checked_add(amount)
+            .ok_or(ProposalError::NumericalOverflow)?;
+        self.proposal.total_backers = self
+            .proposal
+            .total_backers
+            .checked_add(1)
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         emit!(ProposalBacked {
             backer: self.backer.key(),

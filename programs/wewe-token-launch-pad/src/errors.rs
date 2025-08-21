@@ -49,4 +49,10 @@ pub enum ProposalError {
 
     #[msg("Type conversion failed")]
     TypeCastFailed,
+
+    #[msg("Lenth of token metadat is too long")]
+    LenthTooLong,
+
+    #[msg("Account passed is Incorrect")]
+    IncorrectAccount,
 }

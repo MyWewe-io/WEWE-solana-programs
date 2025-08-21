@@ -31,8 +31,15 @@ pub struct DammV2<'info> {
         ],
         bump,
     )]
-    pub vault_authority: UncheckedAccount<'info>,
-    #[account(mut)]
+    pub vault_authority:  SystemAccount<'info>,
+    #[account(
+        mut,
+        seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), base_mint.key().as_ref()],
+        bump,
+        token::mint = base_mint,
+        token::authority = vault_authority,
+        token::token_program = token_base_program,
+      )]
     pub token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
@@ -44,7 +51,8 @@ pub struct DammV2<'info> {
         bump,
     )]
     pub wsol_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-    /// CHECK: proposal maker token account
+    /// CHECK: proposal maker
+    #[account(constraint = maker.key() == proposal.maker @ ProposalError::IncorrectAccount)]
     pub maker: UncheckedAccount<'info>,
     #[account(
         init_if_needed,
@@ -80,7 +88,10 @@ pub struct DammV2<'info> {
     #[account(address = cp_amm::ID)]
     pub amm_program: UncheckedAccount<'info>,
     /// CHECK: base token mint
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = base_mint.key() == proposal.mint_account @ ProposalError::IncorrectAccount
+    )]
     pub base_mint: UncheckedAccount<'info>,
     /// CHECK: quote token mint
     #[account(mut)]
@@ -113,10 +124,9 @@ impl<'info> DammV2<'info> {
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
 
-        let current_time = Clock::get()?.unix_timestamp;
-        let time_passed = current_time - self.proposal.time_started;
-
-        if time_passed >= SECONDS_TO_DAYS && self.proposal.total_backers < MINIMUM_BACKERS {
+        let now = Clock::get()?.unix_timestamp;
+        let elapsed = now.saturating_sub(self.proposal.time_started);
+        if elapsed >= SECONDS_TO_DAYS && self.proposal.total_backers < MINIMUM_BACKERS {
             self.proposal.is_rejected = true;
             emit!(ProposalRejected {
                 maker: self.proposal.maker,
@@ -124,7 +134,6 @@ impl<'info> DammV2<'info> {
                 mint_account: self.proposal.mint_account.key(),
             });
         }
-
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(
             !self.proposal.is_pool_launched,
@@ -151,7 +160,13 @@ impl<'info> DammV2<'info> {
         let base_amount: u64 = TOTAL_POOL_TOKENS * 10u64.pow(9 as u32);
         let quote_amount: u64 = self.proposal.total_backing;
 
-        let liquidity = get_liquidity_for_adding_liquidity(base_amount, quote_amount, sqrt_price, config.sqrt_min_price, config.sqrt_max_price)?;
+        let liquidity = get_liquidity_for_adding_liquidity(
+            base_amount,
+            quote_amount,
+            sqrt_price,
+            config.sqrt_min_price,
+            config.sqrt_max_price,
+        )?;
 
         cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(

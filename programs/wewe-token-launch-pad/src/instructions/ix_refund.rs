@@ -1,8 +1,4 @@
-use std::ops::Sub;
-
 use anchor_lang::prelude::*;
-use anchor_spl::token::Token;
-
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
     constant::{seeds::*, AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT},
@@ -28,7 +24,7 @@ pub struct Refund<'info> {
         ],
         bump,
     )]
-    pub vault_authority: UncheckedAccount<'info>,
+    pub vault_authority: SystemAccount<'info>,
 
     #[account(
         mut,
@@ -37,14 +33,15 @@ pub struct Refund<'info> {
         close = backer,
     )]
     pub backer_account: Account<'info, Backers>,
-    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
 impl<'info> Refund<'info> {
     pub fn refund(&mut self) -> Result<()> {
         require!(self.proposal.is_rejected, ProposalError::BackingNotEnded);
-        let refund_amount = AMOUNT_TO_RAISE_PER_USER.sub(FEE_TO_DEDUCT);
+        let refund_amount = AMOUNT_TO_RAISE_PER_USER
+            .checked_sub(FEE_TO_DEDUCT)
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
@@ -61,7 +58,11 @@ impl<'info> Refund<'info> {
             refund_amount,
         )?;
 
-        self.proposal.total_backing -= refund_amount;
+        self.proposal.total_backing = self
+            .proposal
+            .total_backing
+            .checked_sub(refund_amount)
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         emit!(BackerRefunded {
             backer: self.backer.key(),

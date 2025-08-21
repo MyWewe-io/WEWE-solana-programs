@@ -21,7 +21,7 @@ pub struct Claim<'info> {
         ],
         bump,
     )]
-    pub vault_authority: UncheckedAccount<'info>,
+    pub vault_authority: SystemAccount<'info>,
 
     #[account(mut)]
     pub mint_account: Account<'info, Mint>,
@@ -61,7 +61,13 @@ impl<'info> Claim<'info> {
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
-        let claim_amount = self.backer_account.claim_amount;
+        let pow = 10u64
+            .checked_pow(self.mint_account.decimals as u32)
+            .ok_or(ProposalError::MathOverflow)?;
+        let claim_amount = self.backer_account.claim_amount
+            .checked_mul(pow)
+            .ok_or(ProposalError::MathOverflow)?;
+
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
                 self.token_program.to_account_info(),
@@ -72,7 +78,7 @@ impl<'info> Claim<'info> {
                 },
                 signer_seeds,
             ),
-            claim_amount * 10u64.pow(9 as u32),
+            claim_amount,
         )?;
 
         // set claim amount to zero, for succesive airdrops

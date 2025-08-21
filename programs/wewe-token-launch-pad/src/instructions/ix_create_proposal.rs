@@ -1,5 +1,15 @@
 use std::ops::Sub;
 
+use crate::{
+    const_pda,
+    constant::{
+        seeds::{MAKER, PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY},
+        ANCHOR_DISCRIMINATOR, TOTAL_MINT,
+    },
+    errors::ProposalError,
+    event::ProposalCreated,
+    state::{maker::MakerAccount, proposal::Proposal},
+};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     metadata::{
@@ -8,20 +18,12 @@ use anchor_spl::{
     },
     token::{mint_to, Mint, MintTo, Token, TokenAccount},
 };
-use crate::{
-    const_pda,
-    constant::{seeds::{PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY, MAKER}, ANCHOR_DISCRIMINATOR, TOTAL_MINT},
-    errors::ProposalError,
-    event::ProposalCreated,
-    state::{maker::MakerAccount, proposal::Proposal},
-};
 
 #[derive(Accounts)]
 pub struct CreateProposal<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// CHECK: maker of the proposal
     #[account(mut)]
     pub maker: Signer<'info>,
 
@@ -51,7 +53,7 @@ pub struct CreateProposal<'info> {
         ],
         bump,
     )]
-    pub vault_authority: UncheckedAccount<'info>,
+    pub vault_authority: SystemAccount<'info>,
 
     #[account(
         init,
@@ -109,11 +111,15 @@ impl<'info> CreateProposal<'info> {
     ) -> Result<()> {
         // PDA signer seeds
         let signer_seeds: &[&[&[u8]]] = &[&[
-            b"proposal",
+            PROPOSAL,
             self.maker.key.as_ref(),
             &self.maker_account.proposal_count.to_le_bytes(),
             &[bumps.proposal],
         ]];
+
+        require!(token_name.len() <= 32, ProposalError::LenthTooLong);
+        require!(token_symbol.len() <= 10, ProposalError::LenthTooLong);
+        require!(token_uri.len() <= 200, ProposalError::LenthTooLong);
 
         create_metadata_accounts_v3(
             CpiContext::new(
@@ -122,7 +128,7 @@ impl<'info> CreateProposal<'info> {
                     metadata: self.metadata_account.to_account_info(),
                     mint: self.mint_account.to_account_info(),
                     mint_authority: self.proposal.to_account_info(),
-                    update_authority: self.maker.to_account_info(),
+                    update_authority: self.proposal.to_account_info(),
                     payer: self.payer.to_account_info(),
                     system_program: self.system_program.to_account_info(),
                     rent: self.rent.to_account_info(),
@@ -143,6 +149,12 @@ impl<'info> CreateProposal<'info> {
             None,  // Collection details
         )?;
 
+        let pow = 10u64
+            .checked_pow(self.mint_account.decimals as u32)
+            .ok_or(ProposalError::MathOverflow)?;
+        let amount = TOTAL_MINT
+            .checked_mul(pow)
+            .ok_or(ProposalError::MathOverflow)?;
         // Invoke the mint_to instruction on the token program
         mint_to(
             CpiContext::new(
@@ -154,14 +166,15 @@ impl<'info> CreateProposal<'info> {
                 },
             )
             .with_signer(signer_seeds), // using PDA to sign,
-            TOTAL_MINT * 10u64.pow(self.mint_account.decimals as u32), // Mint tokens
+            amount, // Mint tokens
         )?;
 
+        let now = Clock::get()?.unix_timestamp;
         self.proposal.set_inner(Proposal {
             maker: self.maker.key(),
             mint_account: self.mint_account.key(),
             total_backing: 0,
-            time_started: Clock::get()?.unix_timestamp,
+            time_started: now,
             bump: bumps.proposal,
             is_rejected: false,
             proposal_id: self.maker_account.proposal_count,
@@ -170,13 +183,15 @@ impl<'info> CreateProposal<'info> {
             current_airdrop_cycle: 0,
         });
         // increment proposal count for maker
-        self.maker_account.proposal_count += 1;
+        let idx = self.maker_account.proposal_count;
+        self.maker_account.proposal_count =
+            idx.checked_add(1).ok_or(ProposalError::NumericalOverflow)?;
 
         emit!(ProposalCreated {
             maker: self.maker.key(),
             proposal_address: self.proposal.key(),
             proposal_index: self.maker_account.proposal_count.sub(1),
-            start_time: Clock::get()?.unix_timestamp,
+            start_time: now,
             token_name,
             token_symbol,
             token_uri,
