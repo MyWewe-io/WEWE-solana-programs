@@ -14,7 +14,6 @@ use instructions::*;
 use utils::*;
 
 declare_id!("JBC9QTYM8DsYWFkzk8GAZTUpfsUYMLha5REF6KomvPxs");
-
 #[program]
 pub mod wewe_token_launch_pad {
     use super::*;
@@ -82,11 +81,9 @@ pub mod wewe_token_launch_pad {
     #[access_control(check(&ctx.accounts.payer))]
     pub fn claim_pool_fee(
         ctx: Context<ClaimPositionFee>,
-        user_wsol_amount: u64,
-        user_token_amount: u64,
     ) -> Result<()> {
         ctx.accounts
-            .claim_position_fee(user_wsol_amount, user_token_amount)?;
+            .claim_position_fee()?;
 
         Ok(())
     }
