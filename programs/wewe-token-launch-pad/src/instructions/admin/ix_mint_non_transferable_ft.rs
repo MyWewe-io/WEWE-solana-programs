@@ -3,6 +3,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::constant::seeds::{MINT_ACCOUNT, MINT_AUTHORITY};
+use crate::errors::ProposalError;
 
 #[derive(Accounts)]
 pub struct MintSoulboundToUser<'info> {
@@ -45,6 +46,7 @@ pub struct MintSoulboundToUser<'info> {
 
 impl<'info> MintSoulboundToUser<'info> {
     pub fn mint_soulbound_to_user(&mut self, bumps: &MintSoulboundToUserBumps) -> Result<()> {
+        require!(self.user_token_account.amount == 0, ProposalError::ProposalAlreadyBacked);
         let mint_authority_seeds: &[&[u8]] = &[MINT_AUTHORITY, &[bumps.mint_authority]];
 
         anchor_spl::token::mint_to(

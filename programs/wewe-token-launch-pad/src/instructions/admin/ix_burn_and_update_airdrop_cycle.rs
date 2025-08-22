@@ -1,8 +1,16 @@
 use {
     crate::{
-        const_pda::const_authority::VAULT_BUMP, constant::{seeds::VAULT_AUTHORITY, TOTAL_AIRDROP_AMOUNT_PER_MILESTONE}, errors::ProposalError, event::TokensBurned, state::proposal::Proposal
+        const_pda::const_authority::VAULT_BUMP,
+        constant::{
+            seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
+            TOTAL_AIRDROP_AMOUNT_PER_MILESTONE,
+        },
+        errors::ProposalError,
+        event::TokensBurned,
+        state::proposal::Proposal,
     },
-    anchor_lang::prelude::*, anchor_spl::token::{Mint, Token, TokenAccount},
+    anchor_lang::prelude::*,
+    anchor_spl::token::{Mint, Token, TokenAccount},
 };
 
 #[derive(Accounts)]
@@ -17,12 +25,21 @@ pub struct BurnTokens<'info> {
         seeds = [VAULT_AUTHORITY.as_ref()],
         bump,
     )]
-    pub vault_authority: UncheckedAccount<'info>,
+    pub vault_authority: SystemAccount<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), mint.key().as_ref()],
+        bump,
+        token::mint = mint,
+        token::authority = vault_authority,
+    )]
     pub token_vault: Account<'info, TokenAccount>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = mint.key() == proposal.mint_account @ ProposalError::IncorrectAccount
+    )]
     pub mint: Account<'info, Mint>,
 
     pub token_program: Program<'info, Token>,
@@ -32,10 +49,22 @@ pub struct BurnTokens<'info> {
 impl<'info> BurnTokens<'info> {
     pub fn burn_tokens(&mut self, amount: u64) -> Result<()> {
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
-        require!(self.proposal.is_pool_launched, ProposalError::BackingNotEnded);
-        require!(amount <= TOTAL_AIRDROP_AMOUNT_PER_MILESTONE, ProposalError::AmountTooBig);
+        require!(
+            self.proposal.is_pool_launched,
+            ProposalError::BackingNotEnded
+        );
+        require!(
+            amount <= TOTAL_AIRDROP_AMOUNT_PER_MILESTONE,
+            ProposalError::AmountTooBig
+        );
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
+
+        let pow = 10u64
+            .checked_pow(self.mint.decimals as u32)
+            .ok_or(ProposalError::MathOverflow)?;
+        let burn_amount = amount.checked_mul(pow).ok_or(ProposalError::MathOverflow)?;
+
         anchor_spl::token::burn(
             CpiContext::new_with_signer(
                 self.token_program.to_account_info(),
@@ -46,18 +75,21 @@ impl<'info> BurnTokens<'info> {
                 },
                 signer_seeds,
             ),
-            amount * 10u64.pow(9 as u32),
+            burn_amount,
         )?;
 
-        self.proposal.current_airdrop_cycle += 1;
+        self.proposal.current_airdrop_cycle = self
+            .proposal
+            .current_airdrop_cycle
+            .checked_add(1)
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         emit!(TokensBurned {
             proposal: self.proposal.key(),
             amount,
             cycle: self.proposal.current_airdrop_cycle,
         });
-        
+
         Ok(())
     }
 }
-
