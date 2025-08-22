@@ -271,7 +271,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .accountsPartial({
         authority: authority.publicKey,
         proposal: proposal2,
-        systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([authority])
       .rpc()
@@ -401,6 +400,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .accounts({
         authority: authority.publicKey,
         proposal,
+        backer: backer.publicKey,
         backerAccount,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
@@ -470,7 +470,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
     const tx = await program.methods
-      .claimPoolFee(userWsolAmount, userTokenAmount)
+      .claimPoolFee()
       .accounts({
         poolAuthority: pdas.poolAuthority,
         payer: authority.publicKey,
