@@ -107,6 +107,7 @@ impl<'info> Contribute<'info> {
             FEE_TO_DEDUCT,
         )?;
 
+        self.backer_account.initial_airdrop_received = false;
         self.proposal.total_backing = self
             .proposal
             .total_backing

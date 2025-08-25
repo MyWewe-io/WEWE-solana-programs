@@ -44,9 +44,6 @@ pub enum ProposalError {
     #[msg("Amount already updated for the current airdrop cycle of the proposal.")]
     AmountAlreadyUpdated,
 
-    #[msg("Math overflow")]
-    MathOverflow,
-
     #[msg("Type conversion failed")]
     TypeCastFailed,
 
@@ -55,4 +52,7 @@ pub enum ProposalError {
 
     #[msg("Account passed is Incorrect")]
     IncorrectAccount,
+
+    #[msg("Initial Airdrop received already")]
+    AirdropAlreadyRecived,
 }

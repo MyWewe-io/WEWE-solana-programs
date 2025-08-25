@@ -13,7 +13,7 @@ use errors::*;
 use instructions::*;
 use utils::*;
 
-declare_id!("JBC9QTYM8DsYWFkzk8GAZTUpfsUYMLha5REF6KomvPxs");
+declare_id!("Dr6KaoKH13wjV9Jq7vnz4XzDPWBPEfxqwJbo82akf3u7");
 #[program]
 pub mod wewe_token_launch_pad {
     use super::*;

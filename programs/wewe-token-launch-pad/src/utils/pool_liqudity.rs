@@ -11,7 +11,7 @@ fn get_initial_liquidity_from_delta_base(
 ) -> Result<U512> {
     let delta = sqrt_max_price
         .checked_sub(sqrt_price)
-        .ok_or(ProposalError::MathOverflow)?;
+        .ok_or(ProposalError::NumericalOverflow)?;
     let price_delta = U512::from(delta);
 
     let base = U512::from(base_amount);
@@ -20,13 +20,13 @@ fn get_initial_liquidity_from_delta_base(
 
     let prod = base
         .checked_mul(sqrt_price)
-        .ok_or(ProposalError::MathOverflow)?
+        .ok_or(ProposalError::NumericalOverflow)?
         .checked_mul(sqrt_max_price)
-        .ok_or(ProposalError::MathOverflow)?;
+        .ok_or(ProposalError::NumericalOverflow)?;
 
     let liquidity = prod
         .checked_div(price_delta)
-        .ok_or(ProposalError::MathOverflow)?;
+        .ok_or(ProposalError::NumericalOverflow)?;
 
     Ok(liquidity)
 }
@@ -39,17 +39,17 @@ fn get_initial_liquidity_from_delta_quote(
 ) -> Result<u128> {
     let delta = sqrt_price
         .checked_sub(sqrt_min_price)
-        .ok_or(ProposalError::MathOverflow)?;
+        .ok_or(ProposalError::NumericalOverflow)?;
     let price_delta = U256::from(delta);
 
     let quote = U256::from(quote_amount);
     let quote_shifted = quote
         .checked_shl(128)
-        .ok_or(ProposalError::MathOverflow)?;
+        .ok_or(ProposalError::NumericalOverflow)?;
 
     let liquidity = quote_shifted
         .checked_div(price_delta)
-        .ok_or(ProposalError::MathOverflow)?;
+        .ok_or(ProposalError::NumericalOverflow)?;
 
     return Ok(liquidity.to::<u128>())
 }

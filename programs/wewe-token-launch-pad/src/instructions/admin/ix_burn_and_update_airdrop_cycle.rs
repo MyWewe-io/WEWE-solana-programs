@@ -62,8 +62,8 @@ impl<'info> BurnTokens<'info> {
 
         let pow = 10u64
             .checked_pow(self.mint.decimals as u32)
-            .ok_or(ProposalError::MathOverflow)?;
-        let burn_amount = amount.checked_mul(pow).ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
+        let burn_amount = amount.checked_mul(pow).ok_or(ProposalError::NumericalOverflow)?;
 
         anchor_spl::token::burn(
             CpiContext::new_with_signer(

@@ -63,10 +63,10 @@ impl<'info> Claim<'info> {
 
         let pow = 10u64
             .checked_pow(self.mint_account.decimals as u32)
-            .ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
         let claim_amount = self.backer_account.claim_amount
             .checked_mul(pow)
-            .ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
