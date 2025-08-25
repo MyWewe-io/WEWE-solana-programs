@@ -92,4 +92,8 @@ pub mod wewe_token_launch_pad {
     pub fn burn(ctx: Context<BurnTokens>, amount: u64) -> Result<()> {
         ctx.accounts.burn_tokens(amount)
     }
+
+    pub fn airdrop(ctx: Context<Airdrop>) -> Result<()> {
+        ctx.accounts.airdrop()
+    }
 }
