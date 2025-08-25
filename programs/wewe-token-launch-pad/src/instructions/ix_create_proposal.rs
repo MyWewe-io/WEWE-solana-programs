@@ -151,10 +151,10 @@ impl<'info> CreateProposal<'info> {
 
         let pow = 10u64
             .checked_pow(self.mint_account.decimals as u32)
-            .ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
         let amount = TOTAL_MINT
             .checked_mul(pow)
-            .ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
         // Invoke the mint_to instruction on the token program
         mint_to(
             CpiContext::new(

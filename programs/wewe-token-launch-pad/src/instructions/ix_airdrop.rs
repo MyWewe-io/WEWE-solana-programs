@@ -74,7 +74,7 @@ impl<'info> Airdrop<'info> {
 
         let amount = TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
             .checked_div(self.proposal.total_backers)
-            .ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
