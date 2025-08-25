@@ -68,6 +68,7 @@ pub struct Airdrop<'info> {
 impl<'info> Airdrop<'info> {
     pub fn airdrop(&mut self) -> Result<()> {
         require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
+        require!(self.backer_account.initial_airdrop_received, ProposalError::AirdropAlreadyRecived);
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
@@ -88,6 +89,7 @@ impl<'info> Airdrop<'info> {
             amount * 10u64.pow(9 as u32),
         )?;
 
+        self.backer_account.initial_airdrop_received = true;
         emit!(AirdropClaimed {
             proposal_address: self.proposal.key(),
             backer: self.backer.key(),

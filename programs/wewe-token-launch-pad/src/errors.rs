@@ -55,4 +55,7 @@ pub enum ProposalError {
 
     #[msg("Account passed is Incorrect")]
     IncorrectAccount,
+
+    #[msg("Initial Airdrop received already")]
+    AirdropAlreadyRecived,
 }
