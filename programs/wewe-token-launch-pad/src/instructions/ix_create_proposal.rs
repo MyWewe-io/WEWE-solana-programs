@@ -181,6 +181,9 @@ impl<'info> CreateProposal<'info> {
             is_pool_launched: false,
             total_backers: 0,
             current_airdrop_cycle: 0,
+            milestone_active: false,
+            milestone_units_assigned: 0,
+            milestone_backers_weighted: 0,
         });
         // increment proposal count for maker
         let idx = self.maker_account.proposal_count;
