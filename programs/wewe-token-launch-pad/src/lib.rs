@@ -65,8 +65,8 @@ pub mod wewe_token_launch_pad {
     }
 
     #[access_control(check(&ctx.accounts.authority))]
-    pub fn update_airdrop_amount(ctx: Context<UpdateBacker>, amount: u64) -> Result<()> {
-        ctx.accounts.update_airdrop_amount(amount)?;
+    pub fn update_airdrop_amount(ctx: Context<RecordAndSettleBacker>) -> Result<()> {
+        ctx.accounts.record_and_settle()?;
 
         Ok(())
     }
@@ -89,8 +89,8 @@ pub mod wewe_token_launch_pad {
     }
 
     #[access_control(check(&ctx.accounts.authority))]
-    pub fn burn(ctx: Context<BurnTokens>, amount: u64) -> Result<()> {
-        ctx.accounts.burn_tokens(amount)
+    pub fn burn(ctx: Context<StartMilestone>) -> Result<()> {
+        ctx.accounts.start()
     }
 
     pub fn airdrop(ctx: Context<Airdrop>) -> Result<()> {

@@ -92,3 +92,32 @@ pub struct TokensBurned {
     pub amount: u64,
     pub cycle: u8,
 }
+#[event]
+pub struct MilestoneStarted {
+    pub proposal: Pubkey,
+    pub cycle: u8,
+    pub token_mint: Pubkey,
+}
+
+#[event]
+pub struct BackerWeightRecorded {
+    pub proposal: Pubkey,
+    pub backer: Pubkey,
+    pub cycle: u8,
+    pub score_bp: i64,
+}
+
+#[event]
+pub struct BackerMilestoneSettled {
+    pub proposal: Pubkey,
+    pub backer: Pubkey,
+    pub cycle: u8,
+    pub alloc_units: u64,
+}
+
+#[event]
+pub struct MilestoneEnded {
+    pub proposal: Pubkey,
+    pub cycle: u8,
+    pub burned_units: u64,
+}

@@ -55,4 +55,7 @@ pub enum ProposalError {
 
     #[msg("Initial Airdrop received already")]
     AirdropAlreadyRecived,
+
+    #[msg("Initial Airdrop received already")]
+    NoMilestoneActive,
 }
