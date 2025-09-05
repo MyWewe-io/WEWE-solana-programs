@@ -8,4 +8,5 @@ pub struct Backers {
     pub initial_airdrop_received: bool,
     pub contributed_lamports: u64,
     pub settle_cycle: u8,
+    pub reputation_pct: u8,
 }
