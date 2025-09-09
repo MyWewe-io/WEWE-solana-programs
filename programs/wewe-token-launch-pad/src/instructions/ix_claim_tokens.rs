@@ -83,6 +83,7 @@ impl<'info> Claim<'info> {
 
         // set claim amount to zero, for succesive airdrops
         self.backer_account.claim_amount = 0;
+        self.backer_account.claimed_upto = self.backer_account.settle_cycle;
 
         emit!(AirdropClaimed {
             proposal_address: self.proposal.key(),
