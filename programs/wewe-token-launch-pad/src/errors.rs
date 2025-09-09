@@ -56,6 +56,9 @@ pub enum ProposalError {
     #[msg("Initial Airdrop received already")]
     AirdropAlreadyRecived,
 
-    #[msg("Initial Airdrop received already")]
+    #[msg("No milestone is active")]
     NoMilestoneActive,
+
+    #[msg("score of all backer not updated for current milestone")]
+    AllBackerScoreNotUpdated
 }
