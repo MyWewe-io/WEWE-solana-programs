@@ -2,23 +2,28 @@ use crate::{errors::ProposalError, event::MilestoneStarted, state::proposal::Pro
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
-pub struct InitialiseMilestone<'info> {
+pub struct EndMilestone<'info> {
     pub authority: Signer<'info>,
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
 }
 
-impl<'info> InitialiseMilestone<'info> {
-    pub fn handle_initialise_milestone(&mut self) -> Result<()> {
+impl<'info> EndMilestone<'info> {
+    pub fn handle_end_milestone(&mut self) -> Result<()> {
         require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(
-            !self.proposal.milestone_active,
+            self.proposal.milestone_active,
             ProposalError::NoMilestoneActive
         );
+        require!(
+            self.proposal.milestone_backers_weighted == self.proposal.total_backers,
+            ProposalError::AllBackerScoreNotUpdated
+        );
 
-        self.proposal.milestone_active = true;
-        self.proposal.milestone_backers_weighted = 0;
+        //TODO: burn tokens that goes uncliamed for each milestone
+
+        self.proposal.milestone_active = false;
 
         emit!(MilestoneStarted {
             proposal: self.proposal.key(),
