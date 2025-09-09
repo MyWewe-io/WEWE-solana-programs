@@ -10,6 +10,7 @@ pub struct ProposalCreated {
     pub token_symbol: String,
     pub token_uri: String,
     pub mint_account: Pubkey,
+    pub metadata_account: Pubkey,
     pub token_vault: Pubkey,
     pub maker_account: Pubkey,
     pub proposal_bump: u8,
