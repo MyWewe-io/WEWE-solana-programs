@@ -159,7 +159,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mintAccount: mint.publicKey,
         tokenVault: vault,
         systemProgram: anchor.web3.SystemProgram.programId,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([authority, mint, maker])
       .rpc()
