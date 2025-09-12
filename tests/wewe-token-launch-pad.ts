@@ -30,7 +30,6 @@ import {
   findMintAccount,
   findMintAuthority,
   calculateInitSqrtPrice,
-  getLiquidityForAddingLiquidity,
 } from './utils';
 
 describe('Wewe Token Launch Pad - Integration Tests', () => {

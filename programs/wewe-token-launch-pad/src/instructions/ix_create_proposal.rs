@@ -151,10 +151,10 @@ impl<'info> CreateProposal<'info> {
 
         let pow = 10u64
             .checked_pow(self.mint_account.decimals as u32)
-            .ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
         let amount = TOTAL_MINT
             .checked_mul(pow)
-            .ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
         // Invoke the mint_to instruction on the token program
         mint_to(
             CpiContext::new(
@@ -181,6 +181,9 @@ impl<'info> CreateProposal<'info> {
             is_pool_launched: false,
             total_backers: 0,
             current_airdrop_cycle: 0,
+            milestone_active: false,
+            milestone_units_assigned: 0,
+            milestone_backers_weighted: 0,
         });
         // increment proposal count for maker
         let idx = self.maker_account.proposal_count;

@@ -13,7 +13,7 @@ use errors::*;
 use instructions::*;
 use utils::*;
 
-declare_id!("JBC9QTYM8DsYWFkzk8GAZTUpfsUYMLha5REF6KomvPxs");
+declare_id!("Dr6KaoKH13wjV9Jq7vnz4XzDPWBPEfxqwJbo82akf3u7");
 #[program]
 pub mod wewe_token_launch_pad {
     use super::*;
@@ -24,10 +24,7 @@ pub mod wewe_token_launch_pad {
         token_symbol: String,
         token_uri: String,
     ) -> Result<()> {
-        ctx.accounts
-            .create_proposal(token_name, token_symbol, token_uri, &ctx.bumps)?;
-
-        Ok(())
+        ctx.accounts.create_proposal(token_name, token_symbol, token_uri, &ctx.bumps)
     }
 
     pub fn deposit_sol(ctx: Context<Contribute>) -> Result<()> {
@@ -40,57 +37,40 @@ pub mod wewe_token_launch_pad {
     }
 
     pub fn refund(ctx: Context<Refund>) -> Result<()> {
-        ctx.accounts.refund()?;
-
-        Ok(())
+        ctx.accounts.refund()
     }
 
     pub fn create_pool(ctx: Context<DammV2>, sqrt_price: u128) -> Result<()> {
-        ctx.accounts.create_pool(sqrt_price)?;
-
-        Ok(())
+        ctx.accounts.create_pool(sqrt_price)
     }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
-        ctx.accounts.claim()?;
-
-        Ok(())
+        ctx.accounts.claim()
     }
 
     #[access_control(check(&ctx.accounts.authority))]
     pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
-        ctx.accounts.reject_proposal()?;
-
-        Ok(())
+        ctx.accounts.reject_proposal()
     }
 
     #[access_control(check(&ctx.accounts.authority))]
-    pub fn update_airdrop_amount(ctx: Context<UpdateBacker>, amount: u64) -> Result<()> {
-        ctx.accounts.update_airdrop_amount(amount)?;
-
-        Ok(())
+    pub fn snapshot_backer_amount(ctx: Context<SnapshotBacker>) -> Result<()> {
+        ctx.accounts.handle_snapshot()
     }
 
     #[access_control(check(&ctx.accounts.payer))]
     pub fn mint_soulbound_to_user(ctx: Context<MintSoulboundToUser>) -> Result<()> {
-        ctx.accounts.mint_soulbound_to_user(&ctx.bumps)?;
-
-        Ok(())
+        ctx.accounts.mint_soulbound_to_user(&ctx.bumps)
     }
 
     #[access_control(check(&ctx.accounts.payer))]
-    pub fn claim_pool_fee(
-        ctx: Context<ClaimPositionFee>,
-    ) -> Result<()> {
-        ctx.accounts
-            .claim_position_fee()?;
-
-        Ok(())
+    pub fn claim_pool_fee(ctx: Context<ClaimPositionFee>) -> Result<()> {
+        ctx.accounts.claim_position_fee()
     }
 
     #[access_control(check(&ctx.accounts.authority))]
-    pub fn burn(ctx: Context<BurnTokens>, amount: u64) -> Result<()> {
-        ctx.accounts.burn_tokens(amount)
+    pub fn burn(ctx: Context<InitialiseMilestone>) -> Result<()> {
+        ctx.accounts.handle_initialise_milestone()
     }
 
     pub fn airdrop(ctx: Context<Airdrop>) -> Result<()> {

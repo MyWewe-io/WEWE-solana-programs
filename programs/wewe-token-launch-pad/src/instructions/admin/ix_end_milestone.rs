@@ -1,25 +1,25 @@
-use {
-    crate::{
-        const_pda::const_authority::VAULT_BUMP,
-        constant::{
-            seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
-            TOTAL_AIRDROP_AMOUNT_PER_MILESTONE,
-        },
-        errors::ProposalError,
-        event::TokensBurned,
-        state::proposal::Proposal,
-    },
-    anchor_lang::prelude::*,
-    anchor_spl::token::{Mint, Token, TokenAccount},
+use crate::{
+    const_pda::const_authority::VAULT_BUMP,
+    constant::seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
+    errors::ProposalError,
+    event::MilestoneStarted,
+    state::proposal::Proposal,
 };
+use anchor_lang::prelude::*;
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 #[derive(Accounts)]
-pub struct BurnTokens<'info> {
+pub struct EndMilestone<'info> {
     pub authority: Signer<'info>,
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
 
-    /// CHECK: vault authority
+    #[account(
+        mut,
+        constraint = mint.key() == proposal.mint_account @ ProposalError::IncorrectAccount
+    )]
+    pub mint: Account<'info, Mint>,
+
     #[account(
         mut,
         seeds = [VAULT_AUTHORITY.as_ref()],
@@ -36,34 +36,33 @@ pub struct BurnTokens<'info> {
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
-    #[account(
-        mut,
-        constraint = mint.key() == proposal.mint_account @ ProposalError::IncorrectAccount
-    )]
-    pub mint: Account<'info, Mint>,
-
     pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
 }
 
-impl<'info> BurnTokens<'info> {
-    pub fn burn_tokens(&mut self, amount: u64) -> Result<()> {
+impl<'info> EndMilestone<'info> {
+    pub fn handle_end_milestone(&mut self) -> Result<()> {
+        require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(
-            self.proposal.is_pool_launched,
-            ProposalError::BackingNotEnded
+            self.proposal.milestone_active,
+            ProposalError::NoMilestoneActive
         );
         require!(
-            amount <= TOTAL_AIRDROP_AMOUNT_PER_MILESTONE,
-            ProposalError::AmountTooBig
+            self.proposal.milestone_backers_weighted == self.proposal.total_backers,
+            ProposalError::AllBackerScoreNotUpdated
         );
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
-
         let pow = 10u64
             .checked_pow(self.mint.decimals as u32)
-            .ok_or(ProposalError::MathOverflow)?;
-        let burn_amount = amount.checked_mul(pow).ok_or(ProposalError::MathOverflow)?;
+            .ok_or(ProposalError::NumericalOverflow)?;
+
+        let burn_amount = self.proposal.total_backing.saturating_sub(
+            self.proposal
+                .milestone_units_assigned
+                .checked_mul(pow)
+                .ok_or(ProposalError::NumericalOverflow)?,
+        );
 
         anchor_spl::token::burn(
             CpiContext::new_with_signer(
@@ -78,18 +77,13 @@ impl<'info> BurnTokens<'info> {
             burn_amount,
         )?;
 
-        self.proposal.current_airdrop_cycle = self
-            .proposal
-            .current_airdrop_cycle
-            .checked_add(1)
-            .ok_or(ProposalError::NumericalOverflow)?;
+        self.proposal.milestone_active = false;
 
-        emit!(TokensBurned {
+        emit!(MilestoneStarted {
             proposal: self.proposal.key(),
-            amount,
+            token_mint: self.proposal.mint_account.key(),
             cycle: self.proposal.current_airdrop_cycle,
         });
-
         Ok(())
     }
 }

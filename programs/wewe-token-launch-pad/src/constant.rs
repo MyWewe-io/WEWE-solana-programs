@@ -9,8 +9,8 @@ pub const TOTAL_POOL_TOKENS: u64 = 150_000_000; // 15% of total Token supply
 pub const MAKER_TOKEN_AMOUNT: u64 = 10_000_000;// 1% of the total Token supply 
 pub const TOTAL_AIRDROP_AMOUNT_PER_MILESTONE: u64 = 140_000_000; // 14% of total Token supply
 
-pub const MINIMUM_BACKERS: u64 = 1; // shud be 50
-pub const MAXIMUM_BACKERS: u64 = 1000;
+pub const MINIMUM_BACKERS: u64 = 3; // shud be 50
+pub const MAXIMUM_BACKERS: u64 = 1000; 
 
 pub mod seeds {
     pub const MINT_ACCOUNT: &[u8] = b"mint_soulbound";

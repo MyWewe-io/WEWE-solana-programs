@@ -10,8 +10,8 @@ pub struct ProposalCreated {
     pub token_symbol: String,
     pub token_uri: String,
     pub mint_account: Pubkey,
-    pub token_vault: Pubkey,
     pub metadata_account: Pubkey,
+    pub token_vault: Pubkey,
     pub maker_account: Pubkey,
     pub proposal_bump: u8,
 }
@@ -91,4 +91,33 @@ pub struct TokensBurned {
     pub proposal: Pubkey,
     pub amount: u64,
     pub cycle: u8,
+}
+#[event]
+pub struct MilestoneStarted {
+    pub proposal: Pubkey,
+    pub cycle: u8,
+    pub token_mint: Pubkey,
+}
+
+#[event]
+pub struct BackerWeightRecorded {
+    pub proposal: Pubkey,
+    pub backer: Pubkey,
+    pub cycle: u8,
+    pub score_bp: i64,
+}
+
+#[event]
+pub struct BackerMilestoneSettled {
+    pub proposal: Pubkey,
+    pub backer: Pubkey,
+    pub cycle: u8,
+    pub alloc_units: u64,
+}
+
+#[event]
+pub struct MilestoneEnded {
+    pub proposal: Pubkey,
+    pub cycle: u8,
+    pub burned_units: u64,
 }
