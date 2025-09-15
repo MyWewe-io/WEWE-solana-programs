@@ -2,7 +2,7 @@ use crate::{
     const_pda::const_authority::VAULT_BUMP,
     constant::seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
     errors::ProposalError,
-    event::MilestoneStarted,
+    event::MilestoneEnded,
     state::proposal::Proposal,
 };
 use anchor_lang::prelude::*;
@@ -79,10 +79,10 @@ impl<'info> EndMilestone<'info> {
 
         self.proposal.milestone_active = false;
 
-        emit!(MilestoneStarted {
+        emit!(MilestoneEnded {
             proposal: self.proposal.key(),
-            token_mint: self.proposal.mint_account.key(),
             cycle: self.proposal.current_airdrop_cycle,
+            burned_units: burn_amount
         });
         Ok(())
     }

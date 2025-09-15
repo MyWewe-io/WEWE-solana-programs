@@ -45,8 +45,14 @@ pub struct MintSoulboundToUser<'info> {
 }
 
 impl<'info> MintSoulboundToUser<'info> {
-    pub fn mint_soulbound_to_user(&mut self, bumps: &MintSoulboundToUserBumps) -> Result<()> {
-        require!(self.user_token_account.amount == 0, ProposalError::ProposalAlreadyBacked);
+    pub fn handle_mint_soulbound_to_user(
+        &mut self,
+        bumps: &MintSoulboundToUserBumps,
+    ) -> Result<()> {
+        require!(
+            self.user_token_account.amount == 0,
+            ProposalError::ProposalAlreadyBacked
+        );
         let mint_authority_seeds: &[&[u8]] = &[MINT_AUTHORITY, &[bumps.mint_authority]];
 
         anchor_spl::token::mint_to(
@@ -72,6 +78,8 @@ impl<'info> MintSoulboundToUser<'info> {
             },
             &[mint_authority_seeds],
         ))?;
+
+        println!("{:?}", self.mint_authority.to_account_info());
 
         Ok(())
     }

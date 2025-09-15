@@ -9,6 +9,7 @@ use anchor_spl::token::{Mint, TokenAccount};
 
 #[derive(Accounts)]
 pub struct SnapshotBacker<'info> {
+    #[account(mut)]
     pub authority: Signer<'info>,
 
     #[account(mut)]
