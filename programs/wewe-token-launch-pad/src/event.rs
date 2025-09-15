@@ -79,32 +79,10 @@ pub struct PositionFeeClaimed {
 }
 
 #[event]
-pub struct AirdropClaimUpdated {
-    pub proposal: Pubkey,
-    pub backer: Pubkey,
-    pub amount: u64,
-    pub cycle: u8,
-}
-
-#[event]
-pub struct TokensBurned {
-    pub proposal: Pubkey,
-    pub amount: u64,
-    pub cycle: u8,
-}
-#[event]
 pub struct MilestoneStarted {
     pub proposal: Pubkey,
     pub cycle: u8,
     pub token_mint: Pubkey,
-}
-
-#[event]
-pub struct BackerWeightRecorded {
-    pub proposal: Pubkey,
-    pub backer: Pubkey,
-    pub cycle: u8,
-    pub score_bp: i64,
 }
 
 #[event]

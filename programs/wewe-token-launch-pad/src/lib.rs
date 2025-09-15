@@ -24,11 +24,11 @@ pub mod wewe_token_launch_pad {
         token_symbol: String,
         token_uri: String,
     ) -> Result<()> {
-        ctx.accounts.create_proposal(token_name, token_symbol, token_uri, &ctx.bumps)
+        ctx.accounts.handle_create_proposal(token_name, token_symbol, token_uri, &ctx.bumps)
     }
 
     pub fn deposit_sol(ctx: Context<Contribute>) -> Result<()> {
-        match ctx.accounts.deposit_sol() {
+        match ctx.accounts.handle_deposit_sol() {
             Ok(_) => {}
             Err(_) => return Err(error!(ProposalError::ProposalAlreadyBacked)),
         }
@@ -37,20 +37,20 @@ pub mod wewe_token_launch_pad {
     }
 
     pub fn refund(ctx: Context<Refund>) -> Result<()> {
-        ctx.accounts.refund()
+        ctx.accounts.handle_refund()
     }
 
     pub fn create_pool(ctx: Context<DammV2>, sqrt_price: u128) -> Result<()> {
-        ctx.accounts.create_pool(sqrt_price)
+        ctx.accounts.handle_create_pool(sqrt_price)
     }
 
-    pub fn claim(ctx: Context<Claim>) -> Result<()> {
-        ctx.accounts.claim()
+    pub fn claim_milestone_reward(ctx: Context<Claim>) -> Result<()> {
+        ctx.accounts.handler_claim_milestone_reward()
     }
 
     #[access_control(check(&ctx.accounts.authority))]
     pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
-        ctx.accounts.reject_proposal()
+        ctx.accounts.handle_reject_proposal()
     }
 
     #[access_control(check(&ctx.accounts.authority))]
@@ -60,20 +60,25 @@ pub mod wewe_token_launch_pad {
 
     #[access_control(check(&ctx.accounts.payer))]
     pub fn mint_soulbound_to_user(ctx: Context<MintSoulboundToUser>) -> Result<()> {
-        ctx.accounts.mint_soulbound_to_user(&ctx.bumps)
+        ctx.accounts.handle_mint_soulbound_to_user(&ctx.bumps)
     }
 
     #[access_control(check(&ctx.accounts.payer))]
     pub fn claim_pool_fee(ctx: Context<ClaimPositionFee>) -> Result<()> {
-        ctx.accounts.claim_position_fee()
+        ctx.accounts.handle_claim_position_fee()
     }
 
     #[access_control(check(&ctx.accounts.authority))]
-    pub fn burn(ctx: Context<InitialiseMilestone>) -> Result<()> {
+    pub fn initialise_milestone(ctx: Context<InitialiseMilestone>) -> Result<()> {
         ctx.accounts.handle_initialise_milestone()
     }
 
     pub fn airdrop(ctx: Context<Airdrop>) -> Result<()> {
-        ctx.accounts.airdrop()
+        ctx.accounts.handle_airdrop()
+    }
+
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn end_milestone(ctx: Context<EndMilestone>) -> Result<()> {
+        ctx.accounts.handle_end_milestone()
     }
 }
