@@ -1,4 +1,3 @@
-use anchor_lang::prelude::*;
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
     constant::{seeds::*, AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT},
@@ -6,6 +5,7 @@ use crate::{
     event::BackerRefunded,
     state::{backers::Backers, proposal::Proposal},
 };
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct Refund<'info> {
@@ -37,7 +37,7 @@ pub struct Refund<'info> {
 }
 
 impl<'info> Refund<'info> {
-    pub fn refund(&mut self) -> Result<()> {
+    pub fn handle_refund(&mut self) -> Result<()> {
         require!(self.proposal.is_rejected, ProposalError::BackingNotEnded);
         let refund_amount = AMOUNT_TO_RAISE_PER_USER
             .checked_sub(FEE_TO_DEDUCT)

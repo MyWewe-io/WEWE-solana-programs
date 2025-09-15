@@ -102,7 +102,7 @@ pub struct CreateProposal<'info> {
 }
 
 impl<'info> CreateProposal<'info> {
-    pub fn create_proposal(
+    pub fn handle_create_proposal(
         &mut self,
         token_name: String,
         token_symbol: String,
@@ -180,7 +180,7 @@ impl<'info> CreateProposal<'info> {
             proposal_id: self.maker_account.proposal_count,
             is_pool_launched: false,
             total_backers: 0,
-            current_airdrop_cycle: 0,
+            current_airdrop_cycle: 1,
             milestone_active: false,
             milestone_units_assigned: 0,
             milestone_backers_weighted: 0,

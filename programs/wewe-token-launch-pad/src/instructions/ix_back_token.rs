@@ -61,7 +61,7 @@ pub struct Contribute<'info> {
 }
 
 impl<'info> Contribute<'info> {
-    pub fn deposit_sol(&mut self) -> Result<()> {
+    pub fn handle_deposit_sol(&mut self) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let elapsed = now.saturating_sub(self.proposal.time_started);
 
@@ -118,6 +118,7 @@ impl<'info> Contribute<'info> {
             .total_backers
             .checked_add(1)
             .ok_or(ProposalError::NumericalOverflow)?;
+        self.backer_account.settle_cycle = 1;
 
         emit!(ProposalBacked {
             backer: self.backer.key(),

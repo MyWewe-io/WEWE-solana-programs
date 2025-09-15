@@ -31,7 +31,7 @@ pub struct DammV2<'info> {
         ],
         bump,
     )]
-    pub vault_authority:  SystemAccount<'info>,
+    pub vault_authority: SystemAccount<'info>,
     #[account(
         mut,
         seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), base_mint.key().as_ref()],
@@ -119,7 +119,7 @@ pub struct DammV2<'info> {
 }
 
 impl<'info> DammV2<'info> {
-    pub fn create_pool(&mut self, sqrt_price: u128) -> Result<()> {
+    pub fn handle_create_pool(&mut self, sqrt_price: u128) -> Result<()> {
         let is_owner = self.payer.key() == admin_pubkey::ID;
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
