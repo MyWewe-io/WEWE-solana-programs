@@ -1,16 +1,14 @@
 pub const ANCHOR_DISCRIMINATOR: usize = 8;
 pub const SECONDS_TO_DAYS: i64 = 86400;
-
-pub const AMOUNT_TO_RAISE_PER_USER: u64 = 10_000_000; //998_997_760;
 pub const FEE_TO_DEDUCT: u64 = 2_000_000;   //0.002 SOl 
-
-pub const TOTAL_MINT: u64 = 1_000_000_000; // 1 billion supply
-pub const TOTAL_POOL_TOKENS: u64 = 150_000_000; // 15% of total Token supply
-pub const MAKER_TOKEN_AMOUNT: u64 = 10_000_000;// 1% of the total Token supply 
-pub const TOTAL_AIRDROP_AMOUNT_PER_MILESTONE: u64 = 140_000_000; // 14% of total Token supply
-
-pub const MINIMUM_BACKERS: u64 = 1; // shud be 50
 pub const MAXIMUM_BACKERS: u64 = 1000; 
+
+// pub const AMOUNT_TO_RAISE_PER_USER: u64 = 10_000_000; //998_997_760;
+// pub const TOTAL_MINT: u64 = 1_000_000_000; // 1 billion supply 
+// pub const TOTAL_POOL_TOKENS: u64 = 150_000_000; // 15% of total Token supply
+// pub const MAKER_TOKEN_AMOUNT: u64 = 10_000_000;// 1% of the total Token supply 
+// pub const TOTAL_AIRDROP_AMOUNT_PER_MILESTONE: u64 = 140_000_000; // 14% of total Token supply
+// pub const MINIMUM_BACKERS: u64 = 1; // shud be 50
 
 pub mod seeds {
     pub const MINT_ACCOUNT: &[u8] = b"mint_soulbound";

@@ -18,6 +18,26 @@ declare_id!("Dr6KaoKH13wjV9Jq7vnz4XzDPWBPEfxqwJbo82akf3u7");
 pub mod wewe_token_launch_pad {
     use super::*;
 
+    pub fn set_config(
+        ctx: Context<SetConfig>,
+        amount_to_raise_per_user: u64,
+        total_mint: u64,
+        total_pool_tokens: u64,
+        maker_token_amount: u64,
+        total_airdrop_amount_per_milestone: u64,
+        min_backers: u64,
+    ) -> Result<()> {
+        ctx.accounts.handle_set_config(
+            amount_to_raise_per_user,
+            total_mint,
+            total_pool_tokens,
+            maker_token_amount,
+            total_airdrop_amount_per_milestone,
+            min_backers,
+        )?;
+        Ok(())
+    }
+
     pub fn create_proposal(
         ctx: Context<CreateProposal>,
         token_name: String,

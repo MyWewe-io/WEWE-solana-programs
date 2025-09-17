@@ -29,6 +29,7 @@ import {
   findMintAccount,
   findMintAuthority,
   calculateInitSqrtPrice,
+  findConfigPDA,
 } from './utils';
 
 // Helper function to wait for a specific event
@@ -52,6 +53,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   let proposalIndex1 = new BN(0);
   let proposalIndex2 = new BN(1);
+  const configStruct = findConfigPDA(program.programId, maker.publicKey)
   const proposal = findProposalPDA(program.programId, maker.publicKey, proposalIndex1);
   const proposal2 = findProposalPDA(program.programId, maker.publicKey, proposalIndex2);
 
@@ -82,7 +84,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   const config = new anchor.web3.PublicKey('DJN8YHxQKZnF7bL2GwuKNB2UcfhKCqRspfLe7YYEN3rr');
   const pdas = derivePoolPDAs(program.programId, cpAmm.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
-
+  
   it('1. Airdrops funds to test accounts', async () => {
     const airdropPromises = [
       provider.connection.requestAirdrop(provider.wallet.publicKey, 5e9),
@@ -117,6 +119,34 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     ];
     await Promise.all(airdropPromises.map(p => confirm(p)));
   });
+
+  it('0. Sets constant values', async () => {
+    const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
+    const totalMint = new BN(1_000_000_000);
+    const totalPoolTokens = new BN(150_000_000);
+    const makerTokenAmount = new BN(10_000_000);
+    const totalAirdropAmountPerMilestone = new BN(140_000_000);
+    const minBackers = new BN(1);
+
+    const tx = await program.methods
+      .setConfig(
+        amountToRaisePerUser,
+        totalMint,
+        totalPoolTokens,
+        makerTokenAmount,
+        totalAirdropAmountPerMilestone,
+        minBackers,
+      )
+      .accounts({
+        authority: authority.publicKey,
+        config: configStruct,
+      })
+      .signers([authority])
+      .rpc();
+
+    await confirm(tx);
+
+  }); 
 
   it("2. Mints and freezes soulbound token to user and maker", async () => {
     const tx1 = await program.methods
@@ -168,6 +198,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mintAccount: mint.publicKey,
         tokenVault: vault,
         systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
       })
       .signers([authority, mint, maker])
       .rpc()
@@ -198,6 +229,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mintAccount: mint2.publicKey,
         tokenVault: vault2,
         systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
       })
       .signers([authority, mint2, maker])
       .rpc()
@@ -225,6 +257,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backerAccount,
         vaultAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
       })
       .signers([backer])
       .rpc()
@@ -242,6 +275,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           vaultAuthority,
           backerAccount,
           systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
         })
         .signers([backer])
         .rpc();
@@ -263,6 +297,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backerAccount: backerAccount2,
         vaultAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
       })
       .signers([backer])
       .rpc()
@@ -291,6 +326,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backerAccount: backerAccount2,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct,
       })
       .signers([])
       .rpc()
@@ -334,6 +370,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         dammEventAuthority: pdas.dammEventAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        config: configStruct,
       })
       .signers([authority, pdas.positionNftMint])
       .transaction();
@@ -363,6 +400,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct,
       })
       .signers([authority])
       .rpc()
@@ -395,6 +433,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backerAccount,
         backerTokenAccount,
         mintAccount: mint.publicKey,
+        config: configStruct,
       })
       .signers([authority])
       .rpc()

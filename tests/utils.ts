@@ -48,6 +48,11 @@ export const findMakerAccountPDA = (programId: anchor.web3.PublicKey, maker: anc
     maker.toBuffer(),
   ], programId)[0];
 
+export const findConfigPDA = (programId: anchor.web3.PublicKey, maker: anchor.web3.PublicKey) =>
+  anchor.web3.PublicKey.findProgramAddressSync([
+    Buffer.from('config'),
+  ], programId)[0];
+
 export const getTokenVaultAddress = (
   vaultAuthority: anchor.web3.PublicKey,
   mint: anchor.web3.PublicKey,
