@@ -15,7 +15,7 @@ use crate::{
         *,
     },
     event::{CoinLaunched, ProposalRejected},
-    state::proposal::Proposal,
+    state::{proposal::Proposal,config::Configs},
     *,
 };
 
@@ -31,7 +31,7 @@ pub struct DammV2<'info> {
         ],
         bump,
     )]
-    pub vault_authority:  SystemAccount<'info>,
+    pub vault_authority: SystemAccount<'info>,
     #[account(
         mut,
         seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), base_mint.key().as_ref()],
@@ -116,17 +116,19 @@ pub struct DammV2<'info> {
     /// System program.
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> DammV2<'info> {
-    pub fn create_pool(&mut self, sqrt_price: u128) -> Result<()> {
+    pub fn handle_create_pool(&mut self, sqrt_price: u128) -> Result<()> {
         let is_owner = self.payer.key() == admin_pubkey::ID;
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
 
         let now = Clock::get()?.unix_timestamp;
         let elapsed = now.saturating_sub(self.proposal.time_started);
-        if elapsed >= SECONDS_TO_DAYS && self.proposal.total_backers < MINIMUM_BACKERS {
+        if elapsed >= SECONDS_TO_DAYS && self.proposal.total_backers < self.config.min_backers // MINIMUM_BACKERS 
+        {
             self.proposal.is_rejected = true;
             emit!(ProposalRejected {
                 maker: self.proposal.maker,
@@ -140,11 +142,12 @@ impl<'info> DammV2<'info> {
             ProposalError::PoolAlreadyLaunched
         );
         require!(
-            self.proposal.total_backers >= MINIMUM_BACKERS,
+            self.proposal.total_backers >= self.config.min_backers, // MINIMUM_BACKERS,
             ProposalError::TargetNotMet
         );
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
+        
 
         fund_creator_authority(FundCreatorAuthorityAccounts {
             proposal: &self.proposal,
@@ -154,10 +157,11 @@ impl<'info> DammV2<'info> {
             maker_token_account: &self.maker_token_account,
             token_program_a: &self.token_base_program,
             token_vault: &self.token_vault,
+            maker_amount: self.config.maker_token_amount,
         })?;
 
         let config = self.pool_config.load()?;
-        let base_amount: u64 = TOTAL_POOL_TOKENS * 10u64.pow(9 as u32);
+        let base_amount: u64 = self.config.total_pool_tokens * 10u64.pow(9 as u32); // TOTAL_POOL_TOKENS * 10u64.pow(9 as u32);
         let quote_amount: u64 = self.proposal.total_backing;
 
         let liquidity = get_liquidity_for_adding_liquidity(
@@ -232,6 +236,7 @@ pub struct FundCreatorAuthorityAccounts<'b, 'info> {
     pub system_program: &'b Program<'info, System>,
     pub creator_authority: &'b AccountInfo<'info>,
     pub maker_token_account: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub maker_amount: u64,
 }
 
 pub fn fund_creator_authority<'b, 'info>(
@@ -245,6 +250,7 @@ pub fn fund_creator_authority<'b, 'info>(
         maker_token_account,
         token_program_a,
         token_vault,
+        maker_amount
     } = accounts;
 
     let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
@@ -267,7 +273,7 @@ pub fn fund_creator_authority<'b, 'info>(
     let cpi_program = wsol_vault.to_account_info();
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     token::sync_native(cpi_ctx)?;
-
+    
     // Transfer 1% Tokens to proposal maker
     anchor_spl::token::transfer(
         CpiContext::new_with_signer(
@@ -279,7 +285,7 @@ pub fn fund_creator_authority<'b, 'info>(
             },
             signer_seeds,
         ),
-        MAKER_TOKEN_AMOUNT * 10u64.pow(9 as u32),
+        maker_amount * 1 * 10u64.pow(9 as u32),
     )?;
 
     Ok(())

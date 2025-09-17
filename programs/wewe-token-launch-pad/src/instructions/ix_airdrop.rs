@@ -1,12 +1,9 @@
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
-    constant::{
-        seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY},
-        TOTAL_AIRDROP_AMOUNT_PER_MILESTONE,
-    },
+    constant::seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY},
     errors::ProposalError,
     event::AirdropClaimed,
-    state::{backers::Backers, proposal::Proposal},
+    state::{backers::Backers, proposal::Proposal, config::Configs},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -63,16 +60,20 @@ pub struct Airdrop<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> Airdrop<'info> {
-    pub fn airdrop(&mut self) -> Result<()> {
+    pub fn handle_airdrop(&mut self) -> Result<()> {
         require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
-        require!(self.backer_account.initial_airdrop_received, ProposalError::AirdropAlreadyRecived);
+        require!(
+            !self.backer_account.initial_airdrop_received,
+            ProposalError::AirdropAlreadyRecived
+        );
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
-        let amount = TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
+        let amount = self.config.total_airdrop_amount_per_milestone // TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
             .checked_div(self.proposal.total_backers)
             .ok_or(ProposalError::NumericalOverflow)?;
 

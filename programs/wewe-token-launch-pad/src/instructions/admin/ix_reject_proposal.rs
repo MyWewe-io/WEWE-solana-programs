@@ -1,9 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{
-    errors::ProposalError, event::ProposalRejected,
-    state::proposal::Proposal,
-};
+use crate::{errors::ProposalError, event::ProposalRejected, state::proposal::Proposal};
 
 #[derive(Accounts)]
 pub struct RejectProposal<'info> {
@@ -13,7 +10,7 @@ pub struct RejectProposal<'info> {
 }
 
 impl<'info> RejectProposal<'info> {
-    pub fn reject_proposal(&mut self) -> Result<()> {
+    pub fn handle_reject_proposal(&mut self) -> Result<()> {
         require!(
             !self.proposal.is_pool_launched,
             ProposalError::PoolAlreadyLaunched

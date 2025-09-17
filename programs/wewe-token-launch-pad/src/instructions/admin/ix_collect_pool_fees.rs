@@ -6,10 +6,11 @@ use anchor_spl::{
 };
 
 use crate::{
-    const_pda::{self, const_authority::VAULT_BUMP}, constant::{
-        seeds::VAULT_AUTHORITY,
-        treasury,
-    }, errors::ProposalError, event::PositionFeeClaimed, state::proposal::Proposal
+    const_pda::{self, const_authority::VAULT_BUMP},
+    constant::{seeds::VAULT_AUTHORITY, treasury},
+    errors::ProposalError,
+    event::PositionFeeClaimed,
+    state::proposal::Proposal,
 };
 
 #[derive(Accounts)]
@@ -128,35 +129,33 @@ pub struct ClaimPositionFee<'info> {
 }
 
 impl<'info> ClaimPositionFee<'info> {
-    pub fn claim_position_fee(&mut self) -> Result<()> {
+    pub fn handle_claim_position_fee(&mut self) -> Result<()> {
         let vault_authority_seeds: &[&[u8]] = &[VAULT_AUTHORITY, &[VAULT_BUMP]];
 
         let pre_a = self.token_a_account.amount;
         let pre_b = self.token_b_account.amount;
 
-        cp_amm::cpi::claim_position_fee(
-            CpiContext::new_with_signer(
-                self.amm_program.to_account_info(),
-                cp_amm::cpi::accounts::ClaimPositionFeeCtx {
-                    pool_authority: self.pool_authority.to_account_info(),
-                    pool: self.pool.to_account_info(),
-                    position: self.position.to_account_info(),
-                    token_a_account: self.token_a_account.to_account_info(),
-                    token_b_account: self.token_b_account.to_account_info(),
-                    token_a_vault: self.token_a_vault.to_account_info(),
-                    token_b_vault: self.token_b_vault.to_account_info(),
-                    token_a_mint: self.token_a_mint.to_account_info(),
-                    token_b_mint: self.token_b_mint.to_account_info(),
-                    position_nft_account: self.position_nft_account.to_account_info(),
-                    owner: self.vault_authority.to_account_info(),
-                    token_a_program: self.token_a_program.to_account_info(),
-                    token_b_program: self.token_b_program.to_account_info(),
-                    event_authority: self.event_authority.to_account_info(),
-                    program: self.amm_program.to_account_info(),
-                },
-                &[&vault_authority_seeds[..]],
-            )
-        )?;
+        cp_amm::cpi::claim_position_fee(CpiContext::new_with_signer(
+            self.amm_program.to_account_info(),
+            cp_amm::cpi::accounts::ClaimPositionFeeCtx {
+                pool_authority: self.pool_authority.to_account_info(),
+                pool: self.pool.to_account_info(),
+                position: self.position.to_account_info(),
+                token_a_account: self.token_a_account.to_account_info(),
+                token_b_account: self.token_b_account.to_account_info(),
+                token_a_vault: self.token_a_vault.to_account_info(),
+                token_b_vault: self.token_b_vault.to_account_info(),
+                token_a_mint: self.token_a_mint.to_account_info(),
+                token_b_mint: self.token_b_mint.to_account_info(),
+                position_nft_account: self.position_nft_account.to_account_info(),
+                owner: self.vault_authority.to_account_info(),
+                token_a_program: self.token_a_program.to_account_info(),
+                token_b_program: self.token_b_program.to_account_info(),
+                event_authority: self.event_authority.to_account_info(),
+                program: self.amm_program.to_account_info(),
+            },
+            &[&vault_authority_seeds[..]],
+        ))?;
 
         self.token_a_account.reload()?;
         self.token_b_account.reload()?;

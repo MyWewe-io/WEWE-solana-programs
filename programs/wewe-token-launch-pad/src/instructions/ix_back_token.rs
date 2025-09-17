@@ -12,7 +12,7 @@ use crate::{
     },
     errors::ProposalError,
     event::ProposalBacked,
-    state::{backers::Backers, proposal::Proposal},
+    state::{backers::Backers, proposal::Proposal, config::Configs},
 };
 
 #[derive(Accounts)]
@@ -58,10 +58,12 @@ pub struct Contribute<'info> {
     pub backer_account: Account<'info, Backers>,
 
     pub system_program: Program<'info, System>,
+
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> Contribute<'info> {
-    pub fn deposit_sol(&mut self) -> Result<()> {
+    pub fn handle_deposit_sol(&mut self) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let elapsed = now.saturating_sub(self.proposal.time_started);
 
@@ -80,7 +82,7 @@ impl<'info> Contribute<'info> {
             ProposalError::CantBackOwnProposal
         );
 
-        let amount = AMOUNT_TO_RAISE_PER_USER
+        let amount = self.config.amount_to_raise_per_user //AMOUNT_TO_RAISE_PER_USER
             .checked_sub(FEE_TO_DEDUCT)
             .ok_or(ProposalError::NumericalOverflow)?;
         let program_id = self.system_program.to_account_info();
@@ -118,6 +120,7 @@ impl<'info> Contribute<'info> {
             .total_backers
             .checked_add(1)
             .ok_or(ProposalError::NumericalOverflow)?;
+        self.backer_account.settle_cycle = 1;
 
         emit!(ProposalBacked {
             backer: self.backer.key(),

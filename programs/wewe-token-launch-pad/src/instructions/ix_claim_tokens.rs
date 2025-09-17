@@ -1,10 +1,14 @@
+use crate::{
+    const_pda::const_authority::VAULT_BUMP,
+    constant::seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY},
+    errors::ProposalError,
+    event::AirdropClaimed,
+    state::{backers::Backers, proposal::Proposal},
+};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount, Transfer},
-};
-use crate::{
-    const_pda::const_authority::VAULT_BUMP, constant::seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY}, errors::ProposalError, event::AirdropClaimed, state::{backers::Backers, proposal::Proposal}
 };
 
 #[derive(Accounts)]
@@ -56,7 +60,7 @@ pub struct Claim<'info> {
 }
 
 impl<'info> Claim<'info> {
-    pub fn claim(&mut self) -> Result<()> {
+    pub fn handler_claim_milestone_reward(&mut self) -> Result<()> {
         require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
@@ -64,7 +68,9 @@ impl<'info> Claim<'info> {
         let pow = 10u64
             .checked_pow(self.mint_account.decimals as u32)
             .ok_or(ProposalError::NumericalOverflow)?;
-        let claim_amount = self.backer_account.claim_amount
+        let claim_amount = self
+            .backer_account
+            .claim_amount
             .checked_mul(pow)
             .ok_or(ProposalError::NumericalOverflow)?;
 

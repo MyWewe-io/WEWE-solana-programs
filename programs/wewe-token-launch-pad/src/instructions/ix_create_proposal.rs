@@ -4,11 +4,11 @@ use crate::{
     const_pda,
     constant::{
         seeds::{MAKER, PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY},
-        ANCHOR_DISCRIMINATOR, TOTAL_MINT,
+        ANCHOR_DISCRIMINATOR,
     },
     errors::ProposalError,
     event::ProposalCreated,
-    state::{maker::MakerAccount, proposal::Proposal},
+    state::{maker::MakerAccount, proposal::Proposal,config::Configs},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -99,10 +99,11 @@ pub struct CreateProposal<'info> {
     pub token_metadata_program: Program<'info, Metadata>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> CreateProposal<'info> {
-    pub fn create_proposal(
+    pub fn handle_create_proposal(
         &mut self,
         token_name: String,
         token_symbol: String,
@@ -152,7 +153,8 @@ impl<'info> CreateProposal<'info> {
         let pow = 10u64
             .checked_pow(self.mint_account.decimals as u32)
             .ok_or(ProposalError::NumericalOverflow)?;
-        let amount = TOTAL_MINT
+        println!(" ==== {:?}",self.config.total_mint);
+        let amount = self.config.total_mint // TOTAL_MINT
             .checked_mul(pow)
             .ok_or(ProposalError::NumericalOverflow)?;
         // Invoke the mint_to instruction on the token program
@@ -180,7 +182,7 @@ impl<'info> CreateProposal<'info> {
             proposal_id: self.maker_account.proposal_count,
             is_pool_launched: false,
             total_backers: 0,
-            current_airdrop_cycle: 0,
+            current_airdrop_cycle: 1,
             milestone_active: false,
             milestone_units_assigned: 0,
             milestone_backers_weighted: 0,
