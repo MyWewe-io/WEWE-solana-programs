@@ -1,9 +1,9 @@
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
-    constant::{seeds::*, AMOUNT_TO_RAISE_PER_USER, FEE_TO_DEDUCT},
+    constant::{seeds::*, FEE_TO_DEDUCT},
     errors::ProposalError,
     event::BackerRefunded,
-    state::{backers::Backers, proposal::Proposal},
+    state::{backers::Backers, proposal::Proposal,config::Configs},
 };
 use anchor_lang::prelude::*;
 
@@ -34,12 +34,13 @@ pub struct Refund<'info> {
     )]
     pub backer_account: Account<'info, Backers>,
     pub system_program: Program<'info, System>,
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> Refund<'info> {
     pub fn handle_refund(&mut self) -> Result<()> {
         require!(self.proposal.is_rejected, ProposalError::BackingNotEnded);
-        let refund_amount = AMOUNT_TO_RAISE_PER_USER
+        let refund_amount = self.config.amount_to_raise_per_user //AMOUNT_TO_RAISE_PER_USER
             .checked_sub(FEE_TO_DEDUCT)
             .ok_or(ProposalError::NumericalOverflow)?;
 

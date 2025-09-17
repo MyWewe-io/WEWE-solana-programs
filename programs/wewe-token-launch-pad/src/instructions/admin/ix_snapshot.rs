@@ -1,8 +1,8 @@
 use crate::{
-    constant::{seeds::BACKER, TOTAL_AIRDROP_AMOUNT_PER_MILESTONE},
+    constant::seeds::BACKER,
     errors::ProposalError,
     event::BackerMilestoneSettled,
-    state::{backers::Backers, proposal::Proposal},
+    state::{backers::Backers, proposal::Proposal, config::Configs},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, TokenAccount};
@@ -33,6 +33,7 @@ pub struct SnapshotBacker<'info> {
         constraint = backer_token_account.owner == backer.key()      @ ProposalError::NotOwner,
     )]
     pub backer_token_account: Account<'info, TokenAccount>,
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> SnapshotBacker<'info> {
@@ -48,7 +49,7 @@ impl<'info> SnapshotBacker<'info> {
             self.backer_account.settle_cycle >= cur,
             ProposalError::AmountAlreadyUpdated
         );
-        let per = TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
+        let per = self.config.total_airdrop_amount_per_milestone //TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
             .checked_div(self.proposal.total_backers)
             .ok_or(ProposalError::NumericalOverflow)?;
 
