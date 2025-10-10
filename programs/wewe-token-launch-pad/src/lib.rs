@@ -13,11 +13,12 @@ use errors::*;
 use instructions::*;
 use utils::*;
 
-declare_id!("Dr6KaoKH13wjV9Jq7vnz4XzDPWBPEfxqwJbo82akf3u7");
+declare_id!("14LLwL8ixmeex2Ab4irrLJe1Nrxwj3N9CuYVq3vnwPbb");
 #[program]
 pub mod wewe_token_launch_pad {
     use super::*;
 
+    #[access_control(check(&ctx.accounts.authority))] 
     pub fn set_config(
         ctx: Context<SetConfig>,
         amount_to_raise_per_user: u64,
@@ -48,10 +49,12 @@ pub mod wewe_token_launch_pad {
     }
 
     pub fn deposit_sol(ctx: Context<Contribute>) -> Result<()> {
-        match ctx.accounts.handle_deposit_sol() {
-            Ok(_) => {}
-            Err(_) => return Err(error!(ProposalError::ProposalAlreadyBacked)),
-        }
+        // match ctx.accounts.handle_deposit_sol() {
+        //     Ok(_) => {}
+        //     Err(_) => return Err(error!(ProposalError::ProposalAlreadyBacked)),
+        // }
+
+        let _ = ctx.accounts.handle_deposit_sol();
 
         Ok(())
     }
