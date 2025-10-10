@@ -79,8 +79,6 @@ impl<'info> MintSoulboundToUser<'info> {
             &[mint_authority_seeds],
         ))?;
 
-        println!("{:?}", self.mint_authority.to_account_info());
-
         Ok(())
     }
 }

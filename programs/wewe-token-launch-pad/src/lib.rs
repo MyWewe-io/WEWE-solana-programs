@@ -18,6 +18,7 @@ declare_id!("Dr6KaoKH13wjV9Jq7vnz4XzDPWBPEfxqwJbo82akf3u7");
 pub mod wewe_token_launch_pad {
     use super::*;
 
+    #[access_control(check(&ctx.accounts.authority))] 
     pub fn set_config(
         ctx: Context<SetConfig>,
         amount_to_raise_per_user: u64,
@@ -48,12 +49,7 @@ pub mod wewe_token_launch_pad {
     }
 
     pub fn deposit_sol(ctx: Context<Contribute>) -> Result<()> {
-        match ctx.accounts.handle_deposit_sol() {
-            Ok(_) => {}
-            Err(_) => return Err(error!(ProposalError::ProposalAlreadyBacked)),
-        }
-
-        Ok(())
+        ctx.accounts.handle_deposit_sol()
     }
 
     pub fn refund(ctx: Context<Refund>) -> Result<()> {

@@ -8,6 +8,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token';
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
@@ -647,7 +648,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
       const testUser = anchor.web3.Keypair.generate();
       const testUserAta = findUserAta(testUser.publicKey, mintAccount);
-
+      await provider.connection.requestAirdrop(unauthorizedUser.publicKey, 5_000_000);
+      await new Promise(resolve => setTimeout(resolve, 500));
       try {
         await program.methods
           .mintSoulboundToUser()
@@ -819,7 +821,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('25. Fails when maker tries to back own proposal', async () => {
       const makerBackerAccount = findBackerAccountPDA(program.programId, proposal, maker.publicKey);
-
+      const proposalData = await program.account.proposal.fetch(testProposal3);
       try {
         await program.methods
           .depositSol()
@@ -899,7 +901,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('27. Fails when user without soulbound token tries to back', async () => {
       const userWithoutToken = anchor.web3.Keypair.generate();
-      const proposalIndex4 = new BN(3);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex4 = makerData.proposalCount;
       const testProposal4 = findProposalPDA(program.programId, maker.publicKey, proposalIndex4);
       const testMint4 = anchor.web3.Keypair.generate();
       const [testVault4] = getTokenVaultAddress(vaultAuthority, testMint4.publicKey, program.programId);
@@ -913,6 +916,29 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           lamports: 1e9,
         })
       )).then(confirm);
+
+      await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: userWithoutToken.publicKey,
+        lamports: 1e9,
+      })
+    )).then(confirm);
+
+    const userWithoutTokenAta = findUserAta(userWithoutToken.publicKey, mintAccount);
+    await program.provider.sendAndConfirm(
+        new anchor.web3.Transaction().add(
+            createAssociatedTokenAccountInstruction(
+                provider.wallet.publicKey, 
+                userWithoutTokenAta,
+                userWithoutToken.publicKey,
+                mintAccount,
+                TOKEN_PROGRAM_ID,             
+                ASSOCIATED_TOKEN_PROGRAM_ID 
+            )
+        ),
+        [] 
+    ).then(confirm);
 
       // Create new proposal
       await program.methods
@@ -939,7 +965,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .accountsPartial({
             backer: userWithoutToken.publicKey,
             mint: mintAccount,
-            userTokenAccount: findUserAta(userWithoutToken.publicKey, mintAccount),
+            userTokenAccount: userWithoutTokenAta,
             proposal: testProposal4,
             backerAccount: testBackerAccount4,
             vaultAuthority,
@@ -954,13 +980,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         expect(err.message).to.include('NotAuthorised');
       }
     });
-  });
+  }); 
 
   describe('Input Validation Tests', () => {
     it('28. Fails when creating proposal with name > 32 characters', async () => {
       const longName = 'A'.repeat(33);
-      const proposalIndex5 = new BN(4);
-      const testProposal5 = findProposalPDA(program.programId, maker.publicKey, proposalIndex5);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const currentProposalIndex = makerData.proposalCount;
+      const testProposal5 = findProposalPDA(program.programId, maker.publicKey, currentProposalIndex);
       const testMint5 = anchor.web3.Keypair.generate();
       const [testVault5] = getTokenVaultAddress(vaultAuthority, testMint5.publicKey, program.programId);
 
@@ -989,8 +1016,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('29. Fails when creating proposal with symbol > 10 characters', async () => {
       const longSymbol = 'B'.repeat(11);
-      const proposalIndex6 = new BN(5);
-      const testProposal6 = findProposalPDA(program.programId, maker.publicKey, proposalIndex6);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const currentProposalIndex = makerData.proposalCount;
+      const testProposal6 = findProposalPDA(program.programId, maker.publicKey, currentProposalIndex);
       const testMint6 = anchor.web3.Keypair.generate();
       const [testVault6] = getTokenVaultAddress(vaultAuthority, testMint6.publicKey, program.programId);
 
@@ -1019,8 +1047,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('30. Fails when creating proposal with URI > 200 characters', async () => {
       const longUri = 'C'.repeat(201);
-      const proposalIndex7 = new BN(6);
-      const testProposal7 = findProposalPDA(program.programId, maker.publicKey, proposalIndex7);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const currentProposalIndex = makerData.proposalCount;
+      const testProposal7 = findProposalPDA(program.programId, maker.publicKey, currentProposalIndex);
       const testMint7 = anchor.web3.Keypair.generate();
       const [testVault7] = getTokenVaultAddress(vaultAuthority, testMint7.publicKey, program.programId);
 
@@ -1105,10 +1134,13 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     let testProposal8: anchor.web3.PublicKey;
     let testMint8: anchor.web3.Keypair;
     let testVault8: anchor.web3.PublicKey;
-    let proposalIndex8 = new BN(7);
+    let proposalIndex8;
 
     before(async () => {
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      proposalIndex8 = makerData.proposalCount;
       testProposal8 = findProposalPDA(program.programId, maker.publicKey, proposalIndex8);
+      // testProposal8 = findProposalPDA(program.programId, maker.publicKey, proposalIndex8);
       testMint8 = anchor.web3.Keypair.generate();
       [testVault8] = getTokenVaultAddress(vaultAuthority, testMint8.publicKey, program.programId);
 
@@ -1196,7 +1228,41 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('35. Fails when trying to claim milestone reward before pool launch', async () => {
       const testBacker = anchor.web3.Keypair.generate();
+      await provider.connection.requestAirdrop(testBacker.publicKey, 1e9);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const testUserAta = findUserAta(testBacker.publicKey, mintAccount);
+      await program.methods
+        .mintSoulboundToUser()
+        .accounts({
+          payer: authority.publicKey,
+          user: testBacker.publicKey,
+          mint: mintAccount,
+          freezeAuthority,
+          mintAuthority,
+          userTokenAccount: testUserAta,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
       const testBackerAccount = findBackerAccountPDA(program.programId, testProposal8, testBacker.publicKey);
+      await program.methods
+        .depositSol()
+        .accountsPartial({
+          backer: testBacker.publicKey,
+          mint: mintAccount,
+          userTokenAccount: testUserAta,
+          proposal: testProposal8,
+          backerAccount: testBackerAccount,
+          vaultAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([testBacker])
+        .rpc()
+        .then(confirm);
       const testBackerTokenAccount = findUserAta(testBacker.publicKey, testMint8.publicKey);
 
       try {
@@ -1225,7 +1291,41 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('36. Fails when trying to airdrop before pool launch', async () => {
       const testBacker = anchor.web3.Keypair.generate();
+      await provider.connection.requestAirdrop(testBacker.publicKey, 1e9);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const testUserAta = findUserAta(testBacker.publicKey, mintAccount);
+      await program.methods
+        .mintSoulboundToUser()
+        .accounts({
+          payer: authority.publicKey,
+          user: testBacker.publicKey,
+          mint: mintAccount,
+          freezeAuthority,
+          mintAuthority,
+          userTokenAccount: testUserAta,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
       const testBackerAccount = findBackerAccountPDA(program.programId, testProposal8, testBacker.publicKey);
+      await program.methods
+        .depositSol()
+        .accountsPartial({
+          backer: testBacker.publicKey,
+          mint: mintAccount,
+          userTokenAccount: testUserAta,
+          proposal: testProposal8,
+          backerAccount: testBackerAccount,
+          vaultAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([testBacker])
+        .rpc()
+        .then(confirm);
       const testBackerTokenAccount = findUserAta(testBacker.publicKey, testMint8.publicKey);
 
       try {
@@ -1256,7 +1356,42 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('37. Fails when trying to refund non-rejected proposal', async () => {
       const testBacker = anchor.web3.Keypair.generate();
+      await provider.connection.requestAirdrop(testBacker.publicKey, 1e9);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const testUserAta = findUserAta(testBacker.publicKey, mintAccount);
+      await program.methods
+        .mintSoulboundToUser()
+        .accounts({
+          payer: authority.publicKey,
+          user: testBacker.publicKey,
+          mint: mintAccount,
+          freezeAuthority,
+          mintAuthority,
+          userTokenAccount: testUserAta,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
       const testBackerAccount = findBackerAccountPDA(program.programId, testProposal8, testBacker.publicKey);
+      await program.methods
+        .depositSol()
+        .accountsPartial({
+          backer: testBacker.publicKey,
+          mint: mintAccount,
+          userTokenAccount: testUserAta,
+          proposal: testProposal8,
+          backerAccount: testBackerAccount,
+          vaultAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([testBacker])
+        .rpc()
+        .then(confirm);
+      const testBackerTokenAccount = findUserAta(testBacker.publicKey, testMint8.publicKey);
 
       try {
         await program.methods
@@ -1278,12 +1413,13 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         expect(err.message).to.include('BackingNotEnded');
       }
     });
-  });
+  }); 
 
   describe('Milestone State Validation Tests', () => {
     it('38. Fails when trying to end milestone that is not active', async () => {
       // Create new proposal and launch it
-      const proposalIndex9 = new BN(8);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex9 = makerData.proposalCount;
       const testProposal9 = findProposalPDA(program.programId, maker.publicKey, proposalIndex9);
       const testMint9 = anchor.web3.Keypair.generate();
       const [testVault9] = getTokenVaultAddress(vaultAuthority, testMint9.publicKey, program.programId);
@@ -1418,7 +1554,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     });
 
     it('39. Fails when trying to snapshot without active milestone', async () => {
-      const proposalIndex9 = new BN(8);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex9 = makerData.proposalCount;
       const testProposal9 = findProposalPDA(program.programId, maker.publicKey, proposalIndex9);
       const testBacker9 = anchor.web3.Keypair.generate();
       const testBackerAccount9 = findBackerAccountPDA(program.programId, testProposal9, testBacker9.publicKey);
@@ -1447,7 +1584,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     });
 
     it('40. Fails when starting milestone on rejected proposal', async () => {
-      const proposalIndex10 = new BN(9);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex10 = makerData.proposalCount;
       const testProposal10 = findProposalPDA(program.programId, maker.publicKey, proposalIndex10);
       const testMint10 = anchor.web3.Keypair.generate();
       const [testVault10] = getTokenVaultAddress(vaultAuthority, testMint10.publicKey, program.programId);
@@ -1495,7 +1633,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         expect(err.message).to.include('ProposalRejected');
       }
     });
-  });
+  }); 
 
   describe('Rejection and Launch Constraint Tests', () => {
     it('41. Fails when trying to reject already launched proposal', async () => {
@@ -1559,9 +1697,75 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         expect(err.message).to.include('PoolAlreadyLaunched');
       }
     });
-  });
+  }); 
 
   describe('Snapshot Double-Update Prevention Tests', () => {
+    before(async () => {
+        const makerData = await program.account.makerAccount.fetch(makerAccount);
+        const proposalIndex15 = makerData.proposalCount;
+        const testProposal15 = findProposalPDA(program.programId, maker.publicKey, proposalIndex15);
+        const testMint15 = anchor.web3.Keypair.generate();
+        const [testVault15] = getTokenVaultAddress(vaultAuthority, testMint15.publicKey, program.programId); 
+
+        await program.methods
+            .createProposal(metadata.name, metadata.symbol, metadata.uri)
+            .accountsPartial({
+                payer: authority.publicKey,
+                maker: maker.publicKey,
+                makerAccount,
+                vaultAuthority,
+                proposal: testProposal15, 
+                mintAccount: testMint15.publicKey,
+                tokenVault: testVault15,
+                systemProgram: anchor.web3.SystemProgram.programId,
+                config: configStruct
+            })
+            .signers([authority, testMint15, maker])
+            .rpc()
+            .then(confirm); 
+
+        const backerAta = findUserAta(backer.publicKey, mintAccount); 
+        await program.methods
+            .depositSol()
+            .accountsPartial({
+                backer: backer.publicKey,
+                mint: mintAccount,
+                userTokenAccount: backerAta,
+                proposal: testProposal15,
+                backerAccount, 
+                vaultAuthority,
+                systemProgram: anchor.web3.SystemProgram.programId,
+                config: configStruct
+            })
+            .signers([backer])
+            .rpc()
+            .then(confirm); // error happening here
+
+        await program.methods
+            .initialiseMilestone()
+            .accounts({
+                authority: authority.publicKey,
+                proposal: testProposal15, 
+            })
+            .signers([authority])
+            .rpc()
+            .then(confirm); 
+        
+        await program.methods
+          .snapshotBackerAmount()
+          .accounts({
+            authority: authority.publicKey,
+            proposal: testProposal15,
+            backer: backer.publicKey, 
+            backerAccount, 
+            backerTokenAccount, 
+            mintAccount: mint.publicKey,
+            config: configStruct,
+          })
+          .signers([authority])
+          .rpc()
+          .then(confirm); 
+    });
     it('43. Fails when snapshotting same backer twice in same cycle', async () => {
       // First snapshot succeeds (already done in test #13)
       // Try to snapshot the same backer again in the same cycle
@@ -1570,7 +1774,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .snapshotBackerAmount()
           .accounts({
             authority: authority.publicKey,
-            proposal,
+            proposal: testProposal15,
             backer: backer.publicKey,
             backerAccount,
             backerTokenAccount,
@@ -1578,29 +1782,29 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             config: configStruct,
           })
           .signers([authority])
-          .rpc();
+          .rpc(); 
 
         assert.fail('Should not allow snapshotting same backer twice in same cycle');
       } catch (err) {
         expect(err.message).to.include('AmountAlreadyUpdated');
       }
     });
-  });
+  }); 
 
   describe('End Milestone Validation Tests', () => {
     it('44. Fails when ending milestone without all backers weighted', async () => {
       // Create new proposal and launch it with 2 backers
-      const proposalIndex11 = new BN(10);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex11 = makerData.proposalCount;
       const testProposal11 = findProposalPDA(program.programId, maker.publicKey, proposalIndex11);
       const testMint11 = anchor.web3.Keypair.generate();
-      const [testVault11] = getTokenVaultAddress(vaultAuthority, testMint11.publicKey, program.programId);
+      const [testVault11] = getTokenVaultAddress(vaultAuthority, testMint11.publicKey, program.programId); 
 
       const testBacker11a = anchor.web3.Keypair.generate();
       const testBacker11b = anchor.web3.Keypair.generate();
       const testBackerAccount11a = findBackerAccountPDA(program.programId, testProposal11, testBacker11a.publicKey);
       const testBackerAccount11b = findBackerAccountPDA(program.programId, testProposal11, testBacker11b.publicKey);
 
-      // Fund backers
       await provider.sendAndConfirm(new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
@@ -1612,9 +1816,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           toPubkey: testBacker11b.publicKey,
           lamports: 1e9,
         })
-      )).then(confirm);
+      )).then(confirm); 
 
-      // Mint soulbound tokens
       const testBacker11aAta = findUserAta(testBacker11a.publicKey, mintAccount);
       const testBacker11bAta = findUserAta(testBacker11b.publicKey, mintAccount);
 
@@ -1633,7 +1836,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([authority])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
       await program.methods
         .mintSoulboundToUser()
@@ -1650,9 +1853,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([authority])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
-      // Create proposal
       await program.methods
         .createProposal(metadata.name, metadata.symbol, metadata.uri)
         .accountsPartial({
@@ -1668,7 +1870,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([authority, testMint11, maker])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
       // Back with both backers
       await program.methods
@@ -1685,7 +1887,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([testBacker11a])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
       await program.methods
         .depositSol()
@@ -1701,9 +1903,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([testBacker11b])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
-      // Launch pool
       const config_account = await cpAmm.account.config.fetch(config);
       const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
@@ -1741,12 +1942,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           config: configStruct,
         })
         .signers([authority, pdas11.positionNftMint])
-        .transaction();
+        .transaction(); 
 
       tx.instructions.unshift(computeUnitsIx);
       await provider.sendAndConfirm(tx, [authority, pdas11.positionNftMint]);
 
-      // Start milestone
       await program.methods
         .initialiseMilestone()
         .accounts({
@@ -1755,9 +1955,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([authority])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
-      // Snapshot only ONE backer (not both)
       await program.methods
         .snapshotBackerAmount()
         .accounts({
@@ -1771,7 +1970,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([authority])
         .rpc()
-        .then(confirm);
+        .then(confirm); // error happening in this step
 
       // Try to end milestone without snapshotting all backers
       try {
@@ -1798,13 +1997,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   describe('Token Economics Verification Tests', () => {
     it('45. Verifies airdrop amount calculation is correct', async () => {
       // Create new proposal, launch it, and verify airdrop math
-      const proposalIndex12 = new BN(11);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex12 = makerData.proposalCount;
       const testProposal12 = findProposalPDA(program.programId, maker.publicKey, proposalIndex12);
       const testMint12 = anchor.web3.Keypair.generate();
       const [testVault12] = getTokenVaultAddress(vaultAuthority, testMint12.publicKey, program.programId);
       const testBacker12 = anchor.web3.Keypair.generate();
       const testBackerAccount12 = findBackerAccountPDA(program.programId, testProposal12, testBacker12.publicKey);
-      const testBackerTokenAccount12 = findUserAta(testBacker12.publicKey, testMint12.publicKey);
+      const testBackerTokenAccount12 = findUserAta(testBacker12.publicKey, testMint12.publicKey); 
 
       // Fund backer
       await provider.sendAndConfirm(new anchor.web3.Transaction().add(
@@ -1813,7 +2013,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           toPubkey: testBacker12.publicKey,
           lamports: 1e9,
         })
-      )).then(confirm);
+      )).then(confirm); 
 
       // Mint soulbound token
       const testBacker12Ata = findUserAta(testBacker12.publicKey, mintAccount);
@@ -1832,7 +2032,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([authority])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
       // Create proposal
       await program.methods
@@ -1850,7 +2050,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([authority, testMint12, maker])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
       // Back proposal
       await program.methods
@@ -1867,7 +2067,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         })
         .signers([testBacker12])
         .rpc()
-        .then(confirm);
+        .then(confirm); 
 
       // Launch pool
       const config_account = await cpAmm.account.config.fetch(config);
@@ -1907,16 +2107,16 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           config: configStruct,
         })
         .signers([authority, pdas12.positionNftMint])
-        .transaction();
+        .transaction(); 
 
-      tx.instructions.unshift(computeUnitsIx);
-      await provider.sendAndConfirm(tx, [authority, pdas12.positionNftMint]);
+      tx.instructions.unshift(computeUnitsIx); 
+      await provider.sendAndConfirm(tx, [authority, pdas12.positionNftMint]); 
 
       // Get proposal data to check total_backers
-      const proposalData = await program.account.proposal.fetch(testProposal12);
+      const proposalData = await program.account.proposal.fetch(testProposal12); 
 
       // Airdrop and verify amount
-      const balanceBefore = await provider.connection.getTokenAccountBalance(testBackerTokenAccount12).catch(() => ({ value: { uiAmount: 0 } }));
+      const balanceBefore = await provider.connection.getTokenAccountBalance(testBackerTokenAccount12).catch(() => ({ value: { uiAmount: 0 } })); 
 
       await program.methods
         .airdrop()
@@ -1950,7 +2150,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('46. Verifies fee deduction is 0.002 SOL (2_000_000 lamports)', async () => {
       // Create new proposal and verify fee deduction
-      const proposalIndex13 = new BN(12);
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex13 = makerData.proposalCount;
       const testProposal13 = findProposalPDA(program.programId, maker.publicKey, proposalIndex13);
       const testMint13 = anchor.web3.Keypair.generate();
       const [testVault13] = getTokenVaultAddress(vaultAuthority, testMint13.publicKey, program.programId);
