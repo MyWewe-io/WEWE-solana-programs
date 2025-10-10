@@ -120,7 +120,7 @@ impl<'info> Contribute<'info> {
             .total_backers
             .checked_add(1)
             .ok_or(ProposalError::NumericalOverflow)?;
-        self.backer_account.settle_cycle = 1;
+        self.backer_account.settle_cycle = 0;
 
         emit!(ProposalBacked {
             backer: self.backer.key(),

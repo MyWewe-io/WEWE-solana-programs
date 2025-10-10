@@ -78,6 +78,8 @@ impl<'info> EndMilestone<'info> {
         )?;
 
         self.proposal.milestone_active = false;
+        self.proposal.current_airdrop_cycle = self.proposal.current_airdrop_cycle.checked_add(1)
+        .ok_or(ProposalError::NumericalOverflow)?;
 
         emit!(MilestoneEnded {
             proposal: self.proposal.key(),
