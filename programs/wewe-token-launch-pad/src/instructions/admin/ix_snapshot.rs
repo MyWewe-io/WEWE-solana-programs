@@ -2,7 +2,7 @@ use crate::{
     constant::seeds::BACKER,
     errors::ProposalError,
     event::BackerMilestoneSettled,
-    state::{backers::Backers, proposal::Proposal, config::Configs},
+    state::{backers::Backers, config::Configs, proposal::Proposal},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, TokenAccount};
@@ -46,19 +46,26 @@ impl<'info> SnapshotBacker<'info> {
 
         let cur = self.proposal.current_airdrop_cycle;
         require!(
-            self.backer_account.settle_cycle >= cur,
+            cur > self.backer_account.settle_cycle,
             ProposalError::AmountAlreadyUpdated
         );
-        let per = self.config.total_airdrop_amount_per_milestone //TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
+        let per = self
+            .config
+            .total_airdrop_amount_per_milestone //TOTAL_AIRDROP_AMOUNT_PER_MILESTONE
             .checked_div(self.proposal.total_backers)
             .ok_or(ProposalError::NumericalOverflow)?;
 
-        let pending_claim = self.backer_account.settle_cycle.saturating_sub(self.backer_account.claimed_upto);
-        let expected_units = per;
-        let expected_base = expected_units.saturating_mul(self.backer_account.settle_cycle as u64);
-        let mut actual_base = self.backer_token_account.amount;
-        if self.backer_account.claimed_upto < self.backer_account.settle_cycle {
-            actual_base = actual_base.saturating_mul(pending_claim as u64);
+        let pow = 10u64
+            .checked_pow(self.mint_account.decimals as u32)
+            .ok_or(ProposalError::NumericalOverflow)?;
+        let pending_claim = self
+            .backer_account
+            .settle_cycle
+            .saturating_sub(self.backer_account.claimed_upto);
+        let expected_base = per.saturating_mul(cur as u64);
+        let mut actual_base = self.backer_token_account.amount.saturating_div(pow);
+        if pending_claim > 0 {
+            actual_base = actual_base.saturating_add(per.saturating_mul((pending_claim) as u64));
         }
 
         let bp = (actual_base.saturating_mul(10_000)).saturating_div(expected_base);
