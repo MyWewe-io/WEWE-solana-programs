@@ -9,6 +9,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
   createAssociatedTokenAccountInstruction,
+  createTransferInstruction,
 } from '@solana/spl-token';
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
@@ -42,6 +43,7 @@ const waitForEvent = async (program: Program<any>, eventName: string): Promise<a
     });
   });
 };
+
 
 describe('Wewe Token Launch Pad - Integration Tests', () => {
   const provider = anchor.AnchorProvider.env();
@@ -85,6 +87,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   const config = new anchor.web3.PublicKey('DJN8YHxQKZnF7bL2GwuKNB2UcfhKCqRspfLe7YYEN3rr');
   const pdas = derivePoolPDAs(program.programId, cpAmm.programId, mint.publicKey, WSOL_MINT, maker.publicKey, config);
+
+  async function printTxLogs(sig: string) {
+    // wait for finalization so logs are retrievable
+    await provider.connection.confirmTransaction(sig, 'confirmed');
+    // fetch the executed tx and print program logs
+    const tx = await provider.connection.getTransaction(sig, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+    });
+    console.log('\n=== PROGRAM LOGS ===');
+    console.log(tx?.meta?.logMessages?.join('\n') ?? '(no logs)');
+    console.log('====================\n');
+  }
   
   it('1. Airdrops funds to test accounts', async () => {
     const airdropPromises = [
@@ -440,7 +455,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
   });
-  
+
   it('14. Ends a milestone', async () => {
     await program.methods
       .endMilestone()
@@ -527,6 +542,88 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
   });
+
+  it('17. Transfer tokens before snapshot → reduced allocation', async () => {
+    // Start a fresh milestone (cycle 2)
+    await program.methods
+      .initialiseMilestone()
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    const backerMintAta = backerTokenAccount; // already defined above for `mint.publicKey`
+    const destAta = pdas.makerTokenAccount;   // maker’s ATA for the same mint (created during pool ops)
+  
+    const balBefore = await provider.connection.getTokenAccountBalance(backerMintAta);
+    
+    const toMove = BigInt(balBefore.value.amount) / BigInt(2); // raw amount (no decimals math needed)
+
+    if (toMove > 0) {
+      const tx = new anchor.web3.Transaction().add(
+        createTransferInstruction(
+          backerMintAta,
+          destAta,
+          backer.publicKey,
+          Number(toMove) // safe here given test amounts; if you prefer, pass BigInt directly
+        )
+      );
+      await provider.sendAndConfirm(tx, [backer]);
+    }
+  
+    // Take snapshot AFTER moving tokens away
+    const sig = await program.methods
+      .snapshotBackerAmount()
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+        backer: backer.publicKey,
+        backerAccount,
+        backerTokenAccount: backerMintAta,
+        mintAccount: mint.publicKey,
+        config: configStruct,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    // End milestone and attempt to claim: balance should not increase
+    await program.methods
+      .endMilestone()
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+        mint: mint.publicKey,
+        vaultAuthority,
+        tokenVault: vault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+  
+    await program.methods
+      .claimMilestoneReward()
+      .accounts({
+        backer: backer.publicKey,
+        proposal,
+        vaultAuthority,
+        mintAccount: mint.publicKey,
+        tokenVault: vault,
+        backerAccount,
+        backerTokenAccount: backerMintAta,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
+  });
+  
 
   // ============================================================================
   // HIGH PRIORITY SECURITY & ERROR HANDLING TESTS
