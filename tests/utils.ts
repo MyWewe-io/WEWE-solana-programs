@@ -22,6 +22,10 @@ export const generateKeypairs = () => ({
   mint2: anchor.web3.Keypair.generate(),
 });
 
+export const generateTestBackers = () => ({
+  
+});
+
 export const getMetadata = () => ({
   name: 'Gold',
   symbol: 'GOLD',
