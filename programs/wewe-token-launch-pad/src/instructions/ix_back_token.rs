@@ -67,6 +67,11 @@ impl<'info> Contribute<'info> {
         let now = Clock::get()?.unix_timestamp;
         let elapsed = now.saturating_sub(self.proposal.time_started);
 
+        require!(
+            self.backer.key() != self.proposal.maker,
+            ProposalError::CantBackOwnProposal
+        );
+        
         require!(elapsed <= SECONDS_TO_DAYS, ProposalError::BackingEnded);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(
@@ -76,10 +81,6 @@ impl<'info> Contribute<'info> {
         require!(
             self.proposal.total_backers < MAXIMUM_BACKERS,
             ProposalError::BackingGoalReached
-        );
-        require!(
-            self.backer.key() != self.proposal.maker,
-            ProposalError::CantBackOwnProposal
         );
 
         let amount = self.config.amount_to_raise_per_user //AMOUNT_TO_RAISE_PER_USER

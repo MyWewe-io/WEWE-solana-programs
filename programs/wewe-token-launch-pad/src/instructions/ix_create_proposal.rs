@@ -153,7 +153,6 @@ impl<'info> CreateProposal<'info> {
         let pow = 10u64
             .checked_pow(self.mint_account.decimals as u32)
             .ok_or(ProposalError::NumericalOverflow)?;
-        println!(" ==== {:?}",self.config.total_mint);
         let amount = self.config.total_mint // TOTAL_MINT
             .checked_mul(pow)
             .ok_or(ProposalError::NumericalOverflow)?;
