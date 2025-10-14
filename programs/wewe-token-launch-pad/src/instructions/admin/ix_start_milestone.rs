@@ -10,8 +10,8 @@ pub struct InitialiseMilestone<'info> {
 
 impl<'info> InitialiseMilestone<'info> {
     pub fn handle_initialise_milestone(&mut self) -> Result<()> {
-        require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
+        require!(self.proposal.is_pool_launched, ProposalError::TargetNotMet);
         require!(
             !self.proposal.milestone_active,
             ProposalError::NoMilestoneActive

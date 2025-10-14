@@ -101,7 +101,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     console.log('====================\n');
   }
   
-  it('1. Airdrops funds to test accounts', async () => {
+  it('0. Airdrops funds to test accounts', async () => {
     const airdropPromises = [
       provider.connection.requestAirdrop(provider.wallet.publicKey, 5e9),
       provider.sendAndConfirm(new anchor.web3.Transaction().add(
@@ -136,7 +136,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     await Promise.all(airdropPromises.map(p => confirm(p)));
   });
 
-  it('0. Sets constant values', async () => {
+  it('1. Sets constant values', async () => {
     const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
     const totalMint = new BN(1_000_000_000);
     const totalPoolTokens = new BN(150_000_000);
@@ -543,7 +543,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .then(confirm);
   });
 
-  it('17. Transfer tokens before snapshot → reduced allocation', async () => {
+  it('16.5. Transfer tokens before snapshot → reduced allocation', async () => {
     // Start a fresh milestone (cycle 2)
     await program.methods
       .initialiseMilestone()
