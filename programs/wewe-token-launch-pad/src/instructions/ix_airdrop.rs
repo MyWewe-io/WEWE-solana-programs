@@ -1,6 +1,6 @@
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
-    constant::seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY},
+    constant::{seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY}, MINT_DECIMALS},
     errors::ProposalError,
     event::AirdropClaimed,
     state::{backers::Backers, proposal::Proposal, config::Configs},
@@ -87,7 +87,7 @@ impl<'info> Airdrop<'info> {
                 },
                 signer_seeds,
             ),
-            amount * 10u64.pow(9 as u32),
+            amount * 10u64.pow(MINT_DECIMALS as u32),
         )?;
 
         self.backer_account.initial_airdrop_received = true;

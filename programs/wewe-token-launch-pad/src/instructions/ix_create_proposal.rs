@@ -4,7 +4,7 @@ use crate::{
     const_pda,
     constant::{
         seeds::{MAKER, PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY},
-        ANCHOR_DISCRIMINATOR,
+        ANCHOR_DISCRIMINATOR, MINT_DECIMALS,
     },
     errors::ProposalError,
     event::ProposalCreated,
@@ -58,7 +58,7 @@ pub struct CreateProposal<'info> {
     #[account(
         init,
         payer = payer,
-        mint::decimals = 9,
+        mint::decimals = MINT_DECIMALS,
         mint::authority = proposal.key(),
         mint::freeze_authority = proposal.key(),
     )]
