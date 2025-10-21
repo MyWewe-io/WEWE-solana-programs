@@ -27,5 +27,13 @@ jobs:
       - name: Install Node deps
         run: yarn install --frozen-lockfile
 
+      - name: Generate Solana keypair (CI wallet)
+        run: |
+          mkdir -p $HOME/.config/solana
+          solana-keygen new --no-bip39-passphrase --silent --force -o $HOME/.config/solana/id.json
+          chmod 600 $HOME/.config/solana/id.json
+          solana config set --keypair $HOME/.config/solana/id.json
+          solana config set --url localhost
+
       - name: Run Anchor tests
         run: anchor test
