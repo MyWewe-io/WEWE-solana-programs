@@ -198,6 +198,25 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     const accountInfo = await provider.connection.getTokenAccountBalance(userAta);
     assert.strictEqual(accountInfo.value.uiAmount, 1);
+
+    // Create a clear failure if the freeze logic is broken and enforce transfer fails
+    const ix = createTransferInstruction(
+      userAta,
+      makerAta,
+      backer.publicKey,
+      1,
+    );
+    
+    const tx = new anchor.web3.Transaction().add(ix);
+    await provider.sendAndConfirm(tx, [backer]).then(
+      () => assert.fail('Expected transfer to fail (frozen account); freeze logic may be missing'),
+      async (err: any) => {
+        const logs: string[] | undefined = err?.logs ?? (typeof err?.getLogs === 'function' ? await err.getLogs() : undefined);
+        const joined = logs?.join('\n') ?? String(err?.message || err);
+        // Token Program 0x11 = AccountFrozen; accept any simulation failure too
+        expect(joined).to.satisfy((m: string) => m.includes('custom program error: 0x11') || m.includes('Simulation failed'));
+      }
+    );
   });
 
   it('3. Creates first proposal', async () => {
