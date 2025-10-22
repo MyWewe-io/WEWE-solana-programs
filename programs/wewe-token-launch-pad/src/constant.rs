@@ -22,3 +22,8 @@ pub mod admin_pubkey {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
     pub const ID: Pubkey = pubkey!("D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe");
 }
+
+pub mod wsol_pubkey {
+    use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
+    pub const ID: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
+}

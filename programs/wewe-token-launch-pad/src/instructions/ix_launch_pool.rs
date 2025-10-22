@@ -94,7 +94,10 @@ pub struct DammV2<'info> {
     )]
     pub base_mint: UncheckedAccount<'info>,
     /// CHECK: quote token mint
-    #[account(mut)]
+    #[account(
+        mut,
+        address = wsol_pubkey::ID
+    )]
     pub quote_mint: UncheckedAccount<'info>,
     /// CHECK:
     #[account(mut)]
