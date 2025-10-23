@@ -1,6 +1,9 @@
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
-    constant::seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY},
+    constant::{
+        seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY},
+        MINT_DECIMALS,
+    },
     errors::ProposalError,
     event::AirdropClaimed,
     state::{backers::Backers, proposal::Proposal},
@@ -66,7 +69,7 @@ impl<'info> Claim<'info> {
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
         let pow = 10u64
-            .checked_pow(self.mint_account.decimals as u32)
+            .checked_pow(MINT_DECIMALS as u32)
             .ok_or(ProposalError::NumericalOverflow)?;
         let claim_amount = self
             .backer_account

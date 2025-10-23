@@ -164,7 +164,7 @@ impl<'info> DammV2<'info> {
         })?;
 
         let config = self.pool_config.load()?;
-        let base_amount: u64 = self.config.total_pool_tokens * 10u64.pow(9 as u32); // TOTAL_POOL_TOKENS * 10u64.pow(9 as u32);
+        let base_amount: u64 = self.config.total_pool_tokens * 10u64.pow(MINT_DECIMALS as u32); // TOTAL_POOL_TOKENS * 10u64.pow(MINT_DECIMALS as u32);
         let quote_amount: u64 = self.proposal.total_backing;
 
         let liquidity = get_liquidity_for_adding_liquidity(
@@ -288,7 +288,7 @@ pub fn fund_creator_authority<'b, 'info>(
             },
             signer_seeds,
         ),
-        maker_amount * 1 * 10u64.pow(9 as u32),
+        maker_amount * 1 * 10u64.pow(MINT_DECIMALS as u32),
     )?;
 
     Ok(())
