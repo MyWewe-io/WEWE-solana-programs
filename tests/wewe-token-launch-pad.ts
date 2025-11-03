@@ -156,7 +156,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const totalAirdropAmountPerMilestone = new BN(140_000_000);
     const minBackers = new BN(1);
     const maxBackedProposals = new BN(3);
-
+    const refundFeeBps = new BN(1000); // 100 BPS = 1%
     const tx = await program.methods
       .setConfig(
         amountToRaisePerUser,
@@ -166,6 +166,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         totalAirdropAmountPerMilestone,
         minBackers,
         maxBackedProposals,
+        refundFeeBps, // refund_fee_basis_points: 100 BPS = 1%
       )
       .accounts({
         authority: authority.publicKey,
@@ -512,15 +513,41 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
     expect(countAccountBefore.activeCount.toNumber()).to.equal(3);
 
+    const weweTreasury = new anchor.web3.PublicKey("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
+    
+    // Get refund fee basis points from config
+    const configAccount = await program.account.configs.fetch(configStruct);
+    const refundFeeBps = configAccount.refundFeeBasisPoints;
+    
+    const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
+    const feeToDeduct = new BN(2_000_000); // 0.002 SOL (FEE_TO_DEDUCT)
+    const depositedAmount = amountToRaisePerUser.sub(feeToDeduct); // 8_000_000 (what's in vault)
+    
+    // Calculate expected amounts
+    // Fee is calculated as a percentage of the refund amount (what backer gets back)
+    // Formula: refund_amount + fee = deposited_amount
+    //          fee = refund_amount * refundFeeBps / 10000
+    //          refund_amount = depositedAmount * 10000 / (10000 + refundFeeBps)
+    const BASIS_POINTS = new BN(10000);
+    const expectedRefund = depositedAmount.mul(BASIS_POINTS).div(BASIS_POINTS.addn(refundFeeBps));
+    const expectedFee = expectedRefund.muln(refundFeeBps).div(BASIS_POINTS);
+    
+    // Get balances before refund
+    const backerBalanceBefore = await provider.connection.getBalance(backer.publicKey);
+    const treasuryBalanceBefore = await provider.connection.getBalance(weweTreasury);
+    
+    // Listen for the refund event
+    const eventPromise = waitForEvent(program, 'backerRefunded');
+    
     await program.methods
       .refund()
       .accounts({
         backer: backer.publicKey,
         proposal: proposal2,
         vaultAuthority,
+        weweTreasury,
         backerAccount: backerAccount2,
         backerProposalCount,
-        tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         config: configStruct,
       })
@@ -531,6 +558,57 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     // Verify backer_proposal_count is now 2 after refund (proposal and proposal3 are still backed)
     const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
     expect(countAccountAfter.activeCount.toNumber()).to.equal(2);
+    
+    // Wait for event and verify
+    const event = await eventPromise;
+    expect(event.refundAmount.toString()).to.equal(expectedRefund.toString());
+    expect(event.weweFee.toString()).to.equal(expectedFee.toString());
+    
+    // Enforce fee percentage: fee should be refundFeeBps basis points of refund amount (within rounding)
+    const actualRefundAmount = new BN(event.refundAmount.toString());
+    const actualFee = new BN(event.weweFee.toString());
+    const feeAsPercentOfRefund = actualFee.mul(BASIS_POINTS).div(actualRefundAmount);
+    expect(feeAsPercentOfRefund.toNumber()).to.be.closeTo(refundFeeBps, 1); // Allow for integer division rounding
+    
+    // Verify refund + fee = deposited amount (within rounding)
+    const total = actualRefundAmount.add(actualFee);
+    const difference = depositedAmount.sub(total);
+    expect(difference.toNumber()).to.be.at.most(1); // Allow for rounding
+    
+    // Verify balances after refund
+    const backerBalanceAfter = await provider.connection.getBalance(backer.publicKey);
+    const treasuryBalanceAfter = await provider.connection.getBalance(weweTreasury);
+    
+    // Account for transaction fees and rent returned from closing backer_account
+    const backerBalanceIncrease = backerBalanceAfter - backerBalanceBefore;
+    const treasuryBalanceIncrease = treasuryBalanceAfter - treasuryBalanceBefore;
+    
+    // The backer receives:
+    // 1. The refund_amount (SOL transferred from vault)
+    // 2. Rent from closing backer_account (typically ~1-2 million lamports)
+    // 3. Transaction fee deduction (typically ~5000 lamports)
+    // So backerBalanceIncrease should be approximately: refund_amount + rent - tx_fee
+    
+    // Verify backer received at least the refund amount (may have more due to rent)
+    expect(backerBalanceIncrease).to.be.at.least(expectedRefund.toNumber() - 10000); // Allow for tx fees
+    
+    // Verify treasury received the fee
+    expect(treasuryBalanceIncrease).to.equal(expectedFee.toNumber());
+    
+    // Final verification: fee percentage matches config (within rounding)
+    const refundFromEvent = new BN(event.refundAmount.toString());
+    const feeFromEvent = new BN(event.weweFee.toString());
+    const feePercentage = feeFromEvent.mul(BASIS_POINTS).div(refundFromEvent);
+    expect(feePercentage.toNumber()).to.be.closeTo(refundFeeBps, 1); // Allow for integer division rounding
+    
+    console.log(`\n Refund Fee Verification:`);
+    console.log(`   Refund to backer: ${refundFromEvent.toString()} lamports (${refundFromEvent.toNumber() / 1e9} SOL)`);
+    console.log(`   Fee to WEWE: ${feeFromEvent.toString()} lamports (${feeFromEvent.toNumber() / 1e9} SOL)`);
+    console.log(`   Fee percentage: ${feePercentage.toNumber() / 100}% (${refundFeeBps} basis points from config)`);
+    console.log(`   Refund + Fee: ${refundFromEvent.add(feeFromEvent).toString()} lamports`);
+    console.log(`   Deposited amount: ${depositedAmount.toString()} lamports`);
+    
+    console.log(`Refund successful: Backer received ${backerBalanceIncrease / 1e9} SOL, WEWE fee: ${treasuryBalanceIncrease / 1e9} SOL`);
   });
 
   it('10. Launches coin and creates DAMM pool', async () => {
@@ -1272,6 +1350,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   describe('Access Control Tests', () => {
     it('17. Fails when unauthorized user tries to set config', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
+      const refundFeeBps = new BN(100); // 100 BPS = 1%
       
       try {
         await program.methods
@@ -1282,7 +1361,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             new BN(10_000_000),
             new BN(140_000_000),
             new BN(1),
-            new BN(3)
+            new BN(3),
+            refundFeeBps // refund_fee_basis_points: 100 BPS = 1%
           )
           .accounts({
             authority: unauthorizedUser.publicKey,
