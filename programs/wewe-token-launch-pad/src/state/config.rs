@@ -10,4 +10,8 @@ pub struct Configs {
     pub maker_token_amount : u64,
     pub total_airdrop_amount_per_milestone: u64,
     pub min_backers : u64,
+    // Transfer fee configuration (basis points, 100 = 1%)
+    pub transfer_fee_basis_points: u16,
+    // Maximum fee in native token units (prevents unbounded fees)
+    pub max_fee: u64,
 }

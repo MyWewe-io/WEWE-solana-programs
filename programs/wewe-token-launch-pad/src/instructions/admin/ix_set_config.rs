@@ -28,14 +28,22 @@ impl<'info> SetConfig<'info> {
         maker_token_amount: u64,
         total_airdrop_amount_per_milestone: u64,
         min_backers: u64,
+        transfer_fee_basis_points: u16,
+        max_fee: u64,
     ) -> Result<()> {
+        require!(
+            transfer_fee_basis_points <= 10000,
+            crate::errors::ProposalError::NumericalOverflow
+        ); // Max 100%
         self.config.set_inner(Configs {
             amount_to_raise_per_user: amount_to_raise_per_user,
             total_mint: total_mint,
             total_pool_tokens: total_pool_tokens,
             maker_token_amount: maker_token_amount,
             total_airdrop_amount_per_milestone: total_airdrop_amount_per_milestone,
-            min_backers: min_backers
+            min_backers: min_backers,
+            transfer_fee_basis_points: transfer_fee_basis_points,
+            max_fee: max_fee,
         });
         
         Ok(())

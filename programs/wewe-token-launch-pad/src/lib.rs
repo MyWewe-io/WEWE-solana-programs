@@ -28,6 +28,8 @@ pub mod wewe_token_launch_pad {
         maker_token_amount: u64,
         total_airdrop_amount_per_milestone: u64,
         min_backers: u64,
+        transfer_fee_basis_points: u16,
+        max_fee: u64,
     ) -> Result<()> {
         ctx.accounts.handle_set_config(
             amount_to_raise_per_user,
@@ -36,6 +38,8 @@ pub mod wewe_token_launch_pad {
             maker_token_amount,
             total_airdrop_amount_per_milestone,
             min_backers,
+            transfer_fee_basis_points,
+            max_fee,
         )?;
         Ok(())
     }
@@ -97,5 +101,11 @@ pub mod wewe_token_launch_pad {
     #[access_control(check(&ctx.accounts.authority))]
     pub fn end_milestone(ctx: Context<EndMilestone>) -> Result<()> {
         ctx.accounts.handle_end_milestone()
+    }
+
+    /// Update transfer fee configuration for a proposal's token
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn update_transfer_fee(ctx: Context<UpdateTransferFee>) -> Result<()> {
+        ctx.accounts.handle_update_transfer_fee()
     }
 }

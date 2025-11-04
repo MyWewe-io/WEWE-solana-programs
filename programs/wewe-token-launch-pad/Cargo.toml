@@ -22,5 +22,5 @@ anchor-spl = { version = "0.31.0", features = ["metadata",  "token_2022_extensio
 bytemuck = { version = "1.13.1", features = ["derive", "min_const_generics"] }
 solana-program = "2.1.0"
 const-crypto = "0.3.0"
-ruint = "1.14.0"
+ruint = "1.17.0"
 cp-amm = { git = "https://github.com/MeteoraAg/damm-v2", branch = "main", package = "cp-amm", features = ["cpi", "local"] }

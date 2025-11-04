@@ -5,6 +5,7 @@ pub mod ix_collect_pool_fees;
 pub mod ix_start_milestone;
 pub mod ix_end_milestone;
 pub mod ix_set_config;
+pub mod ix_update_transfer_fee;
 
 pub use ix_reject_proposal::*;
 pub use ix_snapshot::*;
@@ -13,3 +14,4 @@ pub use ix_collect_pool_fees::*;
 pub use ix_start_milestone::*;
 pub use ix_end_milestone::*;
 pub use ix_set_config::*;
+pub use ix_update_transfer_fee::*;
