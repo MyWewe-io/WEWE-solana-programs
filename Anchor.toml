@@ -28,7 +28,6 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 --exit tests/**/*.ts"
 startup_wait = 60000
 shutdown_wait = 5000
 upgradeable = false
-limit_ledger_size = true
 
 [[test.genesis]]
 address = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"
