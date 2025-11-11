@@ -62,6 +62,33 @@ pub enum ProposalError {
     #[msg("score of all backer not updated for current milestone")]
     AllBackerScoreNotUpdated,
 
+    #[msg("Pool validation failed: insufficient funds transferred")]
+    InsufficientFundsTransferred,
+
+    #[msg("Pool validation failed: pool not properly initialized")]
+    PoolNotInitialized,
+
+    #[msg("Pool validation failed: invalid pool state")]
+    InvalidPoolState,
+
+    #[msg("Pool validation failed: position NFT not created")]
+    PositionNFTNotCreated,
+
+    #[msg("Pool validation failed: token vault account mismatch")]
+    InvalidTokenVault,
+
+    #[msg("Pool validation failed: WSOL vault account mismatch")]
+    InvalidWSolVault,
+
+    #[msg("Emergency unlock: pool actually exists")]
+    PoolActuallyExists,
+
+    #[msg("Emergency unlock: too soon for emergency unlock")]
+    TooSoonForEmergencyUnlock,
+
+    #[msg("Emergency unlock: unauthorized")]
+    UnauthorizedEmergencyUnlock,
+
     #[msg("Maximum number of backed proposals reached")]
     MaxBackedProposalsReached,
 }

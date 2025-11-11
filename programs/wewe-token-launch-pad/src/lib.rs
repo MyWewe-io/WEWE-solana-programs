@@ -72,6 +72,12 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_reject_proposal()
     }
 
+    // TODO: Figure out if this is needed
+    // #[access_control(check(&ctx.accounts.authority))]
+    // pub fn emergency_unlock(ctx: Context<EmergencyUnlock>) -> Result<()> {
+    //     ctx.accounts.handle_emergency_unlock()
+    // }
+
     #[access_control(check(&ctx.accounts.authority))]
     pub fn snapshot_backer_amount(ctx: Context<SnapshotBacker>) -> Result<()> {
         ctx.accounts.handle_snapshot()
