@@ -7,4 +7,5 @@ pub struct Backers {
     pub initial_airdrop_received: bool,
     pub settle_cycle: u8,
     pub claimed_upto: u8,
+    pub deposit_amount: u64,
 }

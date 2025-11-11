@@ -111,6 +111,7 @@ impl<'info> Contribute<'info> {
         )?;
 
         self.backer_account.initial_airdrop_received = false;
+        self.backer_account.deposit_amount = amount;
         self.proposal.total_backing = self
             .proposal
             .total_backing
