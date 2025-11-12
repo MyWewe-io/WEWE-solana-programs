@@ -48,9 +48,7 @@ pub struct Refund<'info> {
 impl<'info> Refund<'info> {
     pub fn handle_refund(&mut self) -> Result<()> {
         require!(self.proposal.is_rejected, ProposalError::BackingNotEnded);
-        let refund_amount = self.config.amount_to_raise_per_user //AMOUNT_TO_RAISE_PER_USER
-            .checked_sub(FEE_TO_DEDUCT)
-            .ok_or(ProposalError::NumericalOverflow)?;
+        let refund_amount = self.backer_account.deposit_amount;
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
