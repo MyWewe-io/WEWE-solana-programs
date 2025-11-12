@@ -162,6 +162,7 @@ impl<'info> Contribute<'info> {
             backer: self.backer.key(),
             proposal_backed: self.proposal.key(),
             backer_account: self.backer_account.key(),
+            backing_amount: amount,
         });
 
         Ok(())

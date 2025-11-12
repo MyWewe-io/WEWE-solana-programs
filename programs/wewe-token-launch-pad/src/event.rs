@@ -22,6 +22,7 @@ pub struct ProposalBacked {
     pub backer: Pubkey,
     pub backer_account: Pubkey,
     pub proposal_backed: Pubkey,
+    pub backing_amount: u64,
 }
 
 #[event]
