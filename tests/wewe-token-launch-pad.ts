@@ -32,6 +32,7 @@ import {
   findMintAuthority,
   calculateInitSqrtPrice,
   findConfigPDA,
+  findBackerProposalCountPDA,
 } from './utils';
 
 // Helper function to wait for a specific event
@@ -143,6 +144,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const makerTokenAmount = new BN(10_000_000);
     const totalAirdropAmountPerMilestone = new BN(140_000_000);
     const minBackers = new BN(1);
+    const maxBackedProposals = new BN(3);
 
     const tx = await program.methods
       .setConfig(
@@ -152,6 +154,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         makerTokenAmount,
         totalAirdropAmountPerMilestone,
         minBackers,
+        maxBackedProposals,
       )
       .accounts({
         authority: authority.publicKey,
@@ -282,6 +285,16 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('5. Backs the first proposal with SOL', async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Check that backer_proposal_count doesn't exist or is 0 before backing
+    try {
+      const countAccount = await program.account.backerProposalCount.fetch(backerProposalCount);
+      expect(countAccount.activeCount.toNumber()).to.equal(0);
+    } catch (err) {
+      // Account doesn't exist yet, which is fine - it will be created during backing
+    }
+
     await program.methods
       .depositSol()
       .accountsPartial({
@@ -290,6 +303,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         userTokenAccount: userAta,
         proposal,
         backerAccount,
+        backerProposalCount,
         vaultAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
         config: configStruct
@@ -297,10 +311,17 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([backer])
       .rpc()
       .then(confirm);
+
+    // Verify backer_proposal_count is now 1 after backing
+    const countAccount = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccount.activeCount.toNumber()).to.equal(1);
+    expect(countAccount.backer.toBase58()).to.equal(backer.publicKey.toBase58());
   });
 
   // Refactored test case to fix the failure
   it('6. Fails when user backs same proposal twice', async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
     try {
       await program.methods
         .depositSol()
@@ -309,6 +330,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal,
           vaultAuthority,
           backerAccount,
+          backerProposalCount,
           systemProgram: anchor.web3.SystemProgram.programId,
           config: configStruct
         })
@@ -324,12 +346,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('7. Backs the second proposal', async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is 1 before backing (from test 5)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(1);
+
     await program.methods
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
         proposal: proposal2,
         backerAccount: backerAccount2,
+        backerProposalCount,
         vaultAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
         config: configStruct
@@ -337,6 +366,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([backer])
       .rpc()
       .then(confirm);
+
+    // Verify backer_proposal_count is now 2 after backing second proposal
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(2);
   });
 
   it('8. Authority rejects a proposal', async () => {
@@ -352,6 +385,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it("9. Refunds SOL to backer after proposal is rejected", async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is 2 before refund (from backing both proposals)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(2);
+
     await program.methods
       .refund()
       .accounts({
@@ -359,6 +398,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal: proposal2,
         vaultAuthority,
         backerAccount: backerAccount2,
+        backerProposalCount,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         config: configStruct,
@@ -366,6 +406,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([])
       .rpc()
       .then(confirm);
+
+    // Verify backer_proposal_count is now 1 after refund (proposal is still backed)
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(1);
   });
 
   it('10. Launches coin and creates DAMM pool', async () => {
@@ -484,6 +528,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mint: mint.publicKey,
         vaultAuthority,
         tokenVault: vault,
+        config: configStruct,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([authority])
@@ -618,6 +663,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mint: mint.publicKey,
         vaultAuthority,
         tokenVault: vault,
+        config: configStruct,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([authority])
@@ -749,6 +795,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             mint: mint.publicKey,
             vaultAuthority,
             tokenVault: vault,
+            config: configStruct,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([unauthorizedUser])
@@ -1659,6 +1706,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             mint: testMint9.publicKey,
             vaultAuthority,
             tokenVault: testVault9,
+            config: configStruct,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([authority])
@@ -2181,6 +2229,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             mint: testMint11.publicKey,
             vaultAuthority,
             tokenVault: testVault11,
+            config: configStruct,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([authority])

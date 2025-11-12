@@ -28,6 +28,7 @@ pub mod wewe_token_launch_pad {
         maker_token_amount: u64,
         total_airdrop_amount_per_milestone: u64,
         min_backers: u64,
+        max_backed_proposals: u64,
     ) -> Result<()> {
         ctx.accounts.handle_set_config(
             amount_to_raise_per_user,
@@ -36,6 +37,7 @@ pub mod wewe_token_launch_pad {
             maker_token_amount,
             total_airdrop_amount_per_milestone,
             min_backers,
+            max_backed_proposals,
         )?;
         Ok(())
     }
@@ -97,5 +99,9 @@ pub mod wewe_token_launch_pad {
     #[access_control(check(&ctx.accounts.authority))]
     pub fn end_milestone(ctx: Context<EndMilestone>) -> Result<()> {
         ctx.accounts.handle_end_milestone()
+    }
+
+    pub fn decrement_backer_count(ctx: Context<DecrementBackerCount>) -> Result<()> {
+        ctx.accounts.handle_decrement()
     }
 }

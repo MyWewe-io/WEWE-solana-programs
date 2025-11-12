@@ -13,6 +13,7 @@ pub mod seeds {
     pub const PROPOSAL: &[u8] = b"proposal";
     pub const TOKEN_VAULT: &[u8] = b"token_vault";
     pub const MAKER: &[u8] = b"maker";
+    pub const BACKER_PROPOSAL_COUNT: &[u8] = b"backer_proposal_count";
 }
 pub mod treasury {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
