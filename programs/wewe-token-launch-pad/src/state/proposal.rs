@@ -16,4 +16,5 @@ pub struct Proposal {
     pub milestone_active: bool,
     pub milestone_units_assigned: u64,
     pub milestone_backers_weighted: u64,
+    pub milestone_reputation_sum: u64,
 }

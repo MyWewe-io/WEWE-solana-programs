@@ -46,6 +46,12 @@ export const findBackerAccountPDA = (programId: anchor.web3.PublicKey, proposal:
     backer.toBuffer(),
   ], programId)[0];
 
+export const findBackerProposalCountPDA = (programId: anchor.web3.PublicKey, backer: anchor.web3.PublicKey) =>
+  anchor.web3.PublicKey.findProgramAddressSync([
+    Buffer.from('backer_proposal_count'),
+    backer.toBuffer(),
+  ], programId)[0];
+
 export const findMakerAccountPDA = (programId: anchor.web3.PublicKey, maker: anchor.web3.PublicKey) =>
   anchor.web3.PublicKey.findProgramAddressSync([
     Buffer.from('maker'),

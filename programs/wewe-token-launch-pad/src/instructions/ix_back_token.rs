@@ -7,12 +7,12 @@ use anchor_spl::token::{Mint, TokenAccount};
 use crate::{
     const_pda,
     constant::{
-        seeds::{BACKER, VAULT_AUTHORITY},
+        seeds::{BACKER, BACKER_PROPOSAL_COUNT, VAULT_AUTHORITY},
         *,
     },
     errors::ProposalError,
     event::ProposalBacked,
-    state::{backers::Backers, proposal::Proposal, config::Configs},
+    state::{backers::Backers, backer_proposal_count::BackerProposalCount, proposal::Proposal, config::Configs},
 };
 
 #[derive(Accounts)]
@@ -57,6 +57,15 @@ pub struct Contribute<'info> {
     )]
     pub backer_account: Account<'info, Backers>,
 
+    #[account(
+        init_if_needed,
+        payer = backer,
+        seeds = [BACKER_PROPOSAL_COUNT, backer.key().as_ref()],
+        bump,
+        space = ANCHOR_DISCRIMINATOR + BackerProposalCount::INIT_SPACE,
+    )]
+    pub backer_proposal_count: Account<'info, BackerProposalCount>,
+
     pub system_program: Program<'info, System>,
 
     pub config: Account<'info, Configs>,
@@ -81,6 +90,24 @@ impl<'info> Contribute<'info> {
         require!(
             self.proposal.total_backers < MAXIMUM_BACKERS,
             ProposalError::BackingGoalReached
+        );
+
+        // Initialize backer_proposal_count if it was just created
+        if self.backer_proposal_count.backer == Pubkey::default() {
+            self.backer_proposal_count.backer = self.backer.key();
+            self.backer_proposal_count.active_count = 0;
+        }
+
+        // Verify the backer matches
+        require!(
+            self.backer_proposal_count.backer == self.backer.key(),
+            ProposalError::IncorrectAccount
+        );
+
+        // Check if backer has reached max backed proposals
+        require!(
+            self.backer_proposal_count.active_count < self.config.max_backed_proposals,
+            ProposalError::MaxBackedProposalsReached
         );
 
         let amount = self.config.amount_to_raise_per_user //AMOUNT_TO_RAISE_PER_USER
@@ -122,6 +149,13 @@ impl<'info> Contribute<'info> {
             .checked_add(1)
             .ok_or(ProposalError::NumericalOverflow)?;
         self.backer_account.settle_cycle = 0;
+
+        // Increment the backer's active proposal count
+        self.backer_proposal_count.active_count = self
+            .backer_proposal_count
+            .active_count
+            .checked_add(1)
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         emit!(ProposalBacked {
             backer: self.backer.key(),

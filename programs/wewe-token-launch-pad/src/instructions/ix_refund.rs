@@ -3,7 +3,7 @@ use crate::{
     constant::{seeds::*, FEE_TO_DEDUCT},
     errors::ProposalError,
     event::BackerRefunded,
-    state::{backers::Backers, proposal::Proposal,config::Configs},
+    state::{backers::Backers, backer_proposal_count::BackerProposalCount, proposal::Proposal,config::Configs},
 };
 use anchor_lang::prelude::*;
 
@@ -33,6 +33,14 @@ pub struct Refund<'info> {
         close = backer,
     )]
     pub backer_account: Account<'info, Backers>,
+
+    #[account(
+        mut,
+        seeds = [BACKER_PROPOSAL_COUNT, backer.key().as_ref()],
+        bump,
+    )]
+    pub backer_proposal_count: Account<'info, BackerProposalCount>,
+
     pub system_program: Program<'info, System>,
     pub config: Account<'info, Configs>,
 }
@@ -64,6 +72,15 @@ impl<'info> Refund<'info> {
             .total_backing
             .checked_sub(refund_amount)
             .ok_or(ProposalError::NumericalOverflow)?;
+
+        // Decrement the backer's active proposal count
+        if self.backer_proposal_count.active_count > 0 {
+            self.backer_proposal_count.active_count = self
+                .backer_proposal_count
+                .active_count
+                .checked_sub(1)
+                .ok_or(ProposalError::NumericalOverflow)?;
+        }
 
         emit!(BackerRefunded {
             backer: self.backer.key(),

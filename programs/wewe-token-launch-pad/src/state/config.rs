@@ -10,4 +10,5 @@ pub struct Configs {
     pub maker_token_amount : u64,
     pub total_airdrop_amount_per_milestone: u64,
     pub min_backers : u64,
+    pub max_backed_proposals : u64,
 }

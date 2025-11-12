@@ -19,6 +19,7 @@ impl<'info> InitialiseMilestone<'info> {
 
         self.proposal.milestone_active = true;
         self.proposal.milestone_backers_weighted = 0;
+        self.proposal.milestone_reputation_sum = 0;
 
         emit!(MilestoneStarted {
             proposal: self.proposal.key(),

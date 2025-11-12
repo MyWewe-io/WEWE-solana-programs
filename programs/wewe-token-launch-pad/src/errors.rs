@@ -60,5 +60,8 @@ pub enum ProposalError {
     NoMilestoneActive,
 
     #[msg("score of all backer not updated for current milestone")]
-    AllBackerScoreNotUpdated
+    AllBackerScoreNotUpdated,
+
+    #[msg("Maximum number of backed proposals reached")]
+    MaxBackedProposalsReached,
 }

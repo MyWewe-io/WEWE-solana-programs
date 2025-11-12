@@ -32,6 +32,7 @@ import {
   findMintAuthority,
   calculateInitSqrtPrice,
   findConfigPDA,
+  findBackerProposalCountPDA,
 } from './utils';
 
 // Helper function to wait for a specific event
@@ -56,12 +57,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   let proposalIndex1 = new BN(0);
   let proposalIndex2 = new BN(1);
+  let proposalIndex3 = new BN(2);
+  let proposalIndex4 = new BN(3);
   const configStruct = findConfigPDA(program.programId, maker.publicKey)
   const proposal = findProposalPDA(program.programId, maker.publicKey, proposalIndex1);
   const proposal2 = findProposalPDA(program.programId, maker.publicKey, proposalIndex2);
+  const proposal3 = findProposalPDA(program.programId, maker.publicKey, proposalIndex3);
+  const proposal4 = findProposalPDA(program.programId, maker.publicKey, proposalIndex4);
 
   const backerAccount = findBackerAccountPDA(program.programId, proposal, backer.publicKey);
   const backerAccount2 = findBackerAccountPDA(program.programId, proposal2, backer.publicKey);
+  const backerAccount3 = findBackerAccountPDA(program.programId, proposal3, backer.publicKey);
+  const backerAccount4 = findBackerAccountPDA(program.programId, proposal4, backer.publicKey);
   const makerAccount = findMakerAccountPDA(program.programId, maker.publicKey);
 
   const metadata = getMetadata();
@@ -72,8 +79,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   
   const mint = anchor.web3.Keypair.generate();
   const mint2 = anchor.web3.Keypair.generate();
+  const mint3 = anchor.web3.Keypair.generate();
+  const mint4 = anchor.web3.Keypair.generate();
   const [vault] = getTokenVaultAddress(vaultAuthority, mint.publicKey, program.programId);
   const [vault2] = getTokenVaultAddress(vaultAuthority, mint2.publicKey, program.programId);
+  const [vault3] = getTokenVaultAddress(vaultAuthority, mint3.publicKey, program.programId);
+  const [vault4] = getTokenVaultAddress(vaultAuthority, mint4.publicKey, program.programId);
 
   const mintAccount = findMintAccount(program.programId);
   const userAta = findUserAta(backer.publicKey, mintAccount);
@@ -143,6 +154,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const makerTokenAmount = new BN(10_000_000);
     const totalAirdropAmountPerMilestone = new BN(140_000_000);
     const minBackers = new BN(1);
+    const maxBackedProposals = new BN(3);
 
     const tx = await program.methods
       .setConfig(
@@ -152,6 +164,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         makerTokenAmount,
         totalAirdropAmountPerMilestone,
         minBackers,
+        maxBackedProposals,
       )
       .accounts({
         authority: authority.publicKey,
@@ -282,6 +295,16 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('5. Backs the first proposal with SOL', async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Check that backer_proposal_count doesn't exist or is 0 before backing
+    try {
+      const countAccount = await program.account.backerProposalCount.fetch(backerProposalCount);
+      expect(countAccount.activeCount.toNumber()).to.equal(0);
+    } catch (err) {
+      // Account doesn't exist yet, which is fine - it will be created during backing
+    }
+
     await program.methods
       .depositSol()
       .accountsPartial({
@@ -290,6 +313,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         userTokenAccount: userAta,
         proposal,
         backerAccount,
+        backerProposalCount,
         vaultAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
         config: configStruct
@@ -297,10 +321,17 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([backer])
       .rpc()
       .then(confirm);
+
+    // Verify backer_proposal_count is now 1 after backing
+    const countAccount = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccount.activeCount.toNumber()).to.equal(1);
+    expect(countAccount.backer.toBase58()).to.equal(backer.publicKey.toBase58());
   });
 
   // Refactored test case to fix the failure
   it('6. Fails when user backs same proposal twice', async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
     try {
       await program.methods
         .depositSol()
@@ -309,6 +340,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal,
           vaultAuthority,
           backerAccount,
+          backerProposalCount,
           systemProgram: anchor.web3.SystemProgram.programId,
           config: configStruct
         })
@@ -324,12 +356,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('7. Backs the second proposal', async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is 1 before backing (from test 5)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(1);
+
     await program.methods
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
         proposal: proposal2,
         backerAccount: backerAccount2,
+        backerProposalCount,
         vaultAuthority,
         systemProgram: anchor.web3.SystemProgram.programId,
         config: configStruct
@@ -337,6 +376,120 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([backer])
       .rpc()
       .then(confirm);
+
+    // Verify backer_proposal_count is now 2 after backing second proposal
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(2);
+  });
+
+  it('7.5. Creates third proposal and backs it successfully (reaches max limit)', async () => {
+    // First create the third proposal
+    const eventPromise = waitForEvent(program, 'proposalCreated');
+
+    await program.methods
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
+      .accountsPartial({
+        payer: authority.publicKey,
+        maker: maker.publicKey,
+        makerAccount,
+        vaultAuthority,
+        proposal: proposal3,
+        mintAccount: mint3.publicKey,
+        tokenVault: vault3,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
+      })
+      .signers([authority, mint3, maker])
+      .rpc()
+      .then(confirm);
+
+    await eventPromise;
+
+    // Now back the third proposal
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is 2 before backing (from tests 5 and 7)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(2);
+
+    await program.methods
+      .depositSol()
+      .accountsPartial({
+        backer: backer.publicKey,
+        mint: mintAccount,
+        userTokenAccount: userAta,
+        proposal: proposal3,
+        backerAccount: backerAccount3,
+        backerProposalCount,
+        vaultAuthority,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
+
+    // Verify backer_proposal_count is now 3 after backing third proposal (max limit reached)
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(3);
+  });
+
+  it('7.6. Fails when trying to back a fourth proposal (exceeds max limit)', async () => {
+    // First create the fourth proposal
+    const eventPromise = waitForEvent(program, 'proposalCreated');
+
+    await program.methods
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
+      .accountsPartial({
+        payer: authority.publicKey,
+        maker: maker.publicKey,
+        makerAccount,
+        vaultAuthority,
+        proposal: proposal4,
+        mintAccount: mint4.publicKey,
+        tokenVault: vault4,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
+      })
+      .signers([authority, mint4, maker])
+      .rpc()
+      .then(confirm);
+
+    await eventPromise;
+
+    // Now try to back the fourth proposal - should fail
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is still 3 (max limit)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(3);
+
+    try {
+      await program.methods
+        .depositSol()
+        .accountsPartial({
+          backer: backer.publicKey,
+          mint: mintAccount,
+          userTokenAccount: userAta,
+          proposal: proposal4,
+          backerAccount: backerAccount4,
+          backerProposalCount,
+          vaultAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([backer])
+        .rpc();
+
+      assert.fail('Should not allow backing a fourth proposal when max limit is 3');
+    } catch (err) {
+      // Verify the error is MaxBackedProposalsReached
+      expect(err.message).to.include('MaxBackedProposalsReached');
+    }
+
+    // Verify backer_proposal_count is still 3 (unchanged after failed attempt)
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(3);
   });
 
   it('8. Authority rejects a proposal', async () => {
@@ -352,6 +505,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it("9. Refunds SOL to backer after proposal is rejected", async () => {
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is 3 before refund (from backing proposals, proposal2, and proposal3)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(3);
+
     await program.methods
       .refund()
       .accounts({
@@ -359,6 +518,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal: proposal2,
         vaultAuthority,
         backerAccount: backerAccount2,
+        backerProposalCount,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         config: configStruct,
@@ -366,6 +526,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .signers([])
       .rpc()
       .then(confirm);
+
+    // Verify backer_proposal_count is now 2 after refund (proposal and proposal3 are still backed)
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(2);
   });
 
   it('10. Launches coin and creates DAMM pool', async () => {
@@ -484,6 +648,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mint: mint.publicKey,
         vaultAuthority,
         tokenVault: vault,
+        config: configStruct,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([authority])
@@ -618,6 +783,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         mint: mint.publicKey,
         vaultAuthority,
         tokenVault: vault,
+        config: configStruct,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([authority])
@@ -642,7 +808,461 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
   });
-  
+
+  describe('Burn Amount Verification Tests', () => {
+    it('16.6. Verifies zero burn when all holders maintain full allocation', async () => {
+      // Create new proposal for burn testing
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndexBurn1 = makerData.proposalCount;
+      const testProposalBurn1 = findProposalPDA(program.programId, maker.publicKey, proposalIndexBurn1);
+      const testMintBurn1 = anchor.web3.Keypair.generate();
+      const [testVaultBurn1] = getTokenVaultAddress(vaultAuthority, testMintBurn1.publicKey, program.programId);
+      const testBackerBurn1 = anchor.web3.Keypair.generate();
+      const testBackerAccountBurn1 = findBackerAccountPDA(program.programId, testProposalBurn1, testBackerBurn1.publicKey);
+      const testBackerTokenAccountBurn1 = findUserAta(testBackerBurn1.publicKey, testMintBurn1.publicKey);
+
+      // Fund backer
+      await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: provider.wallet.publicKey,
+          toPubkey: testBackerBurn1.publicKey,
+          lamports: 1e9,
+        })
+      )).then(confirm);
+
+      // Mint soulbound token
+      const testBackerBurn1Ata = findUserAta(testBackerBurn1.publicKey, mintAccount);
+      await program.methods
+        .mintSoulboundToUser()
+        .accounts({
+          payer: authority.publicKey,
+          user: testBackerBurn1.publicKey,
+          mint: mintAccount,
+          freezeAuthority,
+          mintAuthority,
+          userTokenAccount: testBackerBurn1Ata,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Create proposal
+      await program.methods
+        .createProposal(metadata.name, metadata.symbol, metadata.uri)
+        .accountsPartial({
+          payer: authority.publicKey,
+          maker: maker.publicKey,
+          makerAccount,
+          vaultAuthority,
+          proposal: testProposalBurn1,
+          mintAccount: testMintBurn1.publicKey,
+          tokenVault: testVaultBurn1,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([authority, testMintBurn1, maker])
+        .rpc()
+        .then(confirm);
+
+      // Back proposal
+      await program.methods
+        .depositSol()
+        .accountsPartial({
+          backer: testBackerBurn1.publicKey,
+          mint: mintAccount,
+          userTokenAccount: testBackerBurn1Ata,
+          proposal: testProposalBurn1,
+          backerAccount: testBackerAccountBurn1,
+          vaultAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([testBackerBurn1])
+        .rpc()
+        .then(confirm);
+
+      // Launch pool
+      const config_account = await cpAmm.account.config.fetch(config);
+      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+      const pdasBurn1 = derivePoolPDAs(program.programId, cpAmm.programId, testMintBurn1.publicKey, WSOL_MINT, maker.publicKey, config);
+
+      const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
+      const tx = new anchor.web3.Transaction().add(computeUnitsIx);
+      const createPoolIx = await program.methods
+        .createPool(sqrtPrice)
+        .accountsPartial({
+          proposal: testProposalBurn1,
+          vaultAuthority,
+          maker: maker.publicKey,
+          tokenVault: testVaultBurn1,
+          wsolVault,
+          poolAuthority: pdasBurn1.poolAuthority,
+          dammPoolAuthority: pdasBurn1.poolAuthority,
+          poolConfig: config,
+          pool: pdasBurn1.pool,
+          positionNftMint: pdasBurn1.positionNftMint.publicKey,
+          positionNftAccount: pdasBurn1.positionNftAccount,
+          position: pdasBurn1.position,
+          ammProgram: cpAmm.programId,
+          baseMint: testMintBurn1.publicKey,
+          makerTokenAccount: pdasBurn1.makerTokenAccount,
+          quoteMint: WSOL_MINT,
+          tokenAVault: pdasBurn1.tokenAVault,
+          tokenBVault: pdasBurn1.tokenBVault,
+          payer: authority.publicKey,
+          tokenBaseProgram: TOKEN_PROGRAM_ID,
+          tokenQuoteProgram: TOKEN_PROGRAM_ID,
+          token2022Program: TOKEN_2022_PROGRAM_ID,
+          dammEventAuthority: pdasBurn1.dammEventAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          config: configStruct
+        })
+        .instruction();
+      tx.add(createPoolIx);
+      await provider.sendAndConfirm(tx, [authority, pdasBurn1.positionNftMint]);
+
+      // Airdrop to backer
+      await program.methods
+        .airdrop()
+        .accounts({
+          payer: authority.publicKey,
+          backer: testBackerBurn1.publicKey,
+          proposal: testProposalBurn1,
+          vaultAuthority,
+          mintAccount: testMintBurn1.publicKey,
+          tokenVault: testVaultBurn1,
+          backerAccount: testBackerAccountBurn1,
+          backerTokenAccount: testBackerTokenAccountBurn1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Start milestone
+      await program.methods
+        .initialiseMilestone()
+        .accounts({
+          authority: authority.publicKey,
+          proposal: testProposalBurn1,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Snapshot backer (holder maintains full allocation - 100% reputation)
+      await program.methods
+        .snapshotBackerAmount()
+        .accounts({
+          authority: authority.publicKey,
+          proposal: testProposalBurn1,
+          backer: testBackerBurn1.publicKey,
+          backerAccount: testBackerAccountBurn1,
+          backerTokenAccount: testBackerTokenAccountBurn1,
+          mintAccount: testMintBurn1.publicKey,
+          config: configStruct,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Get vault balance before end milestone
+      const vaultBalanceBeforeEnd = await provider.connection.getTokenAccountBalance(testVaultBurn1);
+      
+      // Get proposal data to calculate expected burn
+      const proposalData = await program.account.proposal.fetch(testProposalBurn1);
+      
+      // Calculate expected burn: (NUM_HOLDERS * 100) - SUM(reputation_scores)
+      // With full allocation, reputation = 100 for each holder
+      const numHolders = proposalData.milestoneBackersWeighted.toNumber();
+      const expectedReputationSum = numHolders * 100; // All holders have 100 reputation
+      const expectedBurnBase = (numHolders * 100) - expectedReputationSum; // Should be 0
+      const MINT_DECIMALS = 9;
+      const expectedBurnAmount = expectedBurnBase * Math.pow(10, MINT_DECIMALS);
+
+      // End milestone
+      await program.methods
+        .endMilestone()
+        .accounts({
+          authority: authority.publicKey,
+          proposal: testProposalBurn1,
+          mint: testMintBurn1.publicKey,
+          vaultAuthority,
+          tokenVault: testVaultBurn1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Get vault balance after end milestone
+      const vaultBalanceAfterEnd = await provider.connection.getTokenAccountBalance(testVaultBurn1);
+      
+      // Calculate actual burn amount
+      const actualBurnAmount = Number(vaultBalanceBeforeEnd.value.amount) - Number(vaultBalanceAfterEnd.value.amount);
+      
+      // Verify burn amount is zero (all holders maintained full allocation)
+      assert.strictEqual(
+        actualBurnAmount,
+        expectedBurnAmount,
+        `Burn amount should be zero when all holders maintain full allocation. Expected: ${expectedBurnAmount}, Actual: ${actualBurnAmount}`
+      );
+      assert.strictEqual(actualBurnAmount, 0, 'Burn amount should be zero with full allocation');
+    });
+
+    it('16.7. Verifies non-zero burn when holder has reduced allocation', async () => {
+      // Create new proposal for reduced allocation burn testing
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndexBurn2 = makerData.proposalCount;
+      const testProposalBurn2 = findProposalPDA(program.programId, maker.publicKey, proposalIndexBurn2);
+      const testMintBurn2 = anchor.web3.Keypair.generate();
+      const [testVaultBurn2] = getTokenVaultAddress(vaultAuthority, testMintBurn2.publicKey, program.programId);
+      const testBackerBurn2 = anchor.web3.Keypair.generate();
+      const testBackerAccountBurn2 = findBackerAccountPDA(program.programId, testProposalBurn2, testBackerBurn2.publicKey);
+      const testBackerTokenAccountBurn2 = findUserAta(testBackerBurn2.publicKey, testMintBurn2.publicKey);
+
+      // Fund backer
+      await provider.sendAndConfirm(new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: provider.wallet.publicKey,
+          toPubkey: testBackerBurn2.publicKey,
+          lamports: 1e9,
+        })
+      )).then(confirm);
+
+      // Mint soulbound token
+      const testBackerBurn2Ata = findUserAta(testBackerBurn2.publicKey, mintAccount);
+      await program.methods
+        .mintSoulboundToUser()
+        .accounts({
+          payer: authority.publicKey,
+          user: testBackerBurn2.publicKey,
+          mint: mintAccount,
+          freezeAuthority,
+          mintAuthority,
+          userTokenAccount: testBackerBurn2Ata,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Create proposal
+      await program.methods
+        .createProposal(metadata.name, metadata.symbol, metadata.uri)
+        .accountsPartial({
+          payer: authority.publicKey,
+          maker: maker.publicKey,
+          makerAccount,
+          vaultAuthority,
+          proposal: testProposalBurn2,
+          mintAccount: testMintBurn2.publicKey,
+          tokenVault: testVaultBurn2,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([authority, testMintBurn2, maker])
+        .rpc()
+        .then(confirm);
+
+      // Back proposal
+      await program.methods
+        .depositSol()
+        .accountsPartial({
+          backer: testBackerBurn2.publicKey,
+          mint: mintAccount,
+          userTokenAccount: testBackerBurn2Ata,
+          proposal: testProposalBurn2,
+          backerAccount: testBackerAccountBurn2,
+          vaultAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([testBackerBurn2])
+        .rpc()
+        .then(confirm);
+
+      // Launch pool
+      const config_account = await cpAmm.account.config.fetch(config);
+      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+      const pdasBurn2 = derivePoolPDAs(program.programId, cpAmm.programId, testMintBurn2.publicKey, WSOL_MINT, maker.publicKey, config);
+      const destAccountBurn2 = pdasBurn2.makerTokenAccount; // Use maker's ATA for the test mint as destination
+
+      const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
+      const tx = new anchor.web3.Transaction().add(computeUnitsIx);
+      const createPoolIx = await program.methods
+        .createPool(sqrtPrice)
+        .accountsPartial({
+          proposal: testProposalBurn2,
+          vaultAuthority,
+          maker: maker.publicKey,
+          tokenVault: testVaultBurn2,
+          wsolVault,
+          poolAuthority: pdasBurn2.poolAuthority,
+          dammPoolAuthority: pdasBurn2.poolAuthority,
+          poolConfig: config,
+          pool: pdasBurn2.pool,
+          positionNftMint: pdasBurn2.positionNftMint.publicKey,
+          positionNftAccount: pdasBurn2.positionNftAccount,
+          position: pdasBurn2.position,
+          ammProgram: cpAmm.programId,
+          baseMint: testMintBurn2.publicKey,
+          makerTokenAccount: pdasBurn2.makerTokenAccount,
+          quoteMint: WSOL_MINT,
+          tokenAVault: pdasBurn2.tokenAVault,
+          tokenBVault: pdasBurn2.tokenBVault,
+          payer: authority.publicKey,
+          tokenBaseProgram: TOKEN_PROGRAM_ID,
+          tokenQuoteProgram: TOKEN_PROGRAM_ID,
+          token2022Program: TOKEN_2022_PROGRAM_ID,
+          dammEventAuthority: pdasBurn2.dammEventAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          config: configStruct
+        })
+        .instruction();
+      tx.add(createPoolIx);
+      await provider.sendAndConfirm(tx, [authority, pdasBurn2.positionNftMint]);
+
+      // Airdrop to backer
+      await program.methods
+        .airdrop()
+        .accounts({
+          payer: authority.publicKey,
+          backer: testBackerBurn2.publicKey,
+          proposal: testProposalBurn2,
+          vaultAuthority,
+          mintAccount: testMintBurn2.publicKey,
+          tokenVault: testVaultBurn2,
+          backerAccount: testBackerAccountBurn2,
+          backerTokenAccount: testBackerTokenAccountBurn2,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Get original airdrop amount
+      const configData = await program.account.configs.fetch(configStruct);
+      const proposalDataBefore = await program.account.proposal.fetch(testProposalBurn2);
+      const originalAirdropPerBacker = configData.totalAirdropAmountPerMilestone.toNumber() / proposalDataBefore.totalBackers.toNumber();
+      const MINT_DECIMALS = 9;
+      const originalAirdropAmount = originalAirdropPerBacker * Math.pow(10, MINT_DECIMALS);
+
+      // Transfer half of tokens away (reduces balance to 50% of original)
+      const balanceBeforeTransfer = await provider.connection.getTokenAccountBalance(testBackerTokenAccountBurn2);
+      const transferAmount = BigInt(balanceBeforeTransfer.value.amount) / BigInt(2);
+      
+      if (transferAmount > 0) {
+        const transferTx = new anchor.web3.Transaction().add(
+          createTransferInstruction(
+            testBackerTokenAccountBurn2,
+            destAccountBurn2,
+            testBackerBurn2.publicKey,
+            Number(transferAmount)
+          )
+        );
+        await provider.sendAndConfirm(transferTx, [testBackerBurn2]);
+      }
+
+      // Verify balance is now 50% of original
+      const balanceAfterTransfer = await provider.connection.getTokenAccountBalance(testBackerTokenAccountBurn2);
+      const expectedBalanceAfterTransfer = originalAirdropAmount / 2;
+      assert.ok(
+        Math.abs(Number(balanceAfterTransfer.value.amount) - expectedBalanceAfterTransfer) < 1000,
+        `Balance should be approximately 50% of original. Expected: ~${expectedBalanceAfterTransfer}, Actual: ${balanceAfterTransfer.value.amount}`
+      );
+
+      // Start milestone
+      await program.methods
+        .initialiseMilestone()
+        .accounts({
+          authority: authority.publicKey,
+          proposal: testProposalBurn2,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Snapshot backer (holder has 50% of original allocation - 50 reputation)
+      await program.methods
+        .snapshotBackerAmount()
+        .accounts({
+          authority: authority.publicKey,
+          proposal: testProposalBurn2,
+          backer: testBackerBurn2.publicKey,
+          backerAccount: testBackerAccountBurn2,
+          backerTokenAccount: testBackerTokenAccountBurn2,
+          mintAccount: testMintBurn2.publicKey,
+          config: configStruct,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Get proposal data to calculate expected burn
+      const proposalData = await program.account.proposal.fetch(testProposalBurn2);
+      
+      // Calculate expected burn: (NUM_HOLDERS * 100) - SUM(reputation_scores)
+      // With 50% allocation, reputation = 50
+      const numHolders = proposalData.milestoneBackersWeighted.toNumber();
+      const expectedReputationSum = 50; // Holder has 50% of original = 50 reputation
+      const expectedBurnBase = (numHolders * 100) - expectedReputationSum; // Should be 50
+      const expectedBurnAmount = expectedBurnBase * Math.pow(10, MINT_DECIMALS);
+
+      // Get vault balance before end milestone
+      const vaultBalanceBeforeEnd = await provider.connection.getTokenAccountBalance(testVaultBurn2);
+      
+      // End milestone
+      await program.methods
+        .endMilestone()
+        .accounts({
+          authority: authority.publicKey,
+          proposal: testProposalBurn2,
+          mint: testMintBurn2.publicKey,
+          vaultAuthority,
+          tokenVault: testVaultBurn2,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Get vault balance after end milestone
+      const vaultBalanceAfterEnd = await provider.connection.getTokenAccountBalance(testVaultBurn2);
+      
+      // Calculate actual burn amount
+      const actualBurnAmount = Number(vaultBalanceBeforeEnd.value.amount) - Number(vaultBalanceAfterEnd.value.amount);
+      
+      // Verify burn amount matches expected (with small tolerance for rounding)
+      const tolerance = Math.pow(10, MINT_DECIMALS); // Allow 1 token tolerance
+      console.log(`Calculation: (NUM_HOLDERS * 100) - SUM(reputation_scores) = Expected Burn`);
+      console.log(`Calculation: (${numHolders} * 100) - ${expectedReputationSum} = ${expectedBurnBase}`);
+      console.log(`Expected Burn Amount: ${expectedBurnAmount}`);
+      console.log(`Actual Burn Amount: ${actualBurnAmount}`);
+      console.log(`Tolerance: ${tolerance}`);
+      console.log(`Difference: ${Math.abs(actualBurnAmount - expectedBurnAmount)}`);
+      assert.ok(
+        Math.abs(actualBurnAmount - expectedBurnAmount) <= tolerance,
+        `Burn amount should match expected. Expected: ${expectedBurnAmount}, Actual: ${actualBurnAmount}, Difference: ${Math.abs(actualBurnAmount - expectedBurnAmount)}`
+      );
+      assert.ok(actualBurnAmount > 0, 'Burn amount should be non-zero with reduced allocation');
+    });
+  });
 
   // ============================================================================
   // HIGH PRIORITY SECURITY & ERROR HANDLING TESTS
@@ -660,7 +1280,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             new BN(150_000_000),
             new BN(10_000_000),
             new BN(140_000_000),
-            new BN(1)
+            new BN(1),
+            new BN(3)
           )
           .accounts({
             authority: unauthorizedUser.publicKey,
@@ -749,6 +1370,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             mint: mint.publicKey,
             vaultAuthority,
             tokenVault: vault,
+            config: configStruct,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([unauthorizedUser])
@@ -844,9 +1466,13 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     let testVault3: anchor.web3.PublicKey;
     let testBacker3: anchor.web3.Keypair;
     let testBackerAccount3: anchor.web3.PublicKey;
-    let proposalIndex3 = new BN(2);
+    let proposalIndex3: anchor.BN;
 
     before(async () => {
+      // Get the current proposal count to use the next available index
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      proposalIndex3 = makerData.proposalCount;
+      
       testBacker3 = anchor.web3.Keypair.generate();
       testProposal3 = findProposalPDA(program.programId, maker.publicKey, proposalIndex3);
       testBackerAccount3 = findBackerAccountPDA(program.programId, testProposal3, testBacker3.publicKey);
@@ -1659,6 +2285,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             mint: testMint9.publicKey,
             vaultAuthority,
             tokenVault: testVault9,
+            config: configStruct,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([authority])
@@ -2181,6 +2808,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             mint: testMint11.publicKey,
             vaultAuthority,
             tokenVault: testVault11,
+            config: configStruct,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([authority])

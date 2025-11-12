@@ -89,6 +89,27 @@ impl<'info> SnapshotBacker<'info> {
                 .ok_or(ProposalError::NumericalOverflow)?;
         }
 
+        // Calculate reputation score for original holders only
+        // Reputation score is based on current balance relative to original airdrop amount
+        if self.backer_account.initial_airdrop_received && per > 0 {
+            let current_balance_base = self.backer_token_account.amount.saturating_div(pow);
+            // Calculate reputation score: (current_balance * 100) / original_airdrop_amount, capped at 100
+            let reputation_score = if current_balance_base >= per {
+                100u64
+            } else {
+                (current_balance_base as u128)
+                    .checked_mul(100)
+                    .and_then(|n| n.checked_div(per as u128))
+                    .ok_or(ProposalError::NumericalOverflow)? as u64
+            };
+            
+            self.proposal.milestone_reputation_sum = self
+                .proposal
+                .milestone_reputation_sum
+                .checked_add(reputation_score)
+                .ok_or(ProposalError::NumericalOverflow)?;
+        }
+
         self.backer_account.settle_cycle = cur;
         self.proposal.milestone_backers_weighted = self
             .proposal
