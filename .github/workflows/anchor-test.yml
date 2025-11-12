@@ -54,7 +54,7 @@ jobs:
           # Start validator in background with reset
           solana-test-validator \
             --reset \
-            --rpc-bind-address 0.0.0.0 \
+            --bind-address 0.0.0.0 \
             --rpc-port 8899 \
             --ledger .anchor/test-ledger \
             --clone metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s \
