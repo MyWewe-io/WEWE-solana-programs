@@ -57,12 +57,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   let proposalIndex1 = new BN(0);
   let proposalIndex2 = new BN(1);
+  let proposalIndex3 = new BN(2);
+  let proposalIndex4 = new BN(3);
   const configStruct = findConfigPDA(program.programId, maker.publicKey)
   const proposal = findProposalPDA(program.programId, maker.publicKey, proposalIndex1);
   const proposal2 = findProposalPDA(program.programId, maker.publicKey, proposalIndex2);
+  const proposal3 = findProposalPDA(program.programId, maker.publicKey, proposalIndex3);
+  const proposal4 = findProposalPDA(program.programId, maker.publicKey, proposalIndex4);
 
   const backerAccount = findBackerAccountPDA(program.programId, proposal, backer.publicKey);
   const backerAccount2 = findBackerAccountPDA(program.programId, proposal2, backer.publicKey);
+  const backerAccount3 = findBackerAccountPDA(program.programId, proposal3, backer.publicKey);
+  const backerAccount4 = findBackerAccountPDA(program.programId, proposal4, backer.publicKey);
   const makerAccount = findMakerAccountPDA(program.programId, maker.publicKey);
 
   const metadata = getMetadata();
@@ -73,8 +79,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   
   const mint = anchor.web3.Keypair.generate();
   const mint2 = anchor.web3.Keypair.generate();
+  const mint3 = anchor.web3.Keypair.generate();
+  const mint4 = anchor.web3.Keypair.generate();
   const [vault] = getTokenVaultAddress(vaultAuthority, mint.publicKey, program.programId);
   const [vault2] = getTokenVaultAddress(vaultAuthority, mint2.publicKey, program.programId);
+  const [vault3] = getTokenVaultAddress(vaultAuthority, mint3.publicKey, program.programId);
+  const [vault4] = getTokenVaultAddress(vaultAuthority, mint4.publicKey, program.programId);
 
   const mintAccount = findMintAccount(program.programId);
   const userAta = findUserAta(backer.publicKey, mintAccount);
@@ -372,6 +382,116 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     expect(countAccountAfter.activeCount.toNumber()).to.equal(2);
   });
 
+  it('7.5. Creates third proposal and backs it successfully (reaches max limit)', async () => {
+    // First create the third proposal
+    const eventPromise = waitForEvent(program, 'proposalCreated');
+
+    await program.methods
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
+      .accountsPartial({
+        payer: authority.publicKey,
+        maker: maker.publicKey,
+        makerAccount,
+        vaultAuthority,
+        proposal: proposal3,
+        mintAccount: mint3.publicKey,
+        tokenVault: vault3,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
+      })
+      .signers([authority, mint3, maker])
+      .rpc()
+      .then(confirm);
+
+    await eventPromise;
+
+    // Now back the third proposal
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is 2 before backing (from tests 5 and 7)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(2);
+
+    await program.methods
+      .depositSol()
+      .accountsPartial({
+        backer: backer.publicKey,
+        mint: mintAccount,
+        userTokenAccount: userAta,
+        proposal: proposal3,
+        backerAccount: backerAccount3,
+        backerProposalCount,
+        vaultAuthority,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
+      })
+      .signers([backer])
+      .rpc()
+      .then(confirm);
+
+    // Verify backer_proposal_count is now 3 after backing third proposal (max limit reached)
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(3);
+  });
+
+  it('7.6. Fails when trying to back a fourth proposal (exceeds max limit)', async () => {
+    // First create the fourth proposal
+    const eventPromise = waitForEvent(program, 'proposalCreated');
+
+    await program.methods
+      .createProposal(metadata.name, metadata.symbol, metadata.uri)
+      .accountsPartial({
+        payer: authority.publicKey,
+        maker: maker.publicKey,
+        makerAccount,
+        vaultAuthority,
+        proposal: proposal4,
+        mintAccount: mint4.publicKey,
+        tokenVault: vault4,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct
+      })
+      .signers([authority, mint4, maker])
+      .rpc()
+      .then(confirm);
+
+    await eventPromise;
+
+    // Now try to back the fourth proposal - should fail
+    const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
+    
+    // Verify backer_proposal_count is still 3 (max limit)
+    const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(3);
+
+    try {
+      await program.methods
+        .depositSol()
+        .accountsPartial({
+          backer: backer.publicKey,
+          mint: mintAccount,
+          userTokenAccount: userAta,
+          proposal: proposal4,
+          backerAccount: backerAccount4,
+          backerProposalCount,
+          vaultAuthority,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([backer])
+        .rpc();
+
+      assert.fail('Should not allow backing a fourth proposal when max limit is 3');
+    } catch (err) {
+      // Verify the error is MaxBackedProposalsReached
+      expect(err.message).to.include('MaxBackedProposalsReached');
+    }
+
+    // Verify backer_proposal_count is still 3 (unchanged after failed attempt)
+    const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(3);
+  });
+
   it('8. Authority rejects a proposal', async () => {
     await program.methods
       .rejectProposal()
@@ -387,9 +507,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   it("9. Refunds SOL to backer after proposal is rejected", async () => {
     const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
     
-    // Verify backer_proposal_count is 2 before refund (from backing both proposals)
+    // Verify backer_proposal_count is 3 before refund (from backing proposals, proposal2, and proposal3)
     const countAccountBefore = await program.account.backerProposalCount.fetch(backerProposalCount);
-    expect(countAccountBefore.activeCount.toNumber()).to.equal(2);
+    expect(countAccountBefore.activeCount.toNumber()).to.equal(3);
 
     await program.methods
       .refund()
@@ -407,9 +527,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
 
-    // Verify backer_proposal_count is now 1 after refund (proposal is still backed)
+    // Verify backer_proposal_count is now 2 after refund (proposal and proposal3 are still backed)
     const countAccountAfter = await program.account.backerProposalCount.fetch(backerProposalCount);
-    expect(countAccountAfter.activeCount.toNumber()).to.equal(1);
+    expect(countAccountAfter.activeCount.toNumber()).to.equal(2);
   });
 
   it('10. Launches coin and creates DAMM pool', async () => {
@@ -706,7 +826,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             new BN(150_000_000),
             new BN(10_000_000),
             new BN(140_000_000),
-            new BN(1)
+            new BN(1),
+            new BN(3)
           )
           .accounts({
             authority: unauthorizedUser.publicKey,
@@ -891,9 +1012,13 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     let testVault3: anchor.web3.PublicKey;
     let testBacker3: anchor.web3.Keypair;
     let testBackerAccount3: anchor.web3.PublicKey;
-    let proposalIndex3 = new BN(2);
+    let proposalIndex3: anchor.BN;
 
     before(async () => {
+      // Get the current proposal count to use the next available index
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      proposalIndex3 = makerData.proposalCount;
+      
       testBacker3 = anchor.web3.Keypair.generate();
       testProposal3 = findProposalPDA(program.programId, maker.publicKey, proposalIndex3);
       testBackerAccount3 = findBackerAccountPDA(program.programId, testProposal3, testBacker3.publicKey);
