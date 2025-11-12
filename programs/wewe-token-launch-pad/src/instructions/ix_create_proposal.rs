@@ -185,6 +185,7 @@ impl<'info> CreateProposal<'info> {
             milestone_active: false,
             milestone_units_assigned: 0,
             milestone_backers_weighted: 0,
+            milestone_reputation_sum: 0,
         });
         // increment proposal count for maker
         let idx = self.maker_account.proposal_count;

@@ -57,12 +57,19 @@ impl<'info> EndMilestone<'info> {
             .checked_pow(self.mint.decimals as u32)
             .ok_or(ProposalError::NumericalOverflow)?;
 
-        let burn_amount = self.proposal.total_backing.saturating_sub(
-            self.proposal
-                .milestone_units_assigned
-                .checked_mul(pow)
-                .ok_or(ProposalError::NumericalOverflow)?,
-        );
+        // Calculate burn amount using reputation-based formula:
+        // (NUM_HOLDERS * 100) - SUM(reputation_scores) = burn amount (in base units)
+        let num_holders = self.proposal.milestone_backers_weighted;
+        let max_possible_reputation = num_holders
+            .checked_mul(100)
+            .ok_or(ProposalError::NumericalOverflow)?;
+        let burn_amount_base = max_possible_reputation
+            .saturating_sub(self.proposal.milestone_reputation_sum);
+        
+        // Convert from base units to token units (with decimals)
+        let burn_amount = burn_amount_base
+            .checked_mul(pow)
+            .ok_or(ProposalError::NumericalOverflow)?;
 
         anchor_spl::token::burn(
             CpiContext::new_with_signer(
@@ -78,6 +85,7 @@ impl<'info> EndMilestone<'info> {
         )?;
 
         self.proposal.milestone_active = false;
+        self.proposal.milestone_reputation_sum = 0;
         self.proposal.current_airdrop_cycle = self.proposal.current_airdrop_cycle.checked_add(1)
         .ok_or(ProposalError::NumericalOverflow)?;
 
