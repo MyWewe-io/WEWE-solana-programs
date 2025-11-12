@@ -44,31 +44,5 @@ jobs:
           solana config set --keypair $HOME/.config/solana/id.json
           solana config set --url localhost
 
-      - name: Build Anchor program
-        run: anchor build
-
-      - name: Start test validator
-        run: |
-          # Clean up any existing ledger
-          rm -rf .anchor/test-ledger
-          # Start validator in background with reset
-          solana-test-validator \
-            --reset \
-            --bind-address 0.0.0.0 \
-            --rpc-port 8899 \
-            --ledger .anchor/test-ledger \
-            --clone metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s \
-            --account DJN8YHxQKZnF7bL2GwuKNB2UcfhKCqRspfLe7YYEN3rr,genesis/config.json \
-            --program cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG,genesis/cp_amm.so \
-            --url https://api.mainnet-beta.solana.com &
-          # Wait for validator to be ready
-          echo "Waiting for validator to start..."
-          timeout 90 bash -c 'until solana cluster-version --url http://localhost:8899 > /dev/null 2>&1; do sleep 2; echo "Waiting..."; done'
-          echo "Validator is ready!"
-
-      - name: Deploy program to validator
-        run: |
-          anchor deploy --provider.cluster localnet
-
       - name: Run Anchor tests
-        run: anchor test --skip-local-validator
+        run: anchor test
