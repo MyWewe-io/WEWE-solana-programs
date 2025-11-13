@@ -29,6 +29,7 @@ impl<'info> SetConfig<'info> {
         total_airdrop_amount_per_milestone: u64,
         min_backers: u64,
         max_backed_proposals: u64,
+        refund_fee_basis_points: u16,
     ) -> Result<()> {
         self.config.set_inner(Configs {
             amount_to_raise_per_user: amount_to_raise_per_user,
@@ -38,6 +39,7 @@ impl<'info> SetConfig<'info> {
             total_airdrop_amount_per_milestone: total_airdrop_amount_per_milestone,
             min_backers: min_backers,
             max_backed_proposals: max_backed_proposals,
+            refund_fee_basis_points: refund_fee_basis_points,
         });
         
         Ok(())

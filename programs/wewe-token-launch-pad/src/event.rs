@@ -30,7 +30,8 @@ pub struct BackerRefunded {
     pub backer: Pubkey,
     pub backer_account: Pubkey,
     pub proposal_address: Pubkey,
-    pub amount: u64,
+    pub refund_amount: u64, // Amount sent to backer
+    pub wewe_fee: u64,      // Fee collected by WEWE platform
 }
 
 #[event]
