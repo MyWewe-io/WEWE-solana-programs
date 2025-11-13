@@ -163,6 +163,13 @@ impl<'info> DammV2<'info> {
             maker_amount: self.config.maker_token_amount,
         })?;
 
+        // Note: Vault accounts are already validated by Anchor's account constraints
+        // (PDA derivation is checked via seeds constraints)
+        
+        // Capture vault balances BEFORE pool creation CPI
+        let token_vault_before = self.token_vault.amount;
+        let wsol_vault_before = self.wsol_vault.amount;
+
         let config = self.pool_config.load()?;
         let base_amount: u64 = self.config.total_pool_tokens * 10u64.pow(MINT_DECIMALS as u32); // TOTAL_POOL_TOKENS * 10u64.pow(MINT_DECIMALS as u32);
         let quote_amount: u64 = self.proposal.total_backing;
@@ -175,6 +182,7 @@ impl<'info> DammV2<'info> {
             config.sqrt_max_price,
         )?;
 
+        // Attempt pool creation via CPI
         cp_amm::cpi::initialize_pool(
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
@@ -209,7 +217,33 @@ impl<'info> DammV2<'info> {
             },
         )?;
 
+        // Reload accounts after CPI to get updated balances for validation
+        self.token_vault.reload()?;
+        self.wsol_vault.reload()?;
+
+        // Primary validation: DAMM v2 CPI success means pool was created correctly.
+        // DAMM v2 validates all fund transfers, liquidity calculations, and pool state internally.
+        // We perform additional validation to ensure the pool is swapable.
+        
+        // Validate pool account exists, is initialized, and is swapable
+        // This checks: liquidity > 0, sqrt_price > 0, pool_status == enabled
+        validate_pool_account_exists(&self.pool.to_account_info())?;
+        
+        // Verify funds were transferred (non-zero check)
+        // Exact amounts are validated by DAMM v2 internally
+        validate_pool_creation(
+            &self.token_vault,
+            &self.wsol_vault,
+            token_vault_before,
+            wsol_vault_before,
+            base_amount,
+            quote_amount,
+        )?;
+
+        // Only set flag AFTER all validations pass
+        let now = Clock::get()?.unix_timestamp;
         self.proposal.is_pool_launched = true;
+        self.proposal.launch_timestamp = Some(now);
 
         emit!(CoinLaunched {
             proposal_address: self.proposal.key(),

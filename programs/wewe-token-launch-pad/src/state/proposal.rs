@@ -17,4 +17,6 @@ pub struct Proposal {
     pub milestone_units_assigned: u64,
     pub milestone_backers_weighted: u64,
     pub milestone_reputation_sum: u64,
+    pub launch_timestamp: Option<i64>,
+    pub emergency_unlocked: bool,
 }
