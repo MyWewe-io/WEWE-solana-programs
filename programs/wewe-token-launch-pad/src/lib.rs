@@ -18,8 +18,7 @@ declare_id!("14LLwL8ixmeex2Ab4irrLJe1Nrxwj3N9CuYVq3vnwPbb");
 pub mod wewe_token_launch_pad {
     use super::*;
 
-    #[access_control(check(&ctx.accounts.authority))] 
-    #[access_control(check(&ctx.accounts.authority))] 
+    #[access_control(check_configure_authority(&ctx.accounts.authority))]
     pub fn set_config(
         ctx: Context<SetConfig>,
         amount_to_raise_per_user: u64,
@@ -85,7 +84,7 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_snapshot()
     }
 
-    #[access_control(check(&ctx.accounts.payer))]
+    #[access_control(check(&ctx.accounts.authority))]
     pub fn mint_soulbound_to_user(ctx: Context<MintSoulboundToUser>) -> Result<()> {
         ctx.accounts.handle_mint_soulbound_to_user(&ctx.bumps)
     }
@@ -109,7 +108,4 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_end_milestone()
     }
 
-    pub fn decrement_backer_count(ctx: Context<DecrementBackerCount>) -> Result<()> {
-        ctx.accounts.handle_decrement()
-    }
 }
