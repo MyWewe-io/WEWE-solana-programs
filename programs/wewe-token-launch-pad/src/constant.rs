@@ -22,6 +22,8 @@ pub mod treasury {
 
 pub mod admin_pubkey {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
+    // For localnet: matches generateKeypairs() authority
+    // For devnet: 3sCRx2pCrVdbBf65S6Cj5rVNLAEhojDQYmNMyTfoo1bn
     pub const ID: Pubkey = pubkey!("D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe");
 }
 

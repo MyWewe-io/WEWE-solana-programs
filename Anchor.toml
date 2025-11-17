@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-wewe_token_launch_pad = "14LLwL8ixmeex2Ab4irrLJe1Nrxwj3N9CuYVq3vnwPbb"
+wewe_token_launch_pad = "3GsWe5EniY5dnDh3gu3iWL1MLCu4bJygKsFZafqmSg3t"
 
 [programs.localnet]
 wewe_token_launch_pad = "14LLwL8ixmeex2Ab4irrLJe1Nrxwj3N9CuYVq3vnwPbb"
@@ -25,9 +25,9 @@ wallet = "~/.config/solana/id.json"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 --exit tests/**/*.ts"
 
 [test]
-startup_wait = 5000
+startup_wait = 60000
 shutdown_wait = 2000
-upgradeable = false
+upgradeable = true
 
 [[test.genesis]]
 address = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"

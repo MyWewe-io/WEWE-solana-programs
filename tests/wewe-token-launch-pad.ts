@@ -12,6 +12,9 @@ import {
   createTransferInstruction,
   createSyncNativeInstruction,
 } from '@solana/spl-token';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
 import type { CpAmm } from './cp_amm';
@@ -54,7 +57,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   const program = anchor.workspace.WeweTokenLaunchPad as Program<WeweTokenLaunchPad>;
   const cpAmm = new Program<CpAmm>(CpAmmIDL as CpAmm, provider);
 
-  const { maker, backer, authority } = generateKeypairs();
+  const { maker, backer } = generateKeypairs();
+  
+  // Load authority keypair from ~/.config/solana/id.json
+  const authorityKeypairPath = path.join(os.homedir(), '.config', 'solana', 'id.json');
+  const keypairData = JSON.parse(fs.readFileSync(authorityKeypairPath, 'utf-8'));
+  const authority = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(keypairData));
 
   let proposalIndex1 = new BN(0);
   let proposalIndex2 = new BN(1);
@@ -113,40 +121,40 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     console.log('====================\n');
   }
   
-  it('0. Airdrops funds to test accounts', async () => {
-    const airdropPromises = [
-      provider.connection.requestAirdrop(provider.wallet.publicKey, 5e9),
-      provider.sendAndConfirm(new anchor.web3.Transaction().add(
-        anchor.web3.SystemProgram.transfer({
-          fromPubkey: provider.wallet.publicKey,
-          toPubkey: maker.publicKey,
-          lamports: 1e9,
-        })
-      )),
-      provider.sendAndConfirm(new anchor.web3.Transaction().add(
-        anchor.web3.SystemProgram.transfer({
-          fromPubkey: provider.wallet.publicKey,
-          toPubkey: backer.publicKey,
-          lamports: 3e9,
-        })
-      )),
-      provider.sendAndConfirm(new anchor.web3.Transaction().add(
-        anchor.web3.SystemProgram.transfer({
-          fromPubkey: provider.wallet.publicKey,
-          toPubkey: authority.publicKey,
-          lamports: 1e9,
-        })
-      )),
-      provider.sendAndConfirm(new anchor.web3.Transaction().add(
-        anchor.web3.SystemProgram.transfer({
-          fromPubkey: provider.wallet.publicKey,
-          toPubkey: vaultAuthority,
-          lamports: 1e9,
-        })
-      )),
-    ];
-    await Promise.all(airdropPromises.map(p => confirm(p)));
-  });
+  // it('0. Airdrops funds to test accounts', async () => {
+  //   const airdropPromises = [
+  //     provider.connection.requestAirdrop(provider.wallet.publicKey, 5e9),
+  //     provider.sendAndConfirm(new anchor.web3.Transaction().add(
+  //       anchor.web3.SystemProgram.transfer({
+  //         fromPubkey: provider.wallet.publicKey,
+  //         toPubkey: maker.publicKey,
+  //         lamports: 1e9,
+  //       })
+  //     )),
+  //     provider.sendAndConfirm(new anchor.web3.Transaction().add(
+  //       anchor.web3.SystemProgram.transfer({
+  //         fromPubkey: provider.wallet.publicKey,
+  //         toPubkey: backer.publicKey,
+  //         lamports: 3e9,
+  //       })
+  //     )),
+  //     provider.sendAndConfirm(new anchor.web3.Transaction().add(
+  //       anchor.web3.SystemProgram.transfer({
+  //         fromPubkey: provider.wallet.publicKey,
+  //         toPubkey: authority.publicKey,
+  //         lamports: 1e9,
+  //       })
+  //     )),
+  //     provider.sendAndConfirm(new anchor.web3.Transaction().add(
+  //       anchor.web3.SystemProgram.transfer({
+  //         fromPubkey: provider.wallet.publicKey,
+  //         toPubkey: vaultAuthority,
+  //         lamports: 1e9,
+  //       })
+  //     )),
+  //   ];
+  //   await Promise.all(airdropPromises.map(p => confirm(p)));
+  // });
 
   it('1. Sets constant values', async () => {
     const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
