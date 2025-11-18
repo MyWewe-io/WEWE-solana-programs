@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constant::admin_pubkey,
+    constant::chain_service_pubkey,
     errors::ProposalError,
     state::proposal::Proposal,
 };
@@ -10,7 +10,7 @@ use crate::{
 pub struct EmergencyUnlock<'info> {
     /// CHECK: Admin authority
     #[account(
-        constraint = authority.key() == admin_pubkey::ID @ ProposalError::UnauthorizedEmergencyUnlock
+        constraint = authority.key() == chain_service_pubkey::ID @ ProposalError::UnauthorizedEmergencyUnlock
     )]
     pub authority: Signer<'info>,
     

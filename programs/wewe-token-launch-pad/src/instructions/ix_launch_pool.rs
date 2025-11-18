@@ -124,7 +124,7 @@ pub struct DammV2<'info> {
 
 impl<'info> DammV2<'info> {
     pub fn handle_create_pool(&mut self, sqrt_price: u128) -> Result<()> {
-        let is_owner = self.payer.key() == admin_pubkey::ID;
+        let is_owner = self.payer.key() == chain_service_pubkey::ID;
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
 

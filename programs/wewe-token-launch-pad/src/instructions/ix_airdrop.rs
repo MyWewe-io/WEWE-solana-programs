@@ -1,9 +1,9 @@
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
-    constant::{seeds::{BACKER, TOKEN_VAULT, VAULT_AUTHORITY}, MINT_DECIMALS},
+    constant::{seeds::{BACKER, BACKER_PROPOSAL_COUNT, TOKEN_VAULT, VAULT_AUTHORITY}, MINT_DECIMALS},
     errors::ProposalError,
     event::AirdropClaimed,
-    state::{backers::Backers, proposal::Proposal, config::Configs},
+    state::{backers::Backers, backer_proposal_count::BackerProposalCount, proposal::Proposal, config::Configs},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -50,6 +50,13 @@ pub struct Airdrop<'info> {
     pub backer_account: Account<'info, Backers>,
 
     #[account(
+        mut,
+        seeds = [BACKER_PROPOSAL_COUNT, backer.key().as_ref()],
+        bump,
+    )]
+    pub backer_proposal_count: Account<'info, BackerProposalCount>,
+
+    #[account(
         init_if_needed,
         payer = payer,
         associated_token::mint = mint_account,
@@ -91,6 +98,16 @@ impl<'info> Airdrop<'info> {
         )?;
 
         self.backer_account.initial_airdrop_received = true;
+
+        // Decrement the backer's active proposal count since the pool is launched
+        // and the proposal is no longer "active" in the backing phase
+        if self.backer_proposal_count.active_count > 0 {
+            self.backer_proposal_count.active_count = self
+                .backer_proposal_count
+                .active_count
+                .checked_sub(1)
+                .ok_or(ProposalError::NumericalOverflow)?;
+        }
         emit!(AirdropClaimed {
             proposal_address: self.proposal.key(),
             backer: self.backer.key(),

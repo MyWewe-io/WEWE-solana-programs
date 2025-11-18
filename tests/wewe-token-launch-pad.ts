@@ -55,6 +55,15 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   const cpAmm = new Program<CpAmm>(CpAmmIDL as CpAmm, provider);
 
   const { maker, backer, authority } = generateKeypairs();
+  // configure_authority - in prod this will be the same as upgrade authority
+  // For tests, we use a separate keypair
+  const configureAuthority = anchor.web3.Keypair.fromSecretKey(
+    Uint8Array.from([40, 42, 71, 80, 145, 233, 28, 85, 46, 107, 84, 98, 241, 241, 141, 138, 140, 198, 165, 158, 56, 179, 167, 195, 231, 122, 197, 137, 163, 36, 140, 202, 225, 68, 81, 1, 242, 195, 20, 0, 204, 11, 235, 44, 77, 100, 241, 12, 138, 225, 40, 210, 2, 95, 212, 51, 228, 218, 94, 73, 186, 142, 137, 191])
+  );
+  // chain_service authority - used for automated operations, should NOT be able to set config
+  const chainServiceAuthority = anchor.web3.Keypair.fromSecretKey(
+    Uint8Array.from([42, 132, 54, 48, 86, 137, 10, 155, 254, 103, 140, 97, 104, 8, 197, 48, 55, 71, 171, 157, 247, 159, 233, 130, 100, 213, 107, 236, 96, 40, 175, 164, 179, 49, 15, 185, 22, 130, 249, 11, 142, 174, 6, 253, 52, 133, 167, 81, 80, 179, 15, 199, 164, 252, 14, 233, 42, 74, 178, 20, 71, 62, 139, 21])
+  );
 
   let proposalIndex1 = new BN(0);
   let proposalIndex2 = new BN(1);
@@ -140,6 +149,20 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       provider.sendAndConfirm(new anchor.web3.Transaction().add(
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
+          toPubkey: configureAuthority.publicKey,
+          lamports: 1e9,
+        })
+      )),
+      provider.sendAndConfirm(new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: provider.wallet.publicKey,
+          toPubkey: chainServiceAuthority.publicKey,
+          lamports: 1e9,
+        })
+      )),
+      provider.sendAndConfirm(new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: provider.wallet.publicKey,
           toPubkey: vaultAuthority,
           lamports: 1e9,
         })
@@ -169,21 +192,56 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         refundFeeBps, // refund_fee_basis_points: 100 BPS = 1%
       )
       .accounts({
-        authority: authority.publicKey,
+        authority: configureAuthority.publicKey,
         config: configStruct,
       })
-      .signers([authority])
+      .signers([configureAuthority])
       .rpc();
 
     await confirm(tx);
 
   }); 
 
+  it('1.5. Fails when old authority (not configure_authority) tries to set config', async () => {
+    const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
+    const totalMint = new BN(1_000_000_000);
+    const totalPoolTokens = new BN(150_000_000);
+    const makerTokenAmount = new BN(10_000_000);
+    const totalAirdropAmountPerMilestone = new BN(140_000_000);
+    const minBackers = new BN(1);
+    const maxBackedProposals = new BN(3);
+    const refundFeeBps = new BN(1000); // 1000 BPS = 10%
+  
+    try {
+      await program.methods
+        .setConfig(
+          amountToRaisePerUser,
+          totalMint,
+          totalPoolTokens,
+          makerTokenAmount,
+          totalAirdropAmountPerMilestone,
+          minBackers,
+          maxBackedProposals,
+          refundFeeBps,
+        )
+        .accounts({
+          authority: authority.publicKey, // Using old authority, not configureAuthority
+          config: configStruct,
+        })
+        .signers([authority])
+        .rpc();
+
+      assert.fail('Should not allow old authority to set config');
+    } catch (err) {
+      expect(err.message).to.include('NotOwner');
+    }
+  });
+
   it("2. Mints and freezes soulbound token to user and maker", async () => {
     const tx1 = await program.methods
       .mintSoulboundToUser()
       .accounts({
-        payer: authority.publicKey,
+        authority: authority.publicKey,
         user: backer.publicKey,
         mint: mintAccount,
         freezeAuthority,
@@ -199,7 +257,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const tx2 = await program.methods
       .mintSoulboundToUser()
       .accounts({
-        payer: authority.publicKey,
+        authority: authority.publicKey,
         user: maker.publicKey,
         mint: mintAccount,
         mintAuthority,
@@ -914,7 +972,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBackerBurn1.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -1122,7 +1180,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBackerBurn2.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -1377,6 +1435,65 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       }
     });
 
+    it('17a. configure_authority can set config', async () => {
+      const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
+      const totalMint = new BN(1_000_000_000);
+      const totalPoolTokens = new BN(150_000_000);
+      const makerTokenAmount = new BN(10_000_000);
+      const totalAirdropAmountPerMilestone = new BN(140_000_000);
+      const minBackers = new BN(1);
+      const maxBackedProposals = new BN(3);
+      const refundFeeBps = new BN(1000); // 1000 BPS = 10%
+      
+      const tx = await program.methods
+        .setConfig(
+          amountToRaisePerUser,
+          totalMint,
+          totalPoolTokens,
+          makerTokenAmount,
+          totalAirdropAmountPerMilestone,
+          minBackers,
+          maxBackedProposals,
+          refundFeeBps,
+        )
+        .accounts({
+          authority: configureAuthority.publicKey,
+          config: configStruct,
+        })
+        .signers([configureAuthority])
+        .rpc();
+
+      await confirm(tx);
+    });
+
+    it('17b. chain_service cannot set config', async () => {
+      const refundFeeBps = new BN(100); // 100 BPS = 1%
+      
+      try {
+        await program.methods
+          .setConfig(
+            new BN(10_000_000),
+            new BN(1_000_000_000),
+            new BN(150_000_000),
+            new BN(10_000_000),
+            new BN(140_000_000),
+            new BN(1),
+            new BN(3),
+            refundFeeBps // refund_fee_basis_points: 100 BPS = 1%
+          )
+          .accounts({
+            authority: chainServiceAuthority.publicKey,
+            config: configStruct,
+          })
+          .signers([chainServiceAuthority])
+          .rpc();
+
+        assert.fail('Should not allow chain_service to set config');
+      } catch (err) {
+        expect(err.message).to.include('NotOwner');
+      }
+    });
+
     it('18. Fails when unauthorized user tries to reject proposal', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
 
@@ -1473,7 +1590,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         await program.methods
           .mintSoulboundToUser()
           .accounts({
-            payer: unauthorizedUser.publicKey,
+            authority: unauthorizedUser.publicKey,
             user: testUser.publicKey,
             mint: mintAccount,
             freezeAuthority,
@@ -1574,7 +1691,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker3.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -1686,7 +1803,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: newBacker.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -1907,7 +2024,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         await program.methods
           .mintSoulboundToUser()
           .accounts({
-            payer: authority.publicKey,
+            authority: authority.publicKey,
             user: backer.publicKey,
             mint: mintAccount,
             freezeAuthority,
@@ -2058,7 +2175,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -2121,7 +2238,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -2186,7 +2303,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -2264,7 +2381,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker9.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -2708,7 +2825,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker11a.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -2725,7 +2842,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker11b.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -2928,7 +3045,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker12.publicKey,
           mint: mintAccount,
           freezeAuthority,
@@ -3080,7 +3197,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       await program.methods
         .mintSoulboundToUser()
         .accounts({
-          payer: authority.publicKey,
+          authority: authority.publicKey,
           user: testBacker13.publicKey,
           mint: mintAccount,
           freezeAuthority,

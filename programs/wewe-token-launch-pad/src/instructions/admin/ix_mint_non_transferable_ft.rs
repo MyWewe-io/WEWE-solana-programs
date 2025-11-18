@@ -8,11 +8,11 @@ use crate::errors::ProposalError;
 #[derive(Accounts)]
 pub struct MintSoulboundToUser<'info> {
     #[account(mut)]
-    pub payer: Signer<'info>,
+    pub authority: Signer<'info>,
 
     #[account(
         init_if_needed,
-        payer = payer,
+        payer = authority,
         mint::decimals = 0,
         mint::authority = mint_authority,
         mint::freeze_authority = mint_authority,
@@ -33,7 +33,7 @@ pub struct MintSoulboundToUser<'info> {
 
     #[account(
         init_if_needed,
-        payer = payer,
+        payer = authority,
         associated_token::mint = mint,
         associated_token::authority = user,
     )]
