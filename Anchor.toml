@@ -6,19 +6,19 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-wewe_token_launch_pad = "14LLwL8ixmeex2Ab4irrLJe1Nrxwj3N9CuYVq3vnwPbb"
+wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
 
 [programs.localnet]
-wewe_token_launch_pad = "14LLwL8ixmeex2Ab4irrLJe1Nrxwj3N9CuYVq3vnwPbb"
+wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
 
 [programs.mainnet]
-wewe_token_launch_pad = "14LLwL8ixmeex2Ab4irrLJe1Nrxwj3N9CuYVq3vnwPbb"
+wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
