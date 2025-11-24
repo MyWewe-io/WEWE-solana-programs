@@ -110,9 +110,8 @@ impl<'info> Contribute<'info> {
             ProposalError::MaxBackedProposalsReached
         );
 
-        let amount = self.config.amount_to_raise_per_user //AMOUNT_TO_RAISE_PER_USER
-            .checked_sub(FEE_TO_DEDUCT)
-            .ok_or(ProposalError::NumericalOverflow)?;
+        let amount = self.config.amount_to_raise_per_user;
+        
         let program_id = self.system_program.to_account_info();
 
         transfer(
@@ -124,17 +123,6 @@ impl<'info> Contribute<'info> {
                 },
             ),
             amount,
-        )?;
-
-        transfer(
-            CpiContext::new(
-                program_id,
-                Transfer {
-                    from: self.backer.to_account_info(),
-                    to: self.wewe_vault.to_account_info(),
-                },
-            ),
-            FEE_TO_DEDUCT,
         )?;
 
         self.backer_account.initial_airdrop_received = false;
@@ -164,7 +152,7 @@ impl<'info> Contribute<'info> {
             backer: self.backer.key(),
             proposal_backed: self.proposal.key(),
             backer_account: self.backer_account.key(),
-            backing_amount: amount + FEE_TO_DEDUCT, // Full transferred amount
+            backing_amount: amount, // Full transferred amount
         });
 
         Ok(())

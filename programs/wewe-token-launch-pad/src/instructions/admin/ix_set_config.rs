@@ -39,7 +39,7 @@ impl<'info> SetConfig<'info> {
             total_airdrop_amount_per_milestone: total_airdrop_amount_per_milestone,
             min_backers: min_backers,
             max_backed_proposals: max_backed_proposals,
-            refund_fee_basis_points: refund_fee_basis_points,
+            refund_fee_basis_points: refund_fee_basis_points, // 100 BPS = 1%
         });
         
         Ok(())
