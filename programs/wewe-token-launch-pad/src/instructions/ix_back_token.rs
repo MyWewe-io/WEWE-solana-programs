@@ -152,6 +152,8 @@ impl<'info> Contribute<'info> {
         self.backer_account.settle_cycle = 0;
 
         // Increment the backer's active proposal count
+        
+        // TODO: proposal backing should be full amount but withhold the fees still
         self.backer_proposal_count.active_count = self
             .backer_proposal_count
             .active_count
@@ -162,7 +164,7 @@ impl<'info> Contribute<'info> {
             backer: self.backer.key(),
             proposal_backed: self.proposal.key(),
             backer_account: self.backer_account.key(),
-            backing_amount: amount,
+            backing_amount: amount + FEE_TO_DEDUCT, // Full transferred amount
         });
 
         Ok(())
