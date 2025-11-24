@@ -18,7 +18,7 @@ wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
