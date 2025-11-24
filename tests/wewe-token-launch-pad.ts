@@ -86,6 +86,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     [Buffer.from("vault_authority")],
     program.programId
   );
+  const weweTreasury = new anchor.web3.PublicKey("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
   
   const mint = anchor.web3.Keypair.generate();
   const mint2 = anchor.web3.Keypair.generate();
@@ -369,6 +370,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
+        weweVault: weweTreasury,
         mint: mintAccount,
         userTokenAccount: userAta,
         proposal,
@@ -397,6 +399,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: backer.publicKey,
+        weweVault: weweTreasury,
           proposal,
           vaultAuthority,
           backerAccount,
@@ -426,6 +429,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
+        weweVault: weweTreasury,
         proposal: proposal2,
         backerAccount: backerAccount2,
         backerProposalCount,
@@ -476,6 +480,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
+        weweVault: weweTreasury,
         mint: mintAccount,
         userTokenAccount: userAta,
         proposal: proposal3,
@@ -529,6 +534,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: backer.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: userAta,
           proposal: proposal4,
@@ -613,22 +619,22 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const rentExemptBuffer = new BN(10_000_000); // 0.01 SOL
     const requiredBalance = depositedAmount.add(rentExemptBuffer);
     
-    if (vaultBalanceBeforeRefund < requiredBalance.toNumber()) {
-      // Transfer additional SOL to vault to ensure it has enough balance
-      const additionalNeeded = requiredBalance.subn(vaultBalanceBeforeRefund);
-      await provider.sendAndConfirm(
-        new anchor.web3.Transaction().add(
-          anchor.web3.SystemProgram.transfer({
-            fromPubkey: provider.wallet.publicKey,
-            toPubkey: vaultAuthority,
-            lamports: additionalNeeded.toNumber(),
-          })
-        )
-      );
-      // Update vault balance after transfer
-      const updatedVaultBalance = await provider.connection.getBalance(vaultAuthority);
-      expect(updatedVaultBalance).to.be.at.least(requiredBalance.toNumber());
-    }
+    // if (vaultBalanceBeforeRefund < requiredBalance.toNumber()) {
+    //   // Transfer additional SOL to vault to ensure it has enough balance
+    //   const additionalNeeded = requiredBalance.subn(vaultBalanceBeforeRefund);
+    //   await provider.sendAndConfirm(
+    //     new anchor.web3.Transaction().add(
+    //       anchor.web3.SystemProgram.transfer({
+    //         fromPubkey: provider.wallet.publicKey,
+    //         toPubkey: vaultAuthority,
+    //         lamports: additionalNeeded.toNumber(),
+    //       })
+    //     )
+    //   );
+    //   // Update vault balance after transfer
+    //   const updatedVaultBalance = await provider.connection.getBalance(vaultAuthority);
+    //   expect(updatedVaultBalance).to.be.at.least(requiredBalance.toNumber());
+    // }
     
     // Listen for the refund event
     const eventPromise = waitForEvent(program, 'backerRefunded');
@@ -1076,6 +1082,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBackerBurn1.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBackerBurn1Ata,
           proposal: testProposalBurn1,
@@ -1284,6 +1291,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBackerBurn2.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBackerBurn2Ata,
           proposal: testProposalBurn2,
@@ -1810,6 +1818,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: testBacker3.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: findUserAta(testBacker3.publicKey, mintAccount),
             proposal: testProposal3,
@@ -1835,6 +1844,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: maker.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: makerAta,
             proposal,
@@ -1890,6 +1900,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: newBacker.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: newBackerAta,
             proposal,
@@ -1972,6 +1983,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: userWithoutToken.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: userWithoutTokenAta,
             proposal: testProposal4,
@@ -2260,6 +2272,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testUserAta,
           proposal: testProposal8,
@@ -2323,6 +2336,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testUserAta,
           proposal: testProposal8,
@@ -2388,6 +2402,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testUserAta,
           proposal: testProposal8,
@@ -2485,6 +2500,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker9.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker9Ata,
           proposal: testProposal9,
@@ -2743,6 +2759,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             .depositSol()
             .accountsPartial({
                 backer: backer.publicKey,
+        weweVault: weweTreasury,
                 mint: mintAccount,
                 userTokenAccount: backerAta,
                 proposal: testProposal15,
@@ -2945,6 +2962,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker11a.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker11aAta,
           proposal: testProposal11,
@@ -2961,6 +2979,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker11b.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker11bAta,
           proposal: testProposal11,
@@ -3149,6 +3168,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker12.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker12Ata,
           proposal: testProposal12,
@@ -3304,6 +3324,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker13.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker13Ata,
           proposal: testProposal13,
