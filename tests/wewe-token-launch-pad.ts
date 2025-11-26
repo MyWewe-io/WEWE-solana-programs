@@ -86,6 +86,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     [Buffer.from("vault_authority")],
     program.programId
   );
+  const weweTreasury = new anchor.web3.PublicKey("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
   
   const mint = anchor.web3.Keypair.generate();
   const mint2 = anchor.web3.Keypair.generate();
@@ -136,7 +137,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: backer.publicKey,
-          lamports: 3e9,
+          lamports: 10e9, // Increased to 10 SOL to cover multiple 1 SOL deposits + transaction fees
         })
       )),
       provider.sendAndConfirm(new anchor.web3.Transaction().add(
@@ -172,14 +173,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('1. Sets constant values', async () => {
-    const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
+    const amountToRaisePerUser = new BN(1_000_000_000); // 1 SOL
     const totalMint = new BN(1_000_000_000);
     const totalPoolTokens = new BN(150_000_000);
     const makerTokenAmount = new BN(10_000_000);
     const totalAirdropAmountPerMilestone = new BN(140_000_000);
     const minBackers = new BN(1);
     const maxBackedProposals = new BN(3);
-    const refundFeeBps = new BN(1000); // 100 BPS = 1%
+    const refundFeeBps = new BN(200); // 200 BPS = 2%
     const tx = await program.methods
       .setConfig(
         amountToRaisePerUser,
@@ -189,7 +190,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         totalAirdropAmountPerMilestone,
         minBackers,
         maxBackedProposals,
-        refundFeeBps, // refund_fee_basis_points: 100 BPS = 1%
+        refundFeeBps, // refund_fee_basis_points: 200 BPS = 2%
       )
       .accounts({
         authority: configureAuthority.publicKey,
@@ -203,14 +204,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   }); 
 
   it('1.5. Fails when old authority (not configure_authority) tries to set config', async () => {
-    const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
+    const amountToRaisePerUser = new BN(1_000_000_000); // 1 SOL
     const totalMint = new BN(1_000_000_000);
     const totalPoolTokens = new BN(150_000_000);
     const makerTokenAmount = new BN(10_000_000);
     const totalAirdropAmountPerMilestone = new BN(140_000_000);
     const minBackers = new BN(1);
     const maxBackedProposals = new BN(3);
-    const refundFeeBps = new BN(1000); // 1000 BPS = 10%
+    const refundFeeBps = new BN(200); // 200 BPS = 2%
   
     try {
       await program.methods
@@ -369,6 +370,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
+        weweVault: weweTreasury,
         mint: mintAccount,
         userTokenAccount: userAta,
         proposal,
@@ -397,6 +399,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: backer.publicKey,
+        weweVault: weweTreasury,
           proposal,
           vaultAuthority,
           backerAccount,
@@ -426,6 +429,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
+        weweVault: weweTreasury,
         proposal: proposal2,
         backerAccount: backerAccount2,
         backerProposalCount,
@@ -476,6 +480,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .depositSol()
       .accountsPartial({
         backer: backer.publicKey,
+        weweVault: weweTreasury,
         mint: mintAccount,
         userTokenAccount: userAta,
         proposal: proposal3,
@@ -529,6 +534,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: backer.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: userAta,
           proposal: proposal4,
@@ -573,26 +579,62 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     const weweTreasury = new anchor.web3.PublicKey("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
     
-    // Get refund fee basis points from config
+    // Get refund fee basis points from config (should be 200 = 2%)
     const configAccount = await program.account.configs.fetch(configStruct);
     const refundFeeBps = configAccount.refundFeeBasisPoints;
     
-    const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
-    const feeToDeduct = new BN(2_000_000); // 0.002 SOL (FEE_TO_DEDUCT)
-    const depositedAmount = amountToRaisePerUser.sub(feeToDeduct); // 8_000_000 (what's in vault)
+    // Verify config is set to 200 bps (2%) as expected
+    expect(refundFeeBps).to.equal(200); // 200 basis points = 2%
     
-    // Calculate expected amounts
-    // Fee is calculated as a percentage of the refund amount (what backer gets back)
-    // Formula: refund_amount + fee = deposited_amount
-    //          fee = refund_amount * refundFeeBps / 10000
-    //          refund_amount = depositedAmount * 10000 / (10000 + refundFeeBps)
+    const amountToRaisePerUser = new BN(1_000_000_000); // 1 SOL
+    const depositedAmount = amountToRaisePerUser; // Full amount is in vault (no upfront fee)
+    
+    // Calculate expected amounts based on config value (not hardcoded)
+    // Fee is calculated as a percentage of the deposited amount
+    // Formula: fee = deposited_amount * refundFeeBps / 10000
+    //          refund_amount = deposited_amount - fee
+    // With refundFeeBps = 200 (2%): fee = 0.02 SOL, refund = 0.98 SOL
     const BASIS_POINTS = new BN(10000);
-    const expectedRefund = depositedAmount.mul(BASIS_POINTS).div(BASIS_POINTS.addn(refundFeeBps));
-    const expectedFee = expectedRefund.muln(refundFeeBps).div(BASIS_POINTS);
+    const expectedFee = depositedAmount.muln(refundFeeBps).div(BASIS_POINTS);
+    const expectedRefund = depositedAmount.sub(expectedFee);
+    
+    console.log(`\n=== REFUND TEST - Initial State ===`);
+    console.log(`   Config refundFeeBps: ${refundFeeBps} (${refundFeeBps / 100}%)`);
+    console.log(`   Deposit amount: ${depositedAmount.toString()} lamports (${depositedAmount.toNumber() / 1e9} SOL)`);
+    console.log(`   Expected refund: ${expectedRefund.toString()} lamports (${expectedRefund.toNumber() / 1e9} SOL)`);
+    console.log(`   Expected fee: ${expectedFee.toString()} lamports (${expectedFee.toNumber() / 1e9} SOL)`);
     
     // Get balances before refund
     const backerBalanceBefore = await provider.connection.getBalance(backer.publicKey);
     const treasuryBalanceBefore = await provider.connection.getBalance(weweTreasury);
+    const vaultBalanceBeforeRefund = await provider.connection.getBalance(vaultAuthority);
+    
+    console.log(`\n=== Balances BEFORE Refund ===`);
+    console.log(`   Vault balance: ${vaultBalanceBeforeRefund} lamports (${vaultBalanceBeforeRefund / 1e9} SOL)`);
+    console.log(`   Backer balance: ${backerBalanceBefore} lamports (${backerBalanceBefore / 1e9} SOL)`);
+    console.log(`   Treasury balance: ${treasuryBalanceBefore} lamports (${treasuryBalanceBefore / 1e9} SOL)`);
+    
+    // Ensure vault has enough balance for refund + fee + rent-exempt minimum
+    // Rent-exempt minimum for system account is ~890,880 lamports, we'll add 0.01 SOL to be safe
+    const rentExemptBuffer = new BN(10_000_000); // 0.01 SOL
+    const requiredBalance = depositedAmount.add(rentExemptBuffer);
+    
+    // if (vaultBalanceBeforeRefund < requiredBalance.toNumber()) {
+    //   // Transfer additional SOL to vault to ensure it has enough balance
+    //   const additionalNeeded = requiredBalance.subn(vaultBalanceBeforeRefund);
+    //   await provider.sendAndConfirm(
+    //     new anchor.web3.Transaction().add(
+    //       anchor.web3.SystemProgram.transfer({
+    //         fromPubkey: provider.wallet.publicKey,
+    //         toPubkey: vaultAuthority,
+    //         lamports: additionalNeeded.toNumber(),
+    //       })
+    //     )
+    //   );
+    //   // Update vault balance after transfer
+    //   const updatedVaultBalance = await provider.connection.getBalance(vaultAuthority);
+    //   expect(updatedVaultBalance).to.be.at.least(requiredBalance.toNumber());
+    // }
     
     // Listen for the refund event
     const eventPromise = waitForEvent(program, 'backerRefunded');
@@ -622,24 +664,36 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     expect(event.refundAmount.toString()).to.equal(expectedRefund.toString());
     expect(event.weweFee.toString()).to.equal(expectedFee.toString());
     
-    // Enforce fee percentage: fee should be refundFeeBps basis points of refund amount (within rounding)
+    // Enforce fee percentage: fee should be refundFeeBps basis points of deposited amount
     const actualRefundAmount = new BN(event.refundAmount.toString());
     const actualFee = new BN(event.weweFee.toString());
-    const feeAsPercentOfRefund = actualFee.mul(BASIS_POINTS).div(actualRefundAmount);
-    expect(feeAsPercentOfRefund.toNumber()).to.be.closeTo(refundFeeBps, 1); // Allow for integer division rounding
+    const feeAsPercentOfDeposit = actualFee.mul(BASIS_POINTS).div(depositedAmount);
+    expect(feeAsPercentOfDeposit.toNumber()).to.equal(refundFeeBps); // Should be exact
     
-    // Verify refund + fee = deposited amount (within rounding)
+    // Verify refund + fee = deposited amount (exact)
     const total = actualRefundAmount.add(actualFee);
-    const difference = depositedAmount.sub(total);
-    expect(difference.toNumber()).to.be.at.most(1); // Allow for rounding
+    expect(total.toString()).to.equal(depositedAmount.toString()); // Should be exact
     
     // Verify balances after refund
     const backerBalanceAfter = await provider.connection.getBalance(backer.publicKey);
     const treasuryBalanceAfter = await provider.connection.getBalance(weweTreasury);
+    const vaultBalanceAfter = await provider.connection.getBalance(vaultAuthority);
+    
+    console.log(`\n=== Balances AFTER Refund ===`);
+    console.log(`   Vault balance: ${vaultBalanceAfter} lamports (${vaultBalanceAfter / 1e9} SOL)`);
+    console.log(`   Backer balance: ${backerBalanceAfter} lamports (${backerBalanceAfter / 1e9} SOL)`);
+    console.log(`   Treasury balance: ${treasuryBalanceAfter} lamports (${treasuryBalanceAfter / 1e9} SOL)`);
     
     // Account for transaction fees and rent returned from closing backer_account
     const backerBalanceIncrease = backerBalanceAfter - backerBalanceBefore;
     const treasuryBalanceIncrease = treasuryBalanceAfter - treasuryBalanceBefore;
+    const vaultBalanceDecrease = vaultBalanceBeforeRefund - vaultBalanceAfter;
+    
+    console.log(`\n=== Balance Changes ===`);
+    console.log(`   Vault decrease: ${vaultBalanceDecrease} lamports (${vaultBalanceDecrease / 1e9} SOL)`);
+    console.log(`   Backer increase: ${backerBalanceIncrease} lamports (${backerBalanceIncrease / 1e9} SOL)`);
+    console.log(`   Treasury increase: ${treasuryBalanceIncrease} lamports (${treasuryBalanceIncrease / 1e9} SOL)`);
+    console.log(`   Expected vault decrease: ${expectedRefund.add(expectedFee).toString()} lamports (${expectedRefund.add(expectedFee).toNumber() / 1e9} SOL)`);
     
     // The backer receives:
     // 1. The refund_amount (SOL transferred from vault)
@@ -653,20 +707,39 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     // Verify treasury received the fee
     expect(treasuryBalanceIncrease).to.equal(expectedFee.toNumber());
     
-    // Final verification: fee percentage matches config (within rounding)
+    // Verify vault balance: should have reduced by refund + fee, but maintain rent-exempt minimum
+    // Rent-exempt minimum for system account is ~890,880 lamports
+    const RENT_EXEMPT_MINIMUM = 890_880;
+    const expectedVaultDecrease = expectedRefund.add(expectedFee);
+    const actualVaultDecrease = vaultBalanceBeforeRefund - vaultBalanceAfter;
+    
+    // Vault should have decreased by refund + fee (within rounding)
+    // But must maintain at least rent-exempt minimum
+    expect(actualVaultDecrease).to.be.closeTo(expectedVaultDecrease.toNumber(), 1000); // Allow for rounding
+    expect(vaultBalanceAfter).to.be.at.least(RENT_EXEMPT_MINIMUM); // Must remain rent-exempt
+    
+    // Final verification: fee percentage matches config (exact)
     const refundFromEvent = new BN(event.refundAmount.toString());
     const feeFromEvent = new BN(event.weweFee.toString());
-    const feePercentage = feeFromEvent.mul(BASIS_POINTS).div(refundFromEvent);
-    expect(feePercentage.toNumber()).to.be.closeTo(refundFeeBps, 1); // Allow for integer division rounding
+    const feePercentageOfDeposit = feeFromEvent.mul(BASIS_POINTS).div(depositedAmount);
+    expect(feePercentageOfDeposit.toNumber()).to.equal(refundFeeBps); // Should be exact
     
-    console.log(`\n Refund Fee Verification:`);
+    console.log(`\n=== Refund Fee Verification Summary ===`);
+    console.log(`   Deposit amount: ${depositedAmount.toString()} lamports (${depositedAmount.toNumber() / 1e9} SOL)`);
     console.log(`   Refund to backer: ${refundFromEvent.toString()} lamports (${refundFromEvent.toNumber() / 1e9} SOL)`);
-    console.log(`   Fee to WEWE: ${feeFromEvent.toString()} lamports (${feeFromEvent.toNumber() / 1e9} SOL)`);
-    console.log(`   Fee percentage: ${feePercentage.toNumber() / 100}% (${refundFeeBps} basis points from config)`);
-    console.log(`   Refund + Fee: ${refundFromEvent.add(feeFromEvent).toString()} lamports`);
-    console.log(`   Deposited amount: ${depositedAmount.toString()} lamports`);
+    console.log(`   Fee to WEWE treasury: ${feeFromEvent.toString()} lamports (${feeFromEvent.toNumber() / 1e9} SOL)`);
+    console.log(`   Fee percentage of deposit: ${feePercentageOfDeposit.toNumber() / 100}% (${refundFeeBps} basis points from config)`);
+    console.log(`   Refund + Fee: ${refundFromEvent.add(feeFromEvent).toString()} lamports (${refundFromEvent.add(feeFromEvent).toNumber() / 1e9} SOL)`);
+    console.log(`   ✓ Refund + Fee = Deposit: ${refundFromEvent.add(feeFromEvent).toString()} = ${depositedAmount.toString()}`);
     
-    console.log(`Refund successful: Backer received ${backerBalanceIncrease / 1e9} SOL, WEWE fee: ${treasuryBalanceIncrease / 1e9} SOL`);
+    console.log(`\n=== Final Balance Summary ===`);
+    console.log(`   Backer net change: +${backerBalanceIncrease} lamports (+${(backerBalanceIncrease / 1e9).toFixed(9)} SOL)`);
+    console.log(`     - Includes refund: ${expectedRefund.toString()} lamports`);
+    console.log(`     - Plus rent from closed account: ~${backerBalanceIncrease - expectedRefund.toNumber()} lamports`);
+    console.log(`   Treasury net change: +${treasuryBalanceIncrease} lamports (+${(treasuryBalanceIncrease / 1e9).toFixed(9)} SOL)`);
+    console.log(`   Vault net change: -${vaultBalanceDecrease} lamports (-${(vaultBalanceDecrease / 1e9).toFixed(9)} SOL)`);
+    console.log(`     - Remaining vault balance: ${vaultBalanceAfter} lamports (${(vaultBalanceAfter / 1e9).toFixed(9)} SOL)`);
+    console.log(`\n✓ Refund test completed successfully!\n`);
   });
 
   it('10. Launches coin and creates DAMM pool', async () => {
@@ -963,7 +1036,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBackerBurn1.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm);
 
@@ -1009,6 +1082,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBackerBurn1.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBackerBurn1Ata,
           proposal: testProposalBurn1,
@@ -1171,7 +1245,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBackerBurn2.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm);
 
@@ -1217,6 +1291,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBackerBurn2.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBackerBurn2Ata,
           proposal: testProposalBurn2,
@@ -1408,19 +1483,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   describe('Access Control Tests', () => {
     it('17. Fails when unauthorized user tries to set config', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
-      const refundFeeBps = new BN(100); // 100 BPS = 1%
+      const refundFeeBps = new BN(200); // 200 BPS = 2%
       
       try {
         await program.methods
           .setConfig(
-            new BN(10_000_000),
+            new BN(1_000_000_000),
             new BN(1_000_000_000),
             new BN(150_000_000),
             new BN(10_000_000),
             new BN(140_000_000),
             new BN(1),
             new BN(3),
-            refundFeeBps // refund_fee_basis_points: 100 BPS = 1%
+            refundFeeBps // refund_fee_basis_points: 200 BPS = 2%
           )
           .accounts({
             authority: unauthorizedUser.publicKey,
@@ -1436,14 +1511,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     });
 
     it('17a. configure_authority can set config', async () => {
-      const amountToRaisePerUser = new BN(10_000_000); // 0.1 SOL
+      const amountToRaisePerUser = new BN(1_000_000_000); // 1 SOL
       const totalMint = new BN(1_000_000_000);
       const totalPoolTokens = new BN(150_000_000);
       const makerTokenAmount = new BN(10_000_000);
       const totalAirdropAmountPerMilestone = new BN(140_000_000);
       const minBackers = new BN(1);
       const maxBackedProposals = new BN(3);
-      const refundFeeBps = new BN(1000); // 1000 BPS = 10%
+      const refundFeeBps = new BN(200); // 200 BPS = 2%
       
       const tx = await program.methods
         .setConfig(
@@ -1467,19 +1542,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     });
 
     it('17b. chain_service cannot set config', async () => {
-      const refundFeeBps = new BN(100); // 100 BPS = 1%
+      const refundFeeBps = new BN(200); // 200 BPS = 2%
       
       try {
         await program.methods
           .setConfig(
-            new BN(10_000_000),
+            new BN(1_000_000_000),
             new BN(1_000_000_000),
             new BN(150_000_000),
             new BN(10_000_000),
             new BN(140_000_000),
             new BN(1),
             new BN(3),
-            refundFeeBps // refund_fee_basis_points: 100 BPS = 1%
+            refundFeeBps // refund_fee_basis_points: 200 BPS = 2%
           )
           .accounts({
             authority: chainServiceAuthority.publicKey,
@@ -1682,7 +1757,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBacker3.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm);
 
@@ -1743,6 +1818,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: testBacker3.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: findUserAta(testBacker3.publicKey, mintAccount),
             proposal: testProposal3,
@@ -1768,6 +1844,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: maker.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: makerAta,
             proposal,
@@ -1794,7 +1871,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: newBacker.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm);
 
@@ -1823,6 +1900,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: newBacker.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: newBackerAta,
             proposal,
@@ -1854,7 +1932,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: userWithoutToken.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm);
 
@@ -1905,6 +1983,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .depositSol()
           .accountsPartial({
             backer: userWithoutToken.publicKey,
+        weweVault: weweTreasury,
             mint: mintAccount,
             userTokenAccount: userWithoutTokenAta,
             proposal: testProposal4,
@@ -2169,7 +2248,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('35. Fails when trying to claim milestone reward before pool launch', async () => {
       const testBacker = anchor.web3.Keypair.generate();
-      await provider.connection.requestAirdrop(testBacker.publicKey, 1e9);
+      await provider.connection.requestAirdrop(testBacker.publicKey, 2e9); // 2 SOL to cover deposit + transaction fees
       await new Promise(resolve => setTimeout(resolve, 500));
       const testUserAta = findUserAta(testBacker.publicKey, mintAccount);
       await program.methods
@@ -2193,6 +2272,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testUserAta,
           proposal: testProposal8,
@@ -2232,7 +2312,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('36. Fails when trying to airdrop before pool launch', async () => {
       const testBacker = anchor.web3.Keypair.generate();
-      await provider.connection.requestAirdrop(testBacker.publicKey, 1e9);
+      await provider.connection.requestAirdrop(testBacker.publicKey, 2e9); // 2 SOL to cover deposit + transaction fees
       await new Promise(resolve => setTimeout(resolve, 500));
       const testUserAta = findUserAta(testBacker.publicKey, mintAccount);
       await program.methods
@@ -2256,6 +2336,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testUserAta,
           proposal: testProposal8,
@@ -2297,7 +2378,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('37. Fails when trying to refund non-rejected proposal', async () => {
       const testBacker = anchor.web3.Keypair.generate();
-      await provider.connection.requestAirdrop(testBacker.publicKey, 1e9);
+      await provider.connection.requestAirdrop(testBacker.publicKey, 2e9); // 2 SOL to cover deposit + transaction fees
       await new Promise(resolve => setTimeout(resolve, 500));
       const testUserAta = findUserAta(testBacker.publicKey, mintAccount);
       await program.methods
@@ -2321,6 +2402,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testUserAta,
           proposal: testProposal8,
@@ -2372,7 +2454,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBacker9.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm);
 
@@ -2418,6 +2500,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker9.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker9Ata,
           proposal: testProposal9,
@@ -2676,6 +2759,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             .depositSol()
             .accountsPartial({
                 backer: backer.publicKey,
+        weweVault: weweTreasury,
                 mint: mintAccount,
                 userTokenAccount: backerAta,
                 proposal: testProposal15,
@@ -2810,12 +2894,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBacker11a.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         }),
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBacker11b.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm); 
 
@@ -2878,6 +2962,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker11a.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker11aAta,
           proposal: testProposal11,
@@ -2894,6 +2979,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker11b.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker11bAta,
           proposal: testProposal11,
@@ -3036,7 +3122,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBacker12.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm); 
 
@@ -3082,6 +3168,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker12.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker12Ata,
           proposal: testProposal12,
@@ -3173,7 +3260,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       assert.strictEqual(balanceAfter.value.uiAmount, expectedAmount, 'Airdrop amount should match calculation'); 
     }); 
 
-    it('46. Verifies fee deduction is 0.002 SOL (2_000_000 lamports)', async () => {
+    it('46. Verifies no upfront fee - full 1 SOL goes to vault', async () => {
       // Create new proposal and verify fee deduction
       const makerData = await program.account.makerAccount.fetch(makerAccount);
       const proposalIndex13 = makerData.proposalCount;
@@ -3188,7 +3275,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         anchor.web3.SystemProgram.transfer({
           fromPubkey: provider.wallet.publicKey,
           toPubkey: testBacker13.publicKey,
-          lamports: 1e9,
+          lamports: 2e9, // 2 SOL to cover deposit + transaction fees
         })
       )).then(confirm);
 
@@ -3237,6 +3324,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .depositSol()
         .accountsPartial({
           backer: testBacker13.publicKey,
+        weweVault: weweTreasury,
           mint: mintAccount,
           userTokenAccount: testBacker13Ata,
           proposal: testProposal13,
@@ -3252,11 +3340,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const vaultBalanceAfter = await provider.connection.getBalance(vaultAuthority);
       const configData = await program.account.configs.fetch(configStruct);
 
-      // Expected: amount_to_raise_per_user - FEE_TO_DEDUCT (2_000_000)
-      const expectedIncrease = configData.amountToRaisePerUser.toNumber() - 2_000_000;
+      // Expected: full amount_to_raise_per_user (no upfront fee)
+      const expectedIncrease = configData.amountToRaisePerUser.toNumber();
       const actualIncrease = vaultBalanceAfter - vaultBalanceBefore;
 
-      assert.strictEqual(actualIncrease, expectedIncrease, 'Vault should receive amount minus 0.002 SOL fee');
+      assert.strictEqual(actualIncrease, expectedIncrease, 'Vault should receive full amount');
     }); 
   });
 });

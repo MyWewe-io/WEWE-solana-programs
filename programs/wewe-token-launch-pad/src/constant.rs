@@ -1,6 +1,5 @@
 pub const ANCHOR_DISCRIMINATOR: usize = 8;
 pub const SECONDS_TO_DAYS: i64 = 86400;
-pub const FEE_TO_DEDUCT: u64 = 2_000_000;   //0.002 SOl 
 pub const MAXIMUM_BACKERS: u64 = 1000; 
 pub const MINT_DECIMALS: u8 = 9;
 

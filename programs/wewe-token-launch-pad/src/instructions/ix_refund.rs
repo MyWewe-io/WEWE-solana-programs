@@ -1,6 +1,6 @@
 use crate::{
     const_pda::const_authority::VAULT_BUMP,
-    constant::{seeds::*, treasury, FEE_TO_DEDUCT},
+    constant::{seeds::*, treasury},
     errors::ProposalError,
     event::BackerRefunded,
     state::{backers::Backers, backer_proposal_count::BackerProposalCount, proposal::Proposal, config::Configs},
@@ -58,9 +58,7 @@ impl<'info> Refund<'info> {
         
         // Calculate what was actually deposited (amount minus the fee that was deducted)
         // This matches what was added to total_backing in ix_back_token.rs
-        let deposited_amount = self.config.amount_to_raise_per_user
-            .checked_sub(FEE_TO_DEDUCT)
-            .ok_or(ProposalError::NumericalOverflow)?;
+        let deposited_amount = self.config.amount_to_raise_per_user;
         
         // Get refund fee basis points with validation
         // If uninitialized (likely 0 or garbage), default to 0 to avoid overflow
@@ -70,28 +68,29 @@ impl<'info> Refund<'info> {
             self.config.refund_fee_basis_points
         };
         
+        // Get the actual vault balance and verify we have enough
+        // Note: The vault_authority account must maintain rent-exempt balance
+        // Solana will prevent transferring all lamports to keep account rent-exempt
+        let vault_balance = self.vault_authority.lamports();
+        let total_to_transfer = deposited_amount;
+        
+        // Ensure vault has sufficient balance (must be >= what we need to transfer)
+        // The actual requirement is that vault_balance >= total_to_transfer
+        // Solana will automatically ensure rent-exempt minimum remains
+        require!(
+            vault_balance >= total_to_transfer,
+            ProposalError::NumericalOverflow
+        );
+        
         // Calculate refund amount and fee
-        // Fee is calculated as a percentage (from config) of the refund amount
-        // Formula: refund_amount + fee = deposited_amount
-        //          fee = refund_amount * fee_bps / 10000
-        //          refund_amount = deposited_amount * 10000 / (10000 + fee_bps)
+        // Fee is calculated as a percentage (from config) of the deposited amount
+        // Formula: fee = deposited_amount * fee_bps / 10000
+        //          refund_amount = deposited_amount - fee
         const BASIS_POINTS: u128 = 10000;
         let fee_bps_u128 = fee_bps as u128;
-        let denominator = BASIS_POINTS
-            .checked_add(fee_bps_u128)
-            .ok_or(ProposalError::NumericalOverflow)?;
         
-        let refund_amount_u128 = (deposited_amount as u128)
-            .checked_mul(BASIS_POINTS)
-            .and_then(|n| n.checked_div(denominator))
-            .ok_or(ProposalError::NumericalOverflow)?;
-        
-        let refund_amount: u64 = refund_amount_u128
-            .try_into()
-            .map_err(|_| ProposalError::NumericalOverflow)?;
-        
-        // Calculate fee as percentage of refund amount (using fee_bps from config)
-        let wewe_fee_u128 = (refund_amount_u128)
+        // Calculate fee as percentage of deposited amount (using fee_bps from config)
+        let wewe_fee_u128 = (deposited_amount as u128)
             .checked_mul(fee_bps_u128)
             .and_then(|n| n.checked_div(BASIS_POINTS))
             .ok_or(ProposalError::NumericalOverflow)?;
@@ -100,12 +99,17 @@ impl<'info> Refund<'info> {
             .try_into()
             .map_err(|_| ProposalError::NumericalOverflow)?;
         
-        // Verify the math: refund + fee should equal deposited_amount (within rounding)
+        // Calculate refund amount as deposit minus fee
+        let refund_amount = deposited_amount
+            .checked_sub(wewe_fee_to_collect)
+            .ok_or(ProposalError::NumericalOverflow)?;
+        
+        // Verify the math: refund + fee should equal deposited_amount
         let total = refund_amount
             .checked_add(wewe_fee_to_collect)
             .ok_or(ProposalError::NumericalOverflow)?;
         require!(
-            total <= deposited_amount && deposited_amount.saturating_sub(total) <= 1,
+            total == deposited_amount,
             ProposalError::NumericalOverflow
         );
 
@@ -140,7 +144,7 @@ impl<'info> Refund<'info> {
         )?;
 
         // Update total_backing to reflect the deposited amount being removed
-        // Note: total_backing tracks deposited_amount (amount_to_raise_per_user - FEE_TO_DEDUCT)
+        // Note: total_backing tracks deposited_amount (amount_to_raise_per_user)
         let total_removed = deposited_amount;
         let old_total_backing = self.proposal.total_backing;
         
