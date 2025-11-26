@@ -17,19 +17,19 @@ pub mod seeds {
 
 pub mod treasury {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
-    pub const ID: Pubkey = pubkey!("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
+    pub const ID: Pubkey = pubkey!("Hfr3CwoJZhMd9rULDspsKdtGKA26AnNDkf3hpZexAVQC");
 }
 
 pub mod chain_service_pubkey {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
-    pub const ID: Pubkey = pubkey!("D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe");
+    pub const ID: Pubkey = pubkey!("EYTzm9mQfzi7iC5aXVDLshrZTMMVRxKjcURfZYw52zDi");
 }
 
 pub mod configure_authority_pubkey {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
     // In production, this will be the same as the upgrade authority
     // For tests, we use a separate keypair: GAM9nJgT7dYqK67Upn9VETCTkMpZinV4d12A8GW4ejRG
-    pub const ID: Pubkey = pubkey!("GAM9nJgT7dYqK67Upn9VETCTkMpZinV4d12A8GW4ejRG");
+    pub const ID: Pubkey = pubkey!("Hfr3CwoJZhMd9rULDspsKdtGKA26AnNDkf3hpZexAVQC");
 }
 
 pub mod wsol_pubkey {
