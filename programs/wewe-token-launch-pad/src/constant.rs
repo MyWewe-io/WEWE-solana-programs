@@ -15,6 +15,7 @@ pub mod seeds {
     pub const MAKER: &[u8] = b"maker";
     pub const BACKER_PROPOSAL_COUNT: &[u8] = b"backer_proposal_count";
 }
+
 pub mod treasury {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
     pub const ID: Pubkey = pubkey!("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
