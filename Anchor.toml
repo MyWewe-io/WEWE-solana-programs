@@ -18,7 +18,7 @@ wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "mainnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
@@ -27,7 +27,7 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 --exit tests/**/*.ts"
 [test]
 startup_wait = 5000
 shutdown_wait = 2000
-upgradeable = false
+upgradeable = true
 
 [[test.genesis]]
 address = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"
