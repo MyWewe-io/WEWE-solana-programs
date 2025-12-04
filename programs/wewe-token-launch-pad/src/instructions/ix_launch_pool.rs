@@ -2,7 +2,7 @@ use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token,
-    token::Transfer as TokenTransfer,
+    token::{mint_to, MintTo, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
 };
 use cp_amm::state::Config;
@@ -11,7 +11,7 @@ use std::u64;
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
     constant::{
-        seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
+        seeds::{PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY},
         *,
     },
     event::{CoinLaunched, ProposalRejected},
@@ -150,6 +150,42 @@ impl<'info> DammV2<'info> {
         );
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
+
+                // Mint tokens to token_vault if not already minted (lazy minting for cost savings)
+        // Check if tokens need to be minted by checking vault balance
+        if self.token_vault.amount == 0 {
+            let pow = 10u64
+                .checked_pow(MINT_DECIMALS as u32)
+                .ok_or(ProposalError::NumericalOverflow)?;
+            let amount = self.config.total_mint
+                .checked_mul(pow)
+                .ok_or(ProposalError::NumericalOverflow)?;
+            
+            // Construct proposal PDA signer seeds for minting
+            let proposal_signer_seeds: &[&[&[u8]]] = &[&[
+                PROPOSAL,
+                self.proposal.maker.as_ref(),
+                &self.proposal.proposal_id.to_le_bytes(),
+                &[self.proposal.bump],
+            ]];
+            
+            // Mint tokens to token_vault using proposal PDA as authority
+            mint_to(
+                CpiContext::new(
+                    self.token_base_program.to_account_info(),
+                    MintTo {
+                        mint: self.base_mint.to_account_info(),
+                        to: self.token_vault.to_account_info(),
+                        authority: self.proposal.to_account_info(),
+                    },
+                )
+                .with_signer(proposal_signer_seeds),
+                amount,
+            )?;
+            
+            // Reload token_vault after minting to get updated balance
+            self.token_vault.reload()?;
+        }
         
 
         fund_creator_authority(FundCreatorAuthorityAccounts {
@@ -162,6 +198,11 @@ impl<'info> DammV2<'info> {
             token_vault: &self.token_vault,
             maker_amount: self.config.maker_token_amount,
         })?;
+
+        // Reload vault accounts after fund_creator_authority to get updated balances
+        // This is necessary because fund_creator_authority modifies the vault balances
+        self.token_vault.reload()?;
+        self.wsol_vault.reload()?;
 
         // Note: Vault accounts are already validated by Anchor's account constraints
         // (PDA derivation is checked via seeds constraints)

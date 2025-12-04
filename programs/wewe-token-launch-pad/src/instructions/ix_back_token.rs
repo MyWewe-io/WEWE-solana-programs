@@ -20,10 +20,6 @@ pub struct Contribute<'info> {
     #[account(mut)]
     pub backer: Signer<'info>,
 
-    /// CHECK: protocol treasury (unused, kept for backward compatibility)
-    #[account(mut)]
-    pub wewe_vault: UncheckedAccount<'info>,
-
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
 
