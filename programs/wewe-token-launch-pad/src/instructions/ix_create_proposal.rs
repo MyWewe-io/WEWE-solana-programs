@@ -16,7 +16,7 @@ use anchor_spl::{
         create_metadata_accounts_v3, mpl_token_metadata::types::DataV2, CreateMetadataAccountsV3,
         Metadata,
     },
-    token::{mint_to, Mint, MintTo, Token, TokenAccount},
+    token::{Mint, Token, TokenAccount},
 };
 
 #[derive(Accounts)]
@@ -148,26 +148,6 @@ impl<'info> CreateProposal<'info> {
             false, // Is mutable
             true,  // Update authority is signer
             None,  // Collection details
-        )?;
-
-        let pow = 10u64
-            .checked_pow(self.mint_account.decimals as u32)
-            .ok_or(ProposalError::NumericalOverflow)?;
-        let amount = self.config.total_mint // TOTAL_MINT
-            .checked_mul(pow)
-            .ok_or(ProposalError::NumericalOverflow)?;
-        // Invoke the mint_to instruction on the token program
-        mint_to(
-            CpiContext::new(
-                self.token_program.to_account_info(),
-                MintTo {
-                    mint: self.mint_account.to_account_info(),
-                    to: self.token_vault.to_account_info(),
-                    authority: self.proposal.to_account_info(),
-                },
-            )
-            .with_signer(signer_seeds), // using PDA to sign,
-            amount, // Mint tokens
         )?;
 
         let now = Clock::get()?.unix_timestamp;
