@@ -30,7 +30,7 @@ pub mod configure_authority_pubkey {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
     // In production, this will be the same as the upgrade authority
     // For tests, we use a separate keypair: GAM9nJgT7dYqK67Upn9VETCTkMpZinV4d12A8GW4ejRG
-    pub const ID: Pubkey = pubkey!("Dvk3Vf6FjCHmuc2xzqYhCcsReNGu9pw5E97asn6tq7uo");
+    pub const ID: Pubkey = pubkey!("GAM9nJgT7dYqK67Upn9VETCTkMpZinV4d12A8GW4ejRG");
 }
 
 pub mod wsol_pubkey {
