@@ -355,6 +355,41 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
   });
 
+  it('4.5. Creates metadata for the first proposal', async () => {
+    // Token Metadata Program ID
+    const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+    
+    // Derive metadata account PDA
+    const [metadataAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('metadata'),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        mint.publicKey.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    );
+
+    await program.methods
+      .createMetadata(metadata.name, metadata.symbol, metadata.uri)
+      .accounts({
+        payer: authority.publicKey,
+        proposal,
+        mintAccount: mint.publicKey,
+        metadataAccount,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+
+    // Verify metadata account was created
+    const metadataAccountInfo = await provider.connection.getAccountInfo(metadataAccount);
+    expect(metadataAccountInfo).to.not.be.null;
+    expect(metadataAccountInfo!.lamports).to.be.greaterThan(0);
+  });
+
   it('5. Backs the first proposal with SOL', async () => {
     const backerProposalCount = findBackerProposalCountPDA(program.programId, backer.publicKey);
     
