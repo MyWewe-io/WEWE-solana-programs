@@ -322,6 +322,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
+    
+    // Verify token metadata values are present in the event
+    expect(capturedEvent.tokenName).to.equal(metadata.name);
+    expect(capturedEvent.tokenSymbol).to.equal(metadata.symbol);
+    expect(capturedEvent.tokenUri).to.equal(metadata.uri);
+    expect(capturedEvent.tokenName).to.not.be.undefined;
+    expect(capturedEvent.tokenSymbol).to.not.be.undefined;
+    expect(capturedEvent.tokenUri).to.not.be.undefined;
   });
 
   it('4. Creates second proposal with same maker', async () => {

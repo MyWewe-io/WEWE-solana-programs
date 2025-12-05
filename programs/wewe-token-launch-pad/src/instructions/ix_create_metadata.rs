@@ -76,6 +76,9 @@ impl<'info> CreateMetadata<'info> {
         token_uri: String,
         _bumps: &CreateMetadataBumps,
     ) -> Result<()> {
+        require!(!token_name.is_empty(), ProposalError::TokenNameEmpty);
+        require!(!token_symbol.is_empty(), ProposalError::TokenSymbolEmpty);
+        require!(!token_uri.is_empty(), ProposalError::TokenUriEmpty);
         require!(token_name.len() <= 32, ProposalError::LenthTooLong);
         require!(token_symbol.len() <= 10, ProposalError::LenthTooLong);
         require!(token_uri.len() <= 200, ProposalError::LenthTooLong);

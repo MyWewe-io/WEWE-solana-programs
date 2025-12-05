@@ -50,6 +50,15 @@ pub enum ProposalError {
     #[msg("Lenth of token metadat is too long")]
     LenthTooLong,
 
+    #[msg("Token name cannot be empty")]
+    TokenNameEmpty,
+
+    #[msg("Token symbol cannot be empty")]
+    TokenSymbolEmpty,
+
+    #[msg("Token URI cannot be empty")]
+    TokenUriEmpty,
+
     #[msg("Account passed is Incorrect")]
     IncorrectAccount,
 
