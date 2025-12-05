@@ -34,7 +34,10 @@ import {
   calculateInitSqrtPrice,
   findConfigPDA,
   findBackerProposalCountPDA,
+  findMetadataPDA,
 } from './utils';
+
+const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
 // Helper function to wait for a specific event
 const waitForEvent = async (program: Program<any>, eventName: string): Promise<any> => {
@@ -747,6 +750,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     const eventPromise = waitForEvent(program, 'coinLaunched');
     const config_account = await cpAmm.account.config.fetch(config);
+    const proposalData = await program.account.proposal.fetch(proposal);
 
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
     const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
@@ -768,6 +772,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         position: pdas.position,
         ammProgram: cpAmm.programId,
         baseMint: mint.publicKey,
+        mintAccount: proposalData.mintAccount,
         makerTokenAccount: pdas.makerTokenAccount,
         quoteMint: WSOL_MINT,
         tokenAVault: pdas.tokenAVault,
@@ -821,11 +826,20 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('12. Starts a milestone (initialiseMilestone)', async () => {
+    const proposalData = await program.account.proposal.fetch(proposal);
+    const metadataAccount = findMetadataPDA(proposalData.mintAccount);
+    
     await program.methods
       .initialiseMilestone()
       .accounts({
         authority: authority.publicKey,
         proposal,
+        mintAccount: proposalData.mintAccount,
+        metadataAccount,
+        payer: authority.publicKey,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([authority])
       .rpc()
@@ -939,11 +953,20 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   it('16.5. Transfer tokens before snapshot → reduced allocation', async () => {
     // Start a fresh milestone (cycle 2)
+    const proposalDataCycle2 = await program.account.proposal.fetch(proposal);
+    const metadataAccountCycle2 = findMetadataPDA(proposalDataCycle2.mintAccount);
+    
     await program.methods
       .initialiseMilestone()
       .accounts({
         authority: authority.publicKey,
         proposal,
+        mintAccount: proposalDataCycle2.mintAccount,
+        metadataAccount: metadataAccountCycle2,
+        payer: authority.publicKey,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([authority])
       .rpc()
@@ -1101,6 +1124,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdasBurn1 = derivePoolPDAs(program.programId, cpAmm.programId, testMintBurn1.publicKey, WSOL_MINT, maker.publicKey, config);
 
+      const testProposalBurn1Data = await program.account.proposal.fetch(testProposalBurn1);
       const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
       const tx = new anchor.web3.Transaction().add(computeUnitsIx);
       const createPoolIx = await program.methods
@@ -1120,6 +1144,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           position: pdasBurn1.position,
           ammProgram: cpAmm.programId,
           baseMint: testMintBurn1.publicKey,
+          mintAccount: testProposalBurn1Data.mintAccount,
           makerTokenAccount: pdasBurn1.makerTokenAccount,
           quoteMint: WSOL_MINT,
           tokenAVault: pdasBurn1.tokenAVault,
@@ -1159,11 +1184,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .then(confirm);
 
       // Start milestone
+      const metadataAccountBurn1 = findMetadataPDA(testProposalBurn1Data.mintAccount);
+      
       await program.methods
         .initialiseMilestone()
         .accounts({
           authority: authority.publicKey,
           proposal: testProposalBurn1,
+          mintAccount: testProposalBurn1Data.mintAccount,
+          metadataAccount: metadataAccountBurn1,
+          payer: authority.publicKey,
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         })
         .signers([authority])
         .rpc()
@@ -1311,6 +1344,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const pdasBurn2 = derivePoolPDAs(program.programId, cpAmm.programId, testMintBurn2.publicKey, WSOL_MINT, maker.publicKey, config);
       const destAccountBurn2 = pdasBurn2.makerTokenAccount; // Use maker's ATA for the test mint as destination
 
+      const testProposalBurn2Data = await program.account.proposal.fetch(testProposalBurn2);
       const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
       const tx = new anchor.web3.Transaction().add(computeUnitsIx);
       const createPoolIx = await program.methods
@@ -1330,6 +1364,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           position: pdasBurn2.position,
           ammProgram: cpAmm.programId,
           baseMint: testMintBurn2.publicKey,
+          mintAccount: testProposalBurn2Data.mintAccount,
           makerTokenAccount: pdasBurn2.makerTokenAccount,
           quoteMint: WSOL_MINT,
           tokenAVault: pdasBurn2.tokenAVault,
@@ -1400,11 +1435,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       );
 
       // Start milestone
+      const metadataAccountBurn2 = findMetadataPDA(testProposalBurn2Data.mintAccount);
+      
       await program.methods
         .initialiseMilestone()
         .accounts({
           authority: authority.publicKey,
           proposal: testProposalBurn2,
+          mintAccount: testProposalBurn2Data.mintAccount,
+          metadataAccount: metadataAccountBurn2,
+          payer: authority.publicKey,
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         })
         .signers([authority])
         .rpc()
@@ -1590,6 +1633,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('19. Fails when unauthorized user tries to start milestone', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
+      const proposalDataUnauthorized = await program.account.proposal.fetch(proposal);
+      const metadataAccountUnauthorized = findMetadataPDA(proposalDataUnauthorized.mintAccount);
 
       try {
         await program.methods
@@ -1597,6 +1642,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .accounts({
             authority: unauthorizedUser.publicKey,
             proposal,
+            mintAccount: proposalDataUnauthorized.mintAccount,
+            metadataAccount: metadataAccountUnauthorized,
+            payer: unauthorizedUser.publicKey,
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+            systemProgram: anchor.web3.SystemProgram.programId,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           })
           .signers([unauthorizedUser])
           .rpc();
@@ -2188,6 +2239,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas8 = derivePoolPDAs(program.programId, cpAmm.programId, testMint8.publicKey, WSOL_MINT, maker.publicKey, config);
+      const testProposal8Data = await program.account.proposal.fetch(testProposal8);
 
       try {
         await program.methods
@@ -2207,6 +2259,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             position: pdas8.position,
             ammProgram: cpAmm.programId,
             baseMint: testMint8.publicKey,
+            mintAccount: testProposal8Data.mintAccount,
             makerTokenAccount: pdas8.makerTokenAccount,
             quoteMint: WSOL_MINT,
             tokenAVault: pdas8.tokenAVault,
@@ -2230,12 +2283,21 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     });
 
     it('34. Fails when trying to start milestone before pool launch', async () => {
+      const testProposal8DataForMilestone = await program.account.proposal.fetch(testProposal8);
+      const metadataAccountTest8 = findMetadataPDA(testProposal8DataForMilestone.mintAccount);
+      
       try {
         await program.methods
           .initialiseMilestone()
           .accounts({
             authority: authority.publicKey,
             proposal: testProposal8,
+            mintAccount: testProposal8DataForMilestone.mintAccount,
+            metadataAccount: metadataAccountTest8,
+            payer: authority.publicKey,
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+            systemProgram: anchor.web3.SystemProgram.programId,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           })
           .signers([authority])
           .rpc();
@@ -2518,6 +2580,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas9 = derivePoolPDAs(program.programId, cpAmm.programId, testMint9.publicKey, WSOL_MINT, maker.publicKey, config);
+      const testProposal9Data = await program.account.proposal.fetch(testProposal9);
 
       const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
       const tx = await program.methods
@@ -2537,6 +2600,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           position: pdas9.position,
           ammProgram: cpAmm.programId,
           baseMint: testMint9.publicKey,
+          mintAccount: testProposal9Data.mintAccount,
           makerTokenAccount: pdas9.makerTokenAccount,
           quoteMint: WSOL_MINT,
           tokenAVault: pdas9.tokenAVault,
@@ -2643,12 +2707,21 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .rpc()
         .then(confirm);
 
+      const testProposal10Data = await program.account.proposal.fetch(testProposal10);
+      const metadataAccountTest10 = findMetadataPDA(testProposal10Data.mintAccount);
+      
       try {
         await program.methods
           .initialiseMilestone()
           .accounts({
             authority: authority.publicKey,
             proposal: testProposal10,
+            mintAccount: testProposal10Data.mintAccount,
+            metadataAccount: metadataAccountTest10,
+            payer: authority.publicKey,
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+            systemProgram: anchor.web3.SystemProgram.programId,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           })
           .signers([authority])
           .rpc();
@@ -2682,6 +2755,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const config_account = await cpAmm.account.config.fetch(config);
       const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+      const proposalDataAlreadyLaunched = await program.account.proposal.fetch(proposal);
 
       try {
         await program.methods
@@ -2701,6 +2775,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             position: pdas.position,
             ammProgram: cpAmm.programId,
             baseMint: mint.publicKey,
+            mintAccount: proposalDataAlreadyLaunched.mintAccount,
             makerTokenAccount: pdas.makerTokenAccount,
             quoteMint: WSOL_MINT,
             tokenAVault: pdas.tokenAVault,
@@ -2775,6 +2850,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         const testPoolPdas = derivePoolPDAs(program.programId, cpAmm.programId, testMint15.publicKey, WSOL_MINT, maker.publicKey, config);
         const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
         const config_account = await cpAmm.account.config.fetch(config);
+        const testProposal15DataForPool = await program.account.proposal.fetch(testProposal15);
 
         const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
         const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
@@ -2796,6 +2872,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
                 position: testPoolPdas.position,
                 ammProgram: cpAmm.programId,
                 baseMint: testMint15.publicKey, // Use the new mint
+                mintAccount: testProposal15DataForPool.mintAccount,
                 makerTokenAccount: testPoolPdas.makerTokenAccount,
                 quoteMint: WSOL_MINT,
                 tokenAVault: testPoolPdas.tokenAVault,
@@ -2815,11 +2892,20 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         tx.instructions.unshift(computeUnitsIx);
         await provider.sendAndConfirm(tx, [authority, testPoolPdas.positionNftMint]);
 
+        const testProposal15Data = await program.account.proposal.fetch(testProposal15);
+        const metadataAccountTest15 = findMetadataPDA(testProposal15Data.mintAccount);
+        
         await program.methods
             .initialiseMilestone()
             .accounts({
                 authority: authority.publicKey,
-                proposal: testProposal15, 
+                proposal: testProposal15,
+                mintAccount: testProposal15Data.mintAccount,
+                metadataAccount: metadataAccountTest15,
+                payer: authority.publicKey,
+                tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+                systemProgram: anchor.web3.SystemProgram.programId,
+                rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             })
             .signers([authority])
             .rpc()
@@ -2996,6 +3082,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas11 = derivePoolPDAs(program.programId, cpAmm.programId, testMint11.publicKey, WSOL_MINT, maker.publicKey, config);
+      const testProposal11DataForPool = await program.account.proposal.fetch(testProposal11);
 
       const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
       const tx = await program.methods
@@ -3015,6 +3102,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           position: pdas11.position,
           ammProgram: cpAmm.programId,
           baseMint: testMint11.publicKey,
+          mintAccount: testProposal11DataForPool.mintAccount,
           makerTokenAccount: pdas11.makerTokenAccount,
           quoteMint: WSOL_MINT,
           tokenAVault: pdas11.tokenAVault,
@@ -3034,11 +3122,20 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       tx.instructions.unshift(computeUnitsIx);
       await provider.sendAndConfirm(tx, [authority, pdas11.positionNftMint]);
 
+      const testProposal11Data = await program.account.proposal.fetch(testProposal11);
+      const metadataAccountTest11 = findMetadataPDA(testProposal11Data.mintAccount);
+      
       await program.methods
         .initialiseMilestone()
         .accounts({
           authority: authority.publicKey,
           proposal: testProposal11,
+          mintAccount: testProposal11Data.mintAccount,
+          metadataAccount: metadataAccountTest11,
+          payer: authority.publicKey,
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         })
         .signers([authority])
         .rpc()
@@ -3186,6 +3283,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas12 = derivePoolPDAs(program.programId, cpAmm.programId, testMint12.publicKey, WSOL_MINT, maker.publicKey, config);
+      const testProposal12Data = await program.account.proposal.fetch(testProposal12);
 
       const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
       const tx = await program.methods
@@ -3205,6 +3303,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           position: pdas12.position,
           ammProgram: cpAmm.programId,
           baseMint: testMint12.publicKey,
+          mintAccount: testProposal12Data.mintAccount,
           makerTokenAccount: pdas12.makerTokenAccount,
           quoteMint: WSOL_MINT,
           tokenAVault: pdas12.tokenAVault,

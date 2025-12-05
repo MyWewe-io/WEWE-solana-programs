@@ -11,13 +11,7 @@ use crate::{
     state::{maker::MakerAccount, proposal::Proposal,config::Configs},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    metadata::{
-        create_metadata_accounts_v3, mpl_token_metadata::types::DataV2, CreateMetadataAccountsV3,
-        Metadata,
-    },
-    token::{mint_to, Mint, MintTo, Token, TokenAccount},
-};
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 #[derive(Accounts)]
 pub struct CreateProposal<'info> {
@@ -64,15 +58,6 @@ pub struct CreateProposal<'info> {
     )]
     pub mint_account: Account<'info, Mint>,
 
-    /// CHECK: Validate address by deriving pda
-    #[account(
-        mut,
-        seeds = [b"metadata", token_metadata_program.key().as_ref(), mint_account.key().as_ref()],
-        bump,
-        seeds::program = token_metadata_program.key(),
-    )]
-    pub metadata_account: UncheckedAccount<'info>,
-
     #[account(
         init,
         seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), mint_account.key().as_ref()],
@@ -96,9 +81,7 @@ pub struct CreateProposal<'info> {
     pub user_token_account: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
-    pub token_metadata_program: Program<'info, Metadata>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
     pub config: Account<'info, Configs>,
 }
 
@@ -110,65 +93,9 @@ impl<'info> CreateProposal<'info> {
         token_uri: String,
         bumps: &CreateProposalBumps,
     ) -> Result<()> {
-        // PDA signer seeds
-        let signer_seeds: &[&[&[u8]]] = &[&[
-            PROPOSAL,
-            self.maker.key.as_ref(),
-            &self.maker_account.proposal_count.to_le_bytes(),
-            &[bumps.proposal],
-        ]];
-
         require!(token_name.len() <= 32, ProposalError::LenthTooLong);
         require!(token_symbol.len() <= 10, ProposalError::LenthTooLong);
         require!(token_uri.len() <= 200, ProposalError::LenthTooLong);
-
-        create_metadata_accounts_v3(
-            CpiContext::new(
-                self.token_metadata_program.to_account_info(),
-                CreateMetadataAccountsV3 {
-                    metadata: self.metadata_account.to_account_info(),
-                    mint: self.mint_account.to_account_info(),
-                    mint_authority: self.proposal.to_account_info(),
-                    update_authority: self.proposal.to_account_info(),
-                    payer: self.payer.to_account_info(),
-                    system_program: self.system_program.to_account_info(),
-                    rent: self.rent.to_account_info(),
-                },
-            )
-            .with_signer(signer_seeds),
-            DataV2 {
-                name: token_name.clone(),
-                symbol: token_symbol.clone(),
-                uri: token_uri.clone(),
-                seller_fee_basis_points: 0,
-                creators: None,
-                collection: None,
-                uses: None,
-            },
-            false, // Is mutable
-            true,  // Update authority is signer
-            None,  // Collection details
-        )?;
-
-        let pow = 10u64
-            .checked_pow(self.mint_account.decimals as u32)
-            .ok_or(ProposalError::NumericalOverflow)?;
-        let amount = self.config.total_mint // TOTAL_MINT
-            .checked_mul(pow)
-            .ok_or(ProposalError::NumericalOverflow)?;
-        // Invoke the mint_to instruction on the token program
-        mint_to(
-            CpiContext::new(
-                self.token_program.to_account_info(),
-                MintTo {
-                    mint: self.mint_account.to_account_info(),
-                    to: self.token_vault.to_account_info(),
-                    authority: self.proposal.to_account_info(),
-                },
-            )
-            .with_signer(signer_seeds), // using PDA to sign,
-            amount, // Mint tokens
-        )?;
 
         let now = Clock::get()?.unix_timestamp;
         self.proposal.set_inner(Proposal {
@@ -188,6 +115,9 @@ impl<'info> CreateProposal<'info> {
             milestone_reputation_sum: 0,
             launch_timestamp: None,
             emergency_unlocked: false,
+            token_name: token_name.clone(),
+            token_symbol: token_symbol.clone(),
+            token_uri: token_uri.clone(),
         });
         // increment proposal count for maker
         let idx = self.maker_account.proposal_count;
@@ -204,7 +134,7 @@ impl<'info> CreateProposal<'info> {
             token_uri,
             mint_account: self.mint_account.key(),
             token_vault: self.token_vault.key(),
-            metadata_account: self.metadata_account.key(),
+            metadata_account: anchor_lang::solana_program::pubkey::Pubkey::default(), // Will be created later
             maker_account: self.maker_account.key(),
             proposal_bump: bumps.proposal,
         });
