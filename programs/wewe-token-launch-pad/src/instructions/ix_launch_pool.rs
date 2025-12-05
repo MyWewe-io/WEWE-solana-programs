@@ -1,6 +1,6 @@
 use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{
-    associated_token::AssociatedToken,
+    associated_token::{AssociatedToken, create, Create},
     token,
     token::{mint_to, MintTo, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
@@ -9,7 +9,7 @@ use cp_amm::state::Config;
 use std::u64;
 
 use crate::{
-    const_pda::{self, const_authority::VAULT_BUMP},
+    const_pda::const_authority::VAULT_BUMP,
     constant::{
         seeds::{PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY},
         *,
@@ -19,6 +19,15 @@ use crate::{
     *,
 };
 
+/// Creates a DAMM pool for a proposal.
+/// 
+/// This instruction can be called independently or together with `create_metadata` 
+/// in the same transaction. When called together, add `create_metadata` FIRST, 
+/// then add this instruction to the same transaction.
+/// 
+/// Note: Metadata creation is optional but recommended for token display purposes.
+/// The pool can be created without metadata, but wallets/exchanges may not display
+/// the token properly without it.
 #[derive(Accounts)]
 pub struct DammV2<'info> {
     #[account(mut)]
@@ -51,23 +60,11 @@ pub struct DammV2<'info> {
         bump,
     )]
     pub wsol_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-    /// CHECK: proposal maker
-    #[account(constraint = maker.key() == proposal.maker @ ProposalError::IncorrectAccount)]
+    /// CHECK: maker account - only used for ATA creation, validated in code
     pub maker: UncheckedAccount<'info>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        associated_token::mint = base_mint,
-        associated_token::authority = maker,
-        associated_token::token_program = token_base_program,
-    )]
-    pub maker_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
-    /// CHECK: pool authority
-    #[account(
-        mut,
-        address = const_pda::const_authority::POOL_ID,
-    )]
-    pub pool_authority: AccountInfo<'info>,
+    /// CHECK: maker token account - validated and initialized in code for proposal.maker
+    #[account(mut)]
+    pub maker_token_account: UncheckedAccount<'info>,
     /// CHECK: pool config
     pool_config: AccountLoader<'info, Config>,
     /// CHECK: pool
@@ -112,9 +109,15 @@ pub struct DammV2<'info> {
     pub token_base_program: Interface<'info, TokenInterface>,
     /// CHECK: token_program
     pub token_quote_program: Interface<'info, TokenInterface>,
-    /// CHECK: token_program
-    pub token_2022_program: Interface<'info, TokenInterface>,
-    /// CHECK: damm event authority
+    /// CHECK: Token-2022 program - fixed address, auto-resolved
+    #[account(address = anchor_spl::token_2022::ID)]
+    pub token_2022_program: UncheckedAccount<'info>,
+    /// CHECK: damm event authority - PDA derived from cp_amm program
+    #[account(
+        seeds = [b"__event_authority"],
+        seeds::program = amm_program.key(),
+        bump,
+    )]
     pub damm_event_authority: UncheckedAccount<'info>,
     /// System program.
     pub system_program: Program<'info, System>,
@@ -124,6 +127,39 @@ pub struct DammV2<'info> {
 
 impl<'info> DammV2<'info> {
     pub fn handle_create_pool(&mut self, sqrt_price: u128) -> Result<()> {
+        // Validate and initialize maker_token_account if needed
+        // Since proposal.maker is a Pubkey field (not an account), we can't use it in constraints,
+        // so we manually validate and create the ATA here
+        let expected_maker_ata = anchor_spl::associated_token::get_associated_token_address(
+            &self.proposal.maker,
+            &self.base_mint.key(),
+        );
+        require!(
+            self.maker_token_account.key() == expected_maker_ata,
+            ProposalError::IncorrectAccount
+        );
+        
+        // Validate maker account matches proposal.maker
+        require!(
+            self.maker.key() == self.proposal.maker,
+            ProposalError::IncorrectAccount
+        );
+        
+        // Initialize ATA if it doesn't exist
+        if self.maker_token_account.lamports() == 0 {
+            create(CpiContext::new(
+                self.associated_token_program.to_account_info(),
+                Create {
+                    payer: self.payer.to_account_info(),
+                    associated_token: self.maker_token_account.to_account_info(),
+                    authority: self.maker.to_account_info(),
+                    mint: self.base_mint.to_account_info(),
+                    system_program: self.system_program.to_account_info(),
+                    token_program: self.token_base_program.to_account_info(),
+                },
+            ))?;
+        }
+        
         let is_owner = self.payer.key() == chain_service_pubkey::ID;
         let is_maker = self.payer.key() == self.proposal.maker;
         require!(is_maker || is_owner, ProposalError::NotOwner);
@@ -151,7 +187,7 @@ impl<'info> DammV2<'info> {
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
 
-                // Mint tokens to token_vault if not already minted (lazy minting for cost savings)
+        // Mint tokens to token_vault if not already minted (lazy minting for cost savings)
         // Check if tokens need to be minted by checking vault balance
         if self.token_vault.amount == 0 {
             let pow = 10u64
@@ -313,7 +349,7 @@ pub struct FundCreatorAuthorityAccounts<'b, 'info> {
     pub wsol_vault: &'b Box<InterfaceAccount<'info, TokenAccount>>,
     pub system_program: &'b Program<'info, System>,
     pub creator_authority: &'b AccountInfo<'info>,
-    pub maker_token_account: &'b Box<InterfaceAccount<'info, TokenAccount>>,
+    pub maker_token_account: &'b AccountInfo<'info>,
     pub maker_amount: u64,
 }
 

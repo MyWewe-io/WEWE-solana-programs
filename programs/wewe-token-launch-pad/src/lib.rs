@@ -13,7 +13,8 @@ use errors::*;
 use instructions::*;
 use utils::*;
 
-declare_id!("GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw");
+// declare_id!("GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"); // OLD PROGRAM ID
+declare_id!("DiBfVGvJ1c5ZrE1AcCpoiZYfVkPdaUtsjrUWEhwsJs9X");
 #[program]
 pub mod wewe_token_launch_pad {
     use super::*;
@@ -60,6 +61,20 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_refund()
     }
 
+    /// Creates token metadata account for a proposal.
+    /// Can be called independently or together with `create_pool` in the same transaction.
+    pub fn create_metadata(
+        ctx: Context<CreateMetadata>,
+        token_name: String,
+        token_symbol: String,
+        token_uri: String,
+    ) -> Result<()> {
+        ctx.accounts.handle_create_metadata(token_name, token_symbol, token_uri, &ctx.bumps)
+    }
+
+    /// Creates a DAMM pool for a proposal.
+    /// Also creates metadata account if it doesn't exist yet (deferred from proposal creation).
+    /// This combines metadata and pool creation in a single instruction for atomic execution.
     pub fn create_pool(ctx: Context<DammV2>, sqrt_price: u128) -> Result<()> {
         ctx.accounts.handle_create_pool(sqrt_price)
     }
