@@ -13,6 +13,7 @@ pub mod seeds {
     pub const TOKEN_VAULT: &[u8] = b"token_vault";
     pub const MAKER: &[u8] = b"maker";
     pub const BACKER_PROPOSAL_COUNT: &[u8] = b"backer_proposal_count";
+    pub const PROPOSAL_MINT: &[u8] = b"proposal_mint";
 }
 
 pub mod treasury {

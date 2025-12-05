@@ -322,6 +322,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
+    
+    // Verify token metadata values are present in the event
+    expect(capturedEvent.tokenName).to.equal(metadata.name);
+    expect(capturedEvent.tokenSymbol).to.equal(metadata.symbol);
+    expect(capturedEvent.tokenUri).to.equal(metadata.uri);
+    expect(capturedEvent.tokenName).to.not.be.undefined;
+    expect(capturedEvent.tokenSymbol).to.not.be.undefined;
+    expect(capturedEvent.tokenUri).to.not.be.undefined;
   });
 
   it('4. Creates second proposal with same maker', async () => {
@@ -353,6 +361,41 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     expect(capturedEvent.maker.toBase58()).to.equal(expectedEvent.maker);
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(expectedEvent.proposalAddress);
+  });
+
+  it('4.5. Creates metadata for the first proposal', async () => {
+    // Token Metadata Program ID
+    const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+    
+    // Derive metadata account PDA
+    const [metadataAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('metadata'),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        mint.publicKey.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    );
+
+    await program.methods
+      .createMetadata(metadata.name, metadata.symbol, metadata.uri)
+      .accounts({
+        payer: authority.publicKey,
+        proposal,
+        mintAccount: mint.publicKey,
+        metadataAccount,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+
+    // Verify metadata account was created
+    const metadataAccountInfo = await provider.connection.getAccountInfo(metadataAccount);
+    expect(metadataAccountInfo).to.not.be.null;
+    expect(metadataAccountInfo!.lamports).to.be.greaterThan(0);
   });
 
   it('5. Backs the first proposal with SOL', async () => {

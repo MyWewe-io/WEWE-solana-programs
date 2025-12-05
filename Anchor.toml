@@ -6,13 +6,13 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
+wewe_token_launch_pad = "DiBfVGvJ1c5ZrE1AcCpoiZYfVkPdaUtsjrUWEhwsJs9X"
 
 [programs.localnet]
-wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
+wewe_token_launch_pad = "DiBfVGvJ1c5ZrE1AcCpoiZYfVkPdaUtsjrUWEhwsJs9X"
 
 [programs.mainnet]
-wewe_token_launch_pad = "GzezxaZjSoy87vEmMHQstWUASNmjMjZbWdmeUXvyABWw"
+wewe_token_launch_pad = "DiBfVGvJ1c5ZrE1AcCpoiZYfVkPdaUtsjrUWEhwsJs9X"
 
 [registry]
 url = "https://api.apr.dev"
