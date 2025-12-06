@@ -106,6 +106,19 @@ export function findUserAta(user: anchor.web3.PublicKey, mint: anchor.web3.Publi
   return getAssociatedTokenAddressSync(mint, user, false, undefined, undefined);
 }
 
+export function findMetadataPDA(mint: anchor.web3.PublicKey): anchor.web3.PublicKey {
+  const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
+  const [metadataPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("metadata"),
+      TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+      mint.toBuffer(),
+    ],
+    TOKEN_METADATA_PROGRAM_ID
+  );
+  return metadataPDA;
+}
+
 export const derivePoolPDAs = (
   programId: anchor.web3.PublicKey,
   cpAmmProgramId: anchor.web3.PublicKey,

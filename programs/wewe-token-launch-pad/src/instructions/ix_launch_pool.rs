@@ -2,7 +2,7 @@ use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token,
-    token::Transfer as TokenTransfer,
+    token::{mint_to, Mint, MintTo, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
 };
 use cp_amm::state::Config;
@@ -11,7 +11,7 @@ use std::u64;
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
     constant::{
-        seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
+        seeds::{PROPOSAL, TOKEN_VAULT, VAULT_AUTHORITY},
         *,
     },
     event::{CoinLaunched, ProposalRejected},
@@ -93,6 +93,13 @@ pub struct DammV2<'info> {
         constraint = base_mint.key() == proposal.mint_account @ ProposalError::IncorrectAccount
     )]
     pub base_mint: UncheckedAccount<'info>,
+    /// Mint account for minting tokens - derived from proposal.mint_account
+    /// CHECK: Address validated against proposal, deserialized manually
+    #[account(
+        mut,
+        address = proposal.mint_account @ ProposalError::IncorrectAccount
+    )]
+    pub mint_account: UncheckedAccount<'info>,
     /// CHECK: quote token mint
     #[account(
         mut,
@@ -149,6 +156,39 @@ impl<'info> DammV2<'info> {
             ProposalError::TargetNotMet
         );
 
+        // Mint tokens to token vault at the start
+        let proposal_signer_seeds: &[&[&[u8]]] = &[&[
+            PROPOSAL,
+            self.proposal.maker.as_ref(),
+            &self.proposal.proposal_id.to_le_bytes(),
+            &[self.proposal.bump],
+        ]];
+        
+        // Load mint account to get decimals (address already validated by constraint)
+        let mint_data = Mint::try_deserialize(&mut &self.mint_account.data.borrow()[..])?;
+        let pow = 10u64
+            .checked_pow(mint_data.decimals as u32)
+            .ok_or(ProposalError::NumericalOverflow)?;
+        let amount = self.config.total_mint
+            .checked_mul(pow)
+            .ok_or(ProposalError::NumericalOverflow)?;
+        
+        mint_to(
+            CpiContext::new(
+                self.token_base_program.to_account_info(),
+                MintTo {
+                    mint: self.mint_account.to_account_info(),
+                    to: self.token_vault.to_account_info(),
+                    authority: self.proposal.to_account_info(),
+                },
+            )
+            .with_signer(proposal_signer_seeds),
+            amount,
+        )?;
+
+        // Reload token vault after minting to get updated balance
+        self.token_vault.reload()?;
+
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
         
 
@@ -163,10 +203,14 @@ impl<'info> DammV2<'info> {
             maker_amount: self.config.maker_token_amount,
         })?;
 
+        // Reload vaults after funding to get updated balances
+        self.token_vault.reload()?;
+        self.wsol_vault.reload()?;
+
         // Note: Vault accounts are already validated by Anchor's account constraints
         // (PDA derivation is checked via seeds constraints)
         
-        // Capture vault balances BEFORE pool creation CPI
+        // Capture vault balances BEFORE pool creation CPI (after minting and funding)
         let token_vault_before = self.token_vault.amount;
         let wsol_vault_before = self.wsol_vault.amount;
 
