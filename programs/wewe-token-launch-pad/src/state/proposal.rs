@@ -19,4 +19,10 @@ pub struct Proposal {
     pub milestone_reputation_sum: u64,
     pub launch_timestamp: Option<i64>,
     pub emergency_unlocked: bool,
+    #[max_len(32)]
+    pub token_name: String,
+    #[max_len(10)]
+    pub token_symbol: String,
+    #[max_len(200)]
+    pub token_uri: String,
 }
