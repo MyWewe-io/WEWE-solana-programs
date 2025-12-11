@@ -2,15 +2,11 @@ use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token,
-    token::{mint_to, set_authority, Mint, MintTo, SetAuthority, Transfer as TokenTransfer},
+    token::{mint_to, Mint, MintTo, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
 };
 use cp_amm::state::Config;
 use std::u64;
-
-// Import AuthorityType from spl_token through anchor_spl's dependency
-// anchor_spl uses spl-token internally, so we can access it via the dependency
-use anchor_spl::token::spl_token::instruction::AuthorityType;
 
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
