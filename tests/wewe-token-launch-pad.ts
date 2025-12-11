@@ -11,6 +11,7 @@ import {
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   createSyncNativeInstruction,
+  getMint,
 } from '@solana/spl-token';
 
 import type { WeweTokenLaunchPad } from '../target/types/wewe_token_launch_pad';
@@ -829,7 +830,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const proposalData = await program.account.proposal.fetch(proposal);
     const metadataAccount = findMetadataPDA(proposalData.mintAccount);
     
-    await program.methods
+    const sig = await program.methods
       .initialiseMilestone()
       .accounts({
         authority: authority.publicKey,
@@ -838,12 +839,23 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         metadataAccount,
         payer: authority.publicKey,
         tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([authority])
-      .rpc()
-      .then(confirm);
+      .rpc();
+    
+    // Print program logs to see msg! output
+    await printTxLogs(sig);
+    await confirm(sig);
+
+    // Verify that both mint authority and freeze authority are revoked
+    const mintInfo = await getMint(provider.connection, proposalData.mintAccount);
+    expect(mintInfo.mintAuthority).to.be.null;
+    expect(mintInfo.freezeAuthority).to.be.null;
+    console.log('✓ Mint authority revoked (is null):', mintInfo.mintAuthority === null);
+    console.log('✓ Freeze authority revoked (is null):', mintInfo.freezeAuthority === null);
   });
 
   it('13. Updates backer milestone amount', async () => {

@@ -2,11 +2,15 @@ use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token,
-    token::{mint_to, Mint, MintTo, Transfer as TokenTransfer},
+    token::{mint_to, set_authority, Mint, MintTo, SetAuthority, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
 };
 use cp_amm::state::Config;
 use std::u64;
+
+// Import AuthorityType from spl_token through anchor_spl's dependency
+// anchor_spl uses spl-token internally, so we can access it via the dependency
+use anchor_spl::token::spl_token::instruction::AuthorityType;
 
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
@@ -188,6 +192,11 @@ impl<'info> DammV2<'info> {
 
         // Reload token vault after minting to get updated balance
         self.token_vault.reload()?;
+
+        // Note: Mint and freeze authority revocation is handled in milestone creation (ix_start_milestone)
+        // after metadata creation. This ensures metadata is created while mint authority still exists,
+        // avoiding Anchor's CPI signer privilege checks.
+
 
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
         
