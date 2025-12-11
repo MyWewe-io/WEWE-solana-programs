@@ -189,11 +189,6 @@ impl<'info> DammV2<'info> {
         // Reload token vault after minting to get updated balance
         self.token_vault.reload()?;
 
-        // Note: Mint and freeze authority revocation is handled in milestone creation (ix_start_milestone)
-        // after metadata creation. This ensures metadata is created while mint authority still exists,
-        // avoiding Anchor's CPI signer privilege checks.
-
-
         let signer_seeds: &[&[&[u8]]] = &[&[VAULT_AUTHORITY, &[VAULT_BUMP]]];
         
 
