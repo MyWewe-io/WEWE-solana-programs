@@ -29,6 +29,7 @@ pub mod wewe_token_launch_pad {
         min_backers: u64,
         max_backed_proposals: u64,
         refund_fee_basis_points: u16,
+        pool_cliff_fee_numerator: u64,
     ) -> Result<()> {
         ctx.accounts.handle_set_config(
             amount_to_raise_per_user,
@@ -39,6 +40,7 @@ pub mod wewe_token_launch_pad {
             min_backers,
             max_backed_proposals,
             refund_fee_basis_points,
+            pool_cliff_fee_numerator,
         )?;
         Ok(())
     }

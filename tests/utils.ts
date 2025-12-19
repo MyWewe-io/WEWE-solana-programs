@@ -236,7 +236,36 @@ export function calculateInitSqrtPrice(
     .div(new Decimal(2))
     .mul(Decimal.pow(2, 64));
 
-  return new BN(result.floor().toFixed());
+  // Use floor and convert to BN
+  // Decimal.js toFixed(0) should work, but if it produces scientific notation, we'll handle it
+  let sqrtPriceBN: BN;
+  try {
+    const floorResult = result.floor();
+    const floorResultStr = floorResult.toFixed(0);
+    sqrtPriceBN = new BN(floorResultStr);
+  } catch (e) {
+    // Fallback: use toString() and remove decimal part
+    const floorResult = result.floor();
+    const floorResultStr = floorResult.toString();
+    const integerStr = floorResultStr.includes('e') 
+      ? floorResultStr.split('e')[0].replace('.', '')
+      : floorResultStr.split('.')[0];
+    sqrtPriceBN = new BN(integerStr);
+  }
+  
+  // Ensure sqrt_price is within bounds (CP-AMM uses >= and <=)
+  const minPriceBN = new BN(minSqrtPrice.toString());
+  const maxPriceBN = new BN(maxSqrtPrice.toString());
+  
+  // If the result is at or outside the boundary, adjust it slightly inward
+  if (sqrtPriceBN.lte(minPriceBN)) {
+    return minPriceBN.add(new BN(1));
+  }
+  if (sqrtPriceBN.gte(maxPriceBN)) {
+    return maxPriceBN.sub(new BN(1));
+  }
+  
+  return sqrtPriceBN;
 }
 
 const SHIFT_128 = new Decimal(2).pow(128);

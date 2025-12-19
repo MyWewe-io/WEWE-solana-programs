@@ -118,7 +118,7 @@ pub struct ClaimPositionFee<'info> {
     pub token_b_program: Interface<'info, TokenInterface>,
 
     /// CHECK: amm program address
-    #[account(address = cp_amm::ID)]
+    #[account(address = damm_v2_cpi::ID)]
     pub amm_program: UncheckedAccount<'info>,
 
     /// CHECK:
@@ -135,9 +135,9 @@ impl<'info> ClaimPositionFee<'info> {
         let pre_a = self.token_a_account.amount;
         let pre_b = self.token_b_account.amount;
 
-        cp_amm::cpi::claim_position_fee(CpiContext::new_with_signer(
+        damm_v2_cpi::cpi::claim_position_fee(CpiContext::new_with_signer(
             self.amm_program.to_account_info(),
-            cp_amm::cpi::accounts::ClaimPositionFeeCtx {
+            damm_v2_cpi::cpi::accounts::ClaimPositionFeeCtx {
                 pool_authority: self.pool_authority.to_account_info(),
                 pool: self.pool.to_account_info(),
                 position: self.position.to_account_info(),

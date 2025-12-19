@@ -37,21 +37,35 @@ fn get_initial_liquidity_from_delta_quote(
     sqrt_min_price: u128,
     sqrt_price: u128,
 ) -> Result<u128> {
+    msg!("get_initial_liquidity_from_delta_quote: quote={}, sqrt_min={}, sqrt_price={}", 
+         quote_amount, sqrt_min_price, sqrt_price);
+    
     let delta = sqrt_price
         .checked_sub(sqrt_min_price)
         .ok_or(ProposalError::NumericalOverflow)?;
+    msg!("delta (sqrt_price - sqrt_min_price): {}", delta);
+    
+    if delta == 0 {
+        msg!("ERROR: delta is ZERO! sqrt_price ({}) == sqrt_min_price ({})", sqrt_price, sqrt_min_price);
+        return Err(ProposalError::InvalidPriceRange.into());
+    }
+    
     let price_delta = U256::from(delta);
 
     let quote = U256::from(quote_amount);
     let quote_shifted = quote
         .checked_shl(128)
         .ok_or(ProposalError::NumericalOverflow)?;
+    msg!("quote_shifted (quote << 128): {}", quote_shifted);
 
     let liquidity = quote_shifted
         .checked_div(price_delta)
         .ok_or(ProposalError::NumericalOverflow)?;
+    msg!("liquidity (quote_shifted / price_delta): {}", liquidity);
 
-    return Ok(liquidity.to::<u128>())
+    let result = liquidity.to::<u128>();
+    msg!("liquidity as u128: {}", result);
+    return Ok(result)
 }
 
 pub fn get_liquidity_for_adding_liquidity(
@@ -61,15 +75,28 @@ pub fn get_liquidity_for_adding_liquidity(
     min_sqrt_price: u128,
     max_sqrt_price: u128,
 ) -> Result<u128> {
+    msg!("get_liquidity_for_adding_liquidity: base={}, quote={}, sqrt_price={}, min={}, max={}", 
+         base_amount, quote_amount, sqrt_price, min_sqrt_price, max_sqrt_price);
+    
     let liquidity_from_base =
         get_initial_liquidity_from_delta_base(base_amount, max_sqrt_price, sqrt_price)?;
+    msg!("liquidity_from_base (U512): {}", liquidity_from_base);
+    
     let liquidity_from_quote =
         get_initial_liquidity_from_delta_quote(quote_amount, min_sqrt_price, sqrt_price)?;
-    if liquidity_from_base > U512::from(liquidity_from_quote) {
+    msg!("liquidity_from_quote (u128): {}", liquidity_from_quote);
+    
+    let result = if liquidity_from_base > U512::from(liquidity_from_quote) {
+        msg!("Using liquidity_from_quote (smaller): {}", liquidity_from_quote);
         Ok(liquidity_from_quote)
     } else {
-        Ok(liquidity_from_base
+        let liquidity_u128 = liquidity_from_base
             .try_into()
-            .map_err(|_| ProposalError::TypeCastFailed)?)
-    }
+            .map_err(|_| ProposalError::TypeCastFailed)?;
+        msg!("Using liquidity_from_base (smaller): {}", liquidity_u128);
+        Ok(liquidity_u128)
+    };
+    
+    msg!("Final liquidity result: {}", result.as_ref().unwrap_or(&0));
+    result
 }
