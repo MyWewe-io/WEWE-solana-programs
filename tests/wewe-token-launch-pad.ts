@@ -2,6 +2,7 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Program } from '@coral-xyz/anchor';
 import BN from 'bn.js';
+import Decimal from 'decimal.js';
 import { assert, expect } from 'chai';
 import {
   TOKEN_PROGRAM_ID,
@@ -32,7 +33,7 @@ import {
   findUserAta,
   findMintAccount,
   findMintAuthority,
-  calculateInitSqrtPrice,
+  getSqrtPriceFromPrice,
   findConfigPDA,
   findBackerProposalCountPDA,
   findMetadataPDA,
@@ -1004,52 +1005,60 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const configData = await program.account.configs.fetch(configStruct);
 
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
-    // Use CP-AMM's constants (must match what's in ix_launch_pool.rs)
-    // CP-AMM MIN_SQRT_PRICE = 4295048016, MAX_SQRT_PRICE = 79226673521066979257578248091
-    const sqrtMinPrice = new BN("4295048016"); // CP-AMM MIN_SQRT_PRICE
-    const sqrtMaxPrice = new BN("79226673521066979257578248091"); // CP-AMM MAX_SQRT_PRICE
     
-    // Use actual amounts from config and proposal, not hardcoded values
-    // base_amount = total_pool_tokens * 10^9 (MINT_DECIMALS = 9)
+    // Setup token amounts (matching SDK example structure)
+    // tokenAAmount = total_pool_tokens * 10^9 (MINT_DECIMALS = 9)
     const totalPoolTokensBN = configData.totalPoolTokens instanceof BN 
       ? configData.totalPoolTokens 
       : new BN(configData.totalPoolTokens.toString());
-    const baseAmount = totalPoolTokensBN.mul(new BN(10).pow(new BN(9)));
-    // quote_amount = total_backing (in lamports)
+    const tokenAAmount = totalPoolTokensBN.mul(new BN(10).pow(new BN(9)));
+    
+    // tokenBAmount = total_backing (in lamports)
     const totalBackingBN = proposalData.totalBacking instanceof BN
       ? proposalData.totalBacking
       : new BN(proposalData.totalBacking.toString());
-    const quoteAmount = totalBackingBN;
+    const tokenBAmount = totalBackingBN;
     
     // Validate amounts are not zero
-    if (baseAmount.isZero() || quoteAmount.isZero()) {
+    if (tokenAAmount.isZero() || tokenBAmount.isZero()) {
       throw new Error(
-        `Invalid amounts for sqrt_price calculation: baseAmount=${baseAmount.toString()}, quoteAmount=${quoteAmount.toString()}, ` +
+        `Invalid amounts for sqrt_price calculation: tokenAAmount=${tokenAAmount.toString()}, tokenBAmount=${tokenBAmount.toString()}, ` +
         `totalPoolTokens=${totalPoolTokensBN.toString()}, totalBacking=${totalBackingBN.toString()}`
       );
     }
     
-    // Calculate sqrt_price based on actual amounts
-    const sqrtPrice = calculateInitSqrtPrice(baseAmount, quoteAmount, sqrtMinPrice, sqrtMaxPrice);
+    // Calculate initial price (price of tokenA in terms of tokenB)
+    // price = tokenBAmount / tokenAAmount
+    const initialPrice = new Decimal(tokenBAmount.toString()).div(new Decimal(tokenAAmount.toString())).toNumber();
     
-    // Validate sqrt_price is within bounds (CP-AMM requires strict inequality: sqrt_min_price < sqrt_price < sqrt_max_price)
-    // Ensure we're strictly within bounds with adequate margin
-    const minPriceWithMargin = sqrtMinPrice.add(new BN(1000)); // Add margin to ensure strict inequality
-    const maxPriceWithMargin = sqrtMaxPrice.sub(new BN(1000)); // Subtract margin to ensure strict inequality
-    if (sqrtPrice.lte(minPriceWithMargin) || sqrtPrice.gte(maxPriceWithMargin)) {
-      console.log(`DEBUG: sqrt_price validation failed:`);
-      console.log(`  sqrtPrice: ${sqrtPrice.toString()}`);
-      console.log(`  sqrtMinPrice: ${sqrtMinPrice.toString()}`);
-      console.log(`  sqrtMaxPrice: ${sqrtMaxPrice.toString()}`);
-      console.log(`  baseAmount: ${baseAmount.toString()}`);
-      console.log(`  quoteAmount: ${quoteAmount.toString()}`);
-      throw new Error(
-        `Calculated sqrt_price ${sqrtPrice.toString()} is out of range. ` +
-        `Must be: ${sqrtMinPrice.toString()} < sqrt_price < ${sqrtMaxPrice.toString()}. ` +
-        `baseAmount=${baseAmount.toString()}, quoteAmount=${quoteAmount.toString()}`
-      );
-    }
+    console.log(`Initial price: ${initialPrice}`);
+    console.log(`Token A amount: ${tokenAAmount.toString()}`);
+    console.log(`Token B amount: ${tokenBAmount.toString()}`);
+    
+    // Token decimals
+    const tokenADecimals = 9; // Base token decimals
+    const tokenBDecimals = 9; // WSOL decimals
+    
+    // Calculate sqrt price from initial price
+    const initSqrtPrice = getSqrtPriceFromPrice(
+      initialPrice.toString(),
+      tokenADecimals,
+      tokenBDecimals
+    );
 
+    console.log(`Initial sqrt price: ${initSqrtPrice}`);
+    
+    // Use CP-AMM's constants (must match what's in ix_launch_pool.rs)
+    // CP-AMM MIN_SQRT_PRICE = 4295048016, MAX_SQRT_PRICE = 79226673521066979257578248091
+    const minSqrtPrice = new BN("4295048016"); // CP-AMM MIN_SQRT_PRICE
+    const maxSqrtPrice = new BN("79226673521066979257578248091"); // CP-AMM MAX_SQRT_PRICE
+
+    console.log(`Min sqrt price: ${minSqrtPrice}`);
+    console.log(`Max sqrt price: ${maxSqrtPrice}`);
+    
+    // Note: Liquidity is calculated internally by the Rust program using get_liquidity_for_adding_liquidity
+    // which matches the SDK's getLiquidityDelta logic
+    
     // Chain service pubkey must be the signer (payer) and pool_creator_authority
     // Verify chainServiceAuthority matches the constant
     const CHAIN_SERVICE_PUBKEY = new anchor.web3.PublicKey("D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe");
@@ -1069,8 +1078,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       `poolCreatorAuthority must be ${CHAIN_SERVICE_PUBKEY.toBase58()} for config ${EXPECTED_CONFIG_PUBKEY.toBase58()}`
     );
 
+    // Create pool using createPool instruction (similar to SDK's createCustomPool)
+    // The Rust program handles liquidity calculation internally
     const tx = await program.methods
-      .createPool(sqrtPrice)
+      .createPool(initSqrtPrice)
       .accountsPartial({
         proposal,
         vaultAuthority,
@@ -1105,8 +1116,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .transaction();
 
     tx.instructions.unshift(computeUnitsIx);
+    
     // chainServiceAuthority must be a signer (as payer and pool_creator_authority)
-    await provider.sendAndConfirm(tx, [chainServiceAuthority, pdas.positionNftMint]);
+    console.log("\nSending create pool transaction...");
+    const signature = await provider.sendAndConfirm(tx, [chainServiceAuthority, pdas.positionNftMint], {
+      commitment: "confirmed",
+      skipPreflight: false,
+    });
+
+    console.log("Pool created successfully");
+    console.log(`Transaction signature: ${signature}`);
+    console.log(`Pool: ${pdas.pool.toBase58()}`);
+    console.log(`Position: ${pdas.position.toBase58()}`);
 
     const capturedEvent = await eventPromise;
 
@@ -1447,7 +1468,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
       // Launch pool
       const config_account = await cpAmm.account.config.fetch(config);
-      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+      const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+      const quoteAmount = new BN(1);
+      const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+      const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdasBurn1 = derivePoolPDAs(program.programId, cpAmm.programId, testMintBurn1.publicKey, WSOL_MINT, maker.publicKey, config);
 
@@ -1670,7 +1695,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
       // Launch pool
       const config_account = await cpAmm.account.config.fetch(config);
-      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+      const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+      const quoteAmount = new BN(1);
+      const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+      const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdasBurn2 = derivePoolPDAs(program.programId, cpAmm.programId, testMintBurn2.publicKey, WSOL_MINT, maker.publicKey, config);
       const destAccountBurn2 = pdasBurn2.makerTokenAccount; // Use maker's ATA for the test mint as destination
@@ -2574,7 +2603,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('33. Fails when trying to launch pool with insufficient backers', async () => {
       const config_account = await cpAmm.account.config.fetch(config);
-      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+      const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+      const quoteAmount = new BN(1);
+      const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+      const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas8 = derivePoolPDAs(program.programId, cpAmm.programId, testMint8.publicKey, WSOL_MINT, maker.publicKey, config);
       const testProposal8Data = await program.account.proposal.fetch(testProposal8);
@@ -2919,7 +2952,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
       // Launch pool
       const config_account = await cpAmm.account.config.fetch(config);
-      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+      const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+      const quoteAmount = new BN(1);
+      const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+      const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas9 = derivePoolPDAs(program.programId, cpAmm.programId, testMint9.publicKey, WSOL_MINT, maker.publicKey, config);
       const testProposal9Data = await program.account.proposal.fetch(testProposal9);
@@ -3099,7 +3136,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('42. Fails when trying to launch already launched pool', async () => {
       const config_account = await cpAmm.account.config.fetch(config);
-      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+      const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+      const quoteAmount = new BN(1);
+      const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+      const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const proposalDataAlreadyLaunched = await program.account.proposal.fetch(proposal);
       const poolCreatorAuthority = config_account.poolCreatorAuthority.equals(anchor.web3.PublicKey.default)
@@ -3206,7 +3247,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           : config_account.poolCreatorAuthority;
 
         const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
-        const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+        // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+        const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+        const quoteAmount = new BN(1);
+        const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+        const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
 
         const tx = await program.methods
             .createPool(sqrtPrice)
@@ -3433,7 +3478,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .then(confirm); 
 
       const config_account = await cpAmm.account.config.fetch(config);
-      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+      const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+      const quoteAmount = new BN(1);
+      const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+      const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas11 = derivePoolPDAs(program.programId, cpAmm.programId, testMint11.publicKey, WSOL_MINT, maker.publicKey, config);
       const testProposal11DataForPool = await program.account.proposal.fetch(testProposal11);
@@ -3634,7 +3683,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
       // Launch pool
       const config_account = await cpAmm.account.config.fetch(config);
-      const sqrtPrice = calculateInitSqrtPrice(new BN(150_000_000), new BN(1), config_account.sqrtMinPrice, config_account.sqrtMaxPrice);
+      // Calculate price: quoteAmount (1 lamport) / baseAmount (150M tokens * 10^9)
+      const baseAmount = new BN(150_000_000).mul(new BN(10).pow(new BN(9)));
+      const quoteAmount = new BN(1);
+      const price = new Decimal(quoteAmount.toString()).div(new Decimal(baseAmount.toString())).toString();
+      const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const pdas12 = derivePoolPDAs(program.programId, cpAmm.programId, testMint12.publicKey, WSOL_MINT, maker.publicKey, config);
       const testProposal12Data = await program.account.proposal.fetch(testProposal12);

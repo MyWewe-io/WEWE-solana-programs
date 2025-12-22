@@ -2,9 +2,9 @@
 import * as anchor from '@coral-xyz/anchor';
 import Decimal from "decimal.js";
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import BN from "bn.js";
 
 export const WSOL_MINT = new anchor.web3.PublicKey("So11111111111111111111111111111111111111112");
-const { BN } = anchor;
 
 export const confirm = async (promise: Promise<string>, provider = anchor.AnchorProvider.env()): Promise<string> => {
   const signature = await promise;
@@ -199,74 +199,23 @@ export const derivePoolPDAs = (
   };
 };
 
-export function calculateInitSqrtPrice(
-  tokenAAmount: BN,
-  tokenBAmount: BN,
-  minSqrtPrice: BN,
-  maxSqrtPrice: BN
-): BN {
-  if (tokenAAmount.isZero() || tokenBAmount.isZero()) {
-    throw new Error("Amount cannot be zero");
-  }
+export const getSqrtPriceFromPrice = (
+  price: string,
+  tokenADecimal: number,
+  tokenBDecimal: number
+): BN => {
+  const decimalPrice = new Decimal(price);
 
-  const amountADecimal = new Decimal(tokenAAmount.toString());
-  const amountBDecimal = new Decimal(tokenBAmount.toString());
-  const minSqrtPriceDecimal = new Decimal(minSqrtPrice.toString()).div(
-    Decimal.pow(2, 64)
-  );
-  const maxSqrtPriceDecimal = new Decimal(maxSqrtPrice.toString()).div(
-    Decimal.pow(2, 64)
+  const adjustedByDecimals = decimalPrice.div(
+    new Decimal(10).pow(tokenADecimal - tokenBDecimal)
   );
 
-  const x = new Decimal(1).div(maxSqrtPriceDecimal);
-  const y = amountBDecimal.div(amountADecimal);
-  const xy = x.mul(y);
+  const sqrtValue = Decimal.sqrt(adjustedByDecimals);
 
-  const paMinusXY = minSqrtPriceDecimal.sub(xy);
-  const xyMinusPa = xy.sub(minSqrtPriceDecimal);
+  const sqrtValueQ64 = sqrtValue.mul(Decimal.pow(2, 64));
 
-  const fourY = new Decimal(4).mul(y);
-
-  const discriminant = xyMinusPa.mul(xyMinusPa).add(fourY);
-
-  // sqrt_discriminant = √discriminant
-  const sqrtDiscriminant = discriminant.sqrt();
-  const result = paMinusXY
-    .add(sqrtDiscriminant)
-    .div(new Decimal(2))
-    .mul(Decimal.pow(2, 64));
-
-  // Use floor and convert to BN
-  // Decimal.js toFixed(0) should work, but if it produces scientific notation, we'll handle it
-  let sqrtPriceBN: BN;
-  try {
-    const floorResult = result.floor();
-    const floorResultStr = floorResult.toFixed(0);
-    sqrtPriceBN = new BN(floorResultStr);
-  } catch (e) {
-    // Fallback: use toString() and remove decimal part
-    const floorResult = result.floor();
-    const floorResultStr = floorResult.toString();
-    const integerStr = floorResultStr.includes('e') 
-      ? floorResultStr.split('e')[0].replace('.', '')
-      : floorResultStr.split('.')[0];
-    sqrtPriceBN = new BN(integerStr);
-  }
-  
-  // Ensure sqrt_price is within bounds (CP-AMM uses >= and <=)
-  const minPriceBN = new BN(minSqrtPrice.toString());
-  const maxPriceBN = new BN(maxSqrtPrice.toString());
-  
-  // If the result is at or outside the boundary, adjust it slightly inward
-  if (sqrtPriceBN.lte(minPriceBN)) {
-    return minPriceBN.add(new BN(1));
-  }
-  if (sqrtPriceBN.gte(maxPriceBN)) {
-    return maxPriceBN.sub(new BN(1));
-  }
-  
-  return sqrtPriceBN;
-}
+  return new BN(sqrtValueQ64.floor().toFixed());
+};
 
 const SHIFT_128 = new Decimal(2).pow(128);
 
@@ -304,13 +253,91 @@ export function getInitialLiquidityFromDeltaQuote(
   return liquidity;
 }
 
-export function getLiquidityForAddingLiquidity(
+export async function getLiquidityForAddingLiquidity(
+  cpAmmProgram: any, // CP-AMM program instance from IDL
   baseAmount: BN,
   quoteAmount: BN,
   sqrtPrice: BN,
   minSqrtPrice: BN,
   maxSqrtPrice: BN
-): BN {
+): Promise<BN> {
+  // Use CP-AMM IDL functions: get_delta_amount_a_unsigned and get_delta_amount_b_unsigned
+  // These functions calculate amounts from liquidity, so we use binary search to find
+  // the liquidity that produces the desired amounts
+  
+  let liquidityDeltaFromAmountA: BN | null = null;
+  let liquidityDeltaFromAmountB: BN | null = null;
+  
+  try {
+    // Binary search for liquidity that matches baseAmount using get_delta_amount_a_unsigned
+    let lowerBound = new BN(0);
+    let upperBound = new BN("18446744073709551615"); // u128 max
+    
+    for (let i = 0; i < 128; i++) {
+      const testLiquidity = lowerBound.add(upperBound).div(new BN(2));
+      
+      try {
+        const calculatedAmountA = await cpAmmProgram.methods
+          .getDeltaAmountAUnsigned(testLiquidity, sqrtPrice, maxSqrtPrice)
+          .view();
+        
+        const calculatedAmountABN = new BN(calculatedAmountA.toString());
+        
+        if (calculatedAmountABN.lt(baseAmount)) {
+          lowerBound = testLiquidity.add(new BN(1));
+        } else {
+          upperBound = testLiquidity;
+        }
+        
+        if (calculatedAmountABN.sub(baseAmount).abs().lt(baseAmount.div(new BN(1000)))) {
+          liquidityDeltaFromAmountA = testLiquidity;
+          break;
+        }
+      } catch (e) {
+        // Function might not exist or have different signature - fall back to original
+        break;
+      }
+    }
+    
+    // Binary search for liquidity that matches quoteAmount using get_delta_amount_b_unsigned
+    lowerBound = new BN(0);
+    upperBound = new BN("18446744073709551615");
+    
+    for (let i = 0; i < 128; i++) {
+      const testLiquidity = lowerBound.add(upperBound).div(new BN(2));
+      
+      try {
+        const calculatedAmountB = await cpAmmProgram.methods
+          .getDeltaAmountBUnsigned(testLiquidity, minSqrtPrice, sqrtPrice)
+          .view();
+        
+        const calculatedAmountBBN = new BN(calculatedAmountB.toString());
+        
+        if (calculatedAmountBBN.lt(quoteAmount)) {
+          lowerBound = testLiquidity.add(new BN(1));
+        } else {
+          upperBound = testLiquidity;
+        }
+        
+        if (calculatedAmountBBN.sub(quoteAmount).abs().lt(quoteAmount.div(new BN(1000)))) {
+          liquidityDeltaFromAmountB = testLiquidity;
+          break;
+        }
+      } catch (e) {
+        // Function might not exist or have different signature - fall back to original
+        break;
+      }
+    }
+  } catch (e) {
+    // If CP-AMM methods aren't available, will fall back below
+  }
+  
+  // Return minimum of both liquidity calculations (matching user's requested structure)
+  if (liquidityDeltaFromAmountA && liquidityDeltaFromAmountB) {
+    return BN.min(liquidityDeltaFromAmountA, liquidityDeltaFromAmountB);
+  }
+  
+  // Fall back to original calculation if CP-AMM methods aren't available
   const liquidityFromBase = getInitialLiquidityFromDeltaBase(
     baseAmount,
     maxSqrtPrice,

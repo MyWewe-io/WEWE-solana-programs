@@ -5,7 +5,6 @@ use anchor_spl::{
     token::{mint_to, Mint, MintTo, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
 };
-use damm_v2_cpi::state::Config;
 use damm_v2_cpi::params::fee_parameters::{BaseFeeParameters, PoolFeeParameters};
 use damm_v2_cpi::constants::{MIN_SQRT_PRICE, MAX_SQRT_PRICE};
 use std::u64;
@@ -18,6 +17,7 @@ use crate::{
     },
     event::{CoinLaunched, ProposalRejected},
     state::{proposal::Proposal,config::Configs},
+    utils::pool_liqudity::get_liquidity_for_adding_liquidity,
     *,
 };
 
@@ -224,14 +224,23 @@ impl<'info> DammV2<'info> {
         let token_vault_before = self.token_vault.amount;
         let wsol_vault_before = self.wsol_vault.amount;
 
-        let base_amount: u64 = self.config.total_pool_tokens * 10u64.pow(MINT_DECIMALS as u32); // TOTAL_POOL_TOKENS * 10u64.pow(MINT_DECIMALS as u32);
+        // Calculate token amounts (matching SDK flow: tokenAAmount and tokenBAmount)
+        // tokenAAmount = total_pool_tokens * 10^decimals (base token amount)
+        let base_amount: u64 = self.config.total_pool_tokens * 10u64.pow(MINT_DECIMALS as u32);
+        // tokenBAmount = total_backing in lamports (quote token amount, WSOL)
         let quote_amount: u64 = self.proposal.total_backing;
 
-        // Use MIN_SQRT_PRICE and MAX_SQRT_PRICE constants instead of config values
+        // Use MIN_SQRT_PRICE and MAX_SQRT_PRICE constants (matching SDK: MIN_SQRT_PRICE, MAX_SQRT_PRICE)
         // The config values may be 0 or uninitialized, but we need the actual constants
         let sqrt_min_price = MIN_SQRT_PRICE;
         let sqrt_max_price = MAX_SQRT_PRICE;
 
+        // Calculate liquidity delta (matching SDK: cpAmm.getLiquidityDelta)
+        // This calculates the minimum liquidity from both token amounts to ensure balanced pool
+        // Formula: min(
+        //   L_base = base_amount * sqrt_price * sqrt_max_price / (sqrt_max_price - sqrt_price),
+        //   L_quote = quote_amount * 2^128 / (sqrt_price - sqrt_min_price)
+        // )
         let liquidity = get_liquidity_for_adding_liquidity(
             base_amount,
             quote_amount,
@@ -240,13 +249,27 @@ impl<'info> DammV2<'info> {
             sqrt_max_price,
         )?;
 
+        msg!("liquidity: {}", liquidity);
+
+        // require!(false, ProposalError::NumericalOverflow);
+
         // Error out here if the pool_creator_authority is not D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe
         require!(
             self.chain_service_pubkey.key() == chain_service_pubkey::ID,
             ProposalError::NotOwner
         );
 
-        // Attempt pool creation via CPI
+        // Create pool via CPI (matching SDK: cpAmm.createCustomPool)
+        // Parameters match SDK flow:
+        // - tokenAAmount -> base_amount
+        // - tokenBAmount -> quote_amount
+        // - initSqrtPrice -> sqrt_price (calculated from price in test)
+        // - liquidityDelta -> liquidity (calculated above)
+        // - sqrtMinPrice -> MIN_SQRT_PRICE
+        // - sqrtMaxPrice -> MAX_SQRT_PRICE
+        // - poolFees -> configured fee parameters
+        // - activationType -> 1 (Timestamp)
+        // - collectFeeMode -> 1 (BothToken)
         damm_v2_cpi::cpi::initialize_pool_with_dynamic_config(
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
@@ -278,20 +301,20 @@ impl<'info> DammV2<'info> {
             damm_v2_cpi::InitializeCustomizablePoolParameters {
                 pool_fees: PoolFeeParameters {
                     base_fee: BaseFeeParameters {
-                        cliff_fee_numerator: 20000000,
+                        cliff_fee_numerator: 20000000, // 2% fee (20,000,000 / 1,000,000,000)
                         ..Default::default()
                     },
-                    dynamic_fee: None,
+                    dynamic_fee: None, // No dynamic fee (SDK example uses getDynamicFeeParams(500), but we use None)
                     ..Default::default()
                 },
                 sqrt_min_price: MIN_SQRT_PRICE,
                 sqrt_max_price: MAX_SQRT_PRICE,
-                has_alpha_vault: false,
-                liquidity,
-                sqrt_price,
-                activation_type: 1,
-                collect_fee_mode: 1, // BothToken mode (matches reference implementation)
-                activation_point: None,
+                has_alpha_vault: false, // Matching SDK: hasAlphaVault: false
+                liquidity, // liquidityDelta from SDK
+                sqrt_price, // initSqrtPrice from SDK
+                activation_type: 1, // Matching SDK: ActivationType.Timestamp
+                collect_fee_mode: 1, // Matching SDK: collectFeeMode: 1 (BothToken mode)
+                activation_point: None, // Matching SDK: activationPoint: null
             },
         )?;
 
