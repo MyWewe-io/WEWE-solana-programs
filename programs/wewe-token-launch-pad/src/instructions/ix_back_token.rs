@@ -77,7 +77,7 @@ impl<'info> Contribute<'info> {
             ProposalError::CantBackOwnProposal
         );
         
-        require!(elapsed <= SECONDS_TO_DAYS, ProposalError::BackingEnded);
+        require!(elapsed <= SECONDS_TO_DAYS * 3, ProposalError::BackingEnded);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(
             !self.proposal.is_pool_launched,
