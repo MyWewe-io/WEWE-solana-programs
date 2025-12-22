@@ -71,7 +71,7 @@ pub struct DammV2<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
     /// CHECK: pool config
-    pool_config: AccountLoader<'info, Config>,
+    pool_config: UncheckedAccount<'info>,
     /// CHECK: pool
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
@@ -240,12 +240,18 @@ impl<'info> DammV2<'info> {
             sqrt_max_price,
         )?;
 
+        // Error out here if the pool_creator_authority is not D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe
+        require!(
+            self.chain_service_pubkey.key() == chain_service_pubkey::ID,
+            ProposalError::NotOwner
+        );
+
         // Attempt pool creation via CPI
         damm_v2_cpi::cpi::initialize_pool_with_dynamic_config(
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
                 damm_v2_cpi::cpi::accounts::InitializePoolWithDynamicConfigCtx {
-                    creator: self.vault_authority.to_account_info(),
+                    creator: self.chain_service_pubkey.to_account_info(),
                     position_nft_mint: self.position_nft_mint.to_account_info(),
                     position_nft_account: self.position_nft_account.to_account_info(),
                     payer: self.vault_authority.to_account_info(),
@@ -273,21 +279,18 @@ impl<'info> DammV2<'info> {
                 pool_fees: PoolFeeParameters {
                     base_fee: BaseFeeParameters {
                         cliff_fee_numerator: 20000000,
-                        first_factor: 0, // number_of_period = 0 for static fees
-                        second_factor: [0u8; 8], // period_frequency = 0 (static)
-                        third_factor: 0u64, // reduction_factor = 0 (static)
-                        base_fee_mode: 0, // FeeSchedulerLinear mode - static fee when all params are 0
+                        ..Default::default()
                     },
-                    padding: [0; 3],
                     dynamic_fee: None,
+                    ..Default::default()
                 },
                 sqrt_min_price: MIN_SQRT_PRICE,
                 sqrt_max_price: MAX_SQRT_PRICE,
                 has_alpha_vault: false,
                 liquidity,
                 sqrt_price,
-                activation_type: 0,
-                collect_fee_mode: 0, // BothToken mode (matches reference implementation)
+                activation_type: 1,
+                collect_fee_mode: 1, // BothToken mode (matches reference implementation)
                 activation_point: None,
             },
         )?;

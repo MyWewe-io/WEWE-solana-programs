@@ -159,6 +159,79 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     );
   });
 
+  it('0. Check CP-AMM config account contents', async () => {
+    console.log('\n🔍 Checking CP-AMM Config Account Contents');
+    console.log('='.repeat(80));
+    console.log(`📍 Account Address: ${config.toBase58()}\n`);
+
+    // Check if account exists
+    const accountInfo = await provider.connection.getAccountInfo(config);
+    if (!accountInfo) {
+      console.log('❌ Account not found on localnet');
+      throw new Error(`CP-AMM config account ${config.toBase58()} not found on localnet`);
+    }
+
+    console.log('✅ Account found on localnet!');
+    console.log(`   Owner: ${accountInfo.owner.toBase58()}`);
+    console.log(`   Executable: ${accountInfo.executable}`);
+    console.log(`   Lamports: ${accountInfo.lamports} (${accountInfo.lamports / 1e9} SOL)`);
+    console.log(`   Data length: ${accountInfo.data.length} bytes`);
+    console.log(`   Rent Epoch: ${accountInfo.rentEpoch}\n`);
+
+    // Try to fetch using Anchor program
+    try {
+      const configAccount = await cpAmm.account.config.fetch(config);
+      console.log('📋 Config Account Data (decoded):');
+      console.log('='.repeat(80));
+      console.log(`   vault_config_key: ${configAccount.vaultConfigKey.toBase58()}`);
+      console.log(`   pool_creator_authority: ${configAccount.poolCreatorAuthority.toBase58()}`);
+      console.log(`   activation_type: ${configAccount.activationType}`);
+      console.log(`   collect_fee_mode: ${configAccount.collectFeeMode}`);
+      console.log(`   index: ${configAccount.index.toString()}`);
+      console.log(`   sqrt_min_price: ${configAccount.sqrtMinPrice.toString()}`);
+      console.log(`   sqrt_max_price: ${configAccount.sqrtMaxPrice.toString()}`);
+      
+      if (configAccount.poolFees) {
+        console.log(`\n   Pool Fees:`);
+        console.log(`     protocol_a_fee: ${configAccount.poolFees.protocolAFee?.toString() || 'N/A'}`);
+        console.log(`     protocol_b_fee: ${configAccount.poolFees.protocolBFee?.toString() || 'N/A'}`);
+        console.log(`     partner_a_fee: ${configAccount.poolFees.partnerAFee?.toString() || 'N/A'}`);
+        console.log(`     partner_b_fee: ${configAccount.poolFees.partnerBFee?.toString() || 'N/A'}`);
+      }
+      
+      console.log('\n📄 Raw JSON:');
+      console.log(JSON.stringify(configAccount, (key, value) => {
+        // Convert BN and PublicKey to strings for JSON serialization
+        if (value && typeof value === 'object') {
+          if (value.constructor && value.constructor.name === 'BN') {
+            return value.toString();
+          }
+          if (value.constructor && value.constructor.name === 'PublicKey') {
+            return value.toBase58();
+          }
+        }
+        return value;
+      }, 2));
+      
+      console.log('='.repeat(80));
+    } catch (error: any) {
+      console.log('⚠️  Could not decode account with Anchor, showing raw data:');
+      console.log(`   Error: ${error.message}\n`);
+      
+      // Show raw hex data
+      const hex = Array.from(accountInfo.data.slice(0, Math.min(200, accountInfo.data.length)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join(' ');
+      console.log(`   First ${Math.min(200, accountInfo.data.length)} bytes (hex):`);
+      console.log(`   ${hex}`);
+      if (accountInfo.data.length > 200) {
+        console.log(`   ... (${accountInfo.data.length - 200} more bytes)`);
+      }
+    }
+    
+    console.log('\n');
+  });
+
   async function printTxLogs(sig: string) {
     // wait for finalization so logs are retrievable
     await provider.connection.confirmTransaction(sig, 'confirmed');
@@ -984,18 +1057,29 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       throw new Error(`chainServiceAuthority (${chainServiceAuthority.publicKey.toString()}) does not match constant (${CHAIN_SERVICE_PUBKEY.toString()})`);
     }
 
+    // Assert that the config being passed is the expected one
+    const EXPECTED_CONFIG_PUBKEY = new anchor.web3.PublicKey("7xeqWqnS4VMguYMexgtw1vxXt3cM8eh6vyvUkYgv2aJY");
+    expect(config.toBase58()).to.equal(EXPECTED_CONFIG_PUBKEY.toBase58(), 
+      `Config must be ${EXPECTED_CONFIG_PUBKEY.toBase58()}, but got ${config.toBase58()}`);
+
+    // For this config, D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe is the pool creator authority
+    // Verify this matches what we're passing
+    expect(CHAIN_SERVICE_PUBKEY.toBase58()).to.equal(
+      CHAIN_SERVICE_PUBKEY.toBase58(),
+      `poolCreatorAuthority must be ${CHAIN_SERVICE_PUBKEY.toBase58()} for config ${EXPECTED_CONFIG_PUBKEY.toBase58()}`
+    );
+
     const tx = await program.methods
       .createPool(sqrtPrice)
       .accountsPartial({
         proposal,
         vaultAuthority,
-        maker: maker.publicKey,
+        maker: maker.publicKey, // Maker is the proposal creator, not chain service
         tokenVault: vault,
         wsolVault,
-        poolAuthority: pdas.poolAuthority,
+        poolAuthority: pdas.poolAuthority, // Must be DAMM v2 pool authority PDA (const_pda::const_authority::POOL_ID)
         dammPoolAuthority: pdas.poolAuthority,
-        poolConfig: config,
-        poolCreatorAuthority: CHAIN_SERVICE_PUBKEY,
+        poolConfig: EXPECTED_CONFIG_PUBKEY,
         pool: pdas.pool,
         positionNftMint: pdas.positionNftMint.publicKey,
         positionNftAccount: pdas.positionNftAccount,
