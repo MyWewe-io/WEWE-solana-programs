@@ -30,6 +30,7 @@ impl<'info> SetConfig<'info> {
         min_backers: u64,
         max_backed_proposals: u64,
         refund_fee_basis_points: u16,
+        proposal_duration: i64,
     ) -> Result<()> {
         self.config.set_inner(Configs {
             amount_to_raise_per_user: amount_to_raise_per_user,
@@ -40,6 +41,7 @@ impl<'info> SetConfig<'info> {
             min_backers: min_backers,
             max_backed_proposals: max_backed_proposals,
             refund_fee_basis_points: refund_fee_basis_points, // 100 BPS = 1%
+            proposal_duration: proposal_duration, // Days
         });
         
         Ok(())
