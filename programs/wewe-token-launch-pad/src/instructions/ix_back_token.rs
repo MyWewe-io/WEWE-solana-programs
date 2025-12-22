@@ -12,7 +12,7 @@ use crate::{
     },
     errors::ProposalError,
     event::ProposalBacked,
-    state::{backers::Backers, backer_proposal_count::BackerProposalCount, proposal::Proposal, config::Configs},
+    state::{backer_proposal_count::BackerProposalCount, backers::Backers, config::{self, Configs}, proposal::Proposal},
 };
 
 #[derive(Accounts)]
@@ -77,7 +77,7 @@ impl<'info> Contribute<'info> {
             ProposalError::CantBackOwnProposal
         );
         
-        require!(elapsed <= SECONDS_TO_DAYS, ProposalError::BackingEnded);
+        require!(elapsed <= (SECONDS_TO_DAYS * self.config.proposal_duration), ProposalError::BackingEnded);
         require!(!self.proposal.is_rejected, ProposalError::ProposalRejected);
         require!(
             !self.proposal.is_pool_launched,

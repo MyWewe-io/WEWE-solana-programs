@@ -12,4 +12,5 @@ pub struct Configs {
     pub min_backers : u64,
     pub max_backed_proposals : u64,
     pub refund_fee_basis_points : u16, // Fee percentage in basis points (100 = 1%, 250 = 2.5%, etc.)
+    pub proposal_duration: i64, // Days
 }
