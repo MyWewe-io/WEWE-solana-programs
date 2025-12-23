@@ -7,7 +7,7 @@ use anchor_spl::{
 
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
-    constant::{seeds::VAULT_AUTHORITY, treasury},
+    constant::{self, seeds::VAULT_AUTHORITY, treasury},
     errors::ProposalError,
     event::PositionFeeClaimed,
     state::proposal::Proposal,
@@ -89,11 +89,25 @@ pub struct ClaimPositionFee<'info> {
     pub position: UncheckedAccount<'info>,
 
     /// The user token a account
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [constant::seeds::TOKEN_VAULT, vault_authority.key().as_ref(), token_a_mint.key().as_ref()],
+        bump,
+        token::mint = token_a_mint,
+        token::authority = vault_authority,
+        token::token_program = token_a_program,
+    )]
     pub token_a_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The user token b account
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [constant::seeds::TOKEN_VAULT, vault_authority.key().as_ref(), token_b_mint.key().as_ref()],
+        bump,
+        token::mint = token_b_mint,
+        token::authority = vault_authority,
+        token::token_program = token_b_program,
+    )]
     pub token_b_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The vault token account for input token

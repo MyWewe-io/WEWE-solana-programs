@@ -17,7 +17,7 @@ use crate::{
     },
     event::{CoinLaunched, ProposalRejected},
     state::{proposal::Proposal,config::Configs},
-    utils::pool_liqudity::get_liquidity_for_adding_liquidity,
+    utils::pool_liqudity::get_liquidity_delta,
     *,
 };
 
@@ -241,7 +241,7 @@ impl<'info> DammV2<'info> {
         //   L_base = base_amount * sqrt_price * sqrt_max_price / (sqrt_max_price - sqrt_price),
         //   L_quote = quote_amount * 2^128 / (sqrt_price - sqrt_min_price)
         // )
-        let liquidity = get_liquidity_for_adding_liquidity(
+        let liquidity = get_liquidity_delta(
             base_amount,
             quote_amount,
             sqrt_price,
@@ -313,7 +313,7 @@ impl<'info> DammV2<'info> {
                 liquidity, // liquidityDelta from SDK
                 sqrt_price, // initSqrtPrice from SDK
                 activation_type: 1, // Matching SDK: ActivationType.Timestamp
-                collect_fee_mode: 1, // Matching SDK: collectFeeMode: 1 (BothToken mode)
+                collect_fee_mode: 1, 
                 activation_point: None, // Matching SDK: activationPoint: null
             },
         )?;
