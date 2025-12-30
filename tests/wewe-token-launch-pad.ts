@@ -441,7 +441,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         minBackers,
         maxBackedProposals,
         refundFeeBps, // refund_fee_basis_points: 200 BPS = 2%
-        new BN(20000000), // pool_cliff_fee_numerator: 20,000,000 = 2%
       )
       .accounts({
         authority: configureAuthority.publicKey,
@@ -475,7 +474,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           minBackers,
           maxBackedProposals,
           refundFeeBps,
-          new BN(20000000), // pool_cliff_fee_numerator: 20,000,000 = 2%
         )
         .accounts({
           authority: authority.publicKey, // Using old authority, not configureAuthority
@@ -1903,7 +1901,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             new BN(1),
             new BN(3),
             refundFeeBps, // refund_fee_basis_points: 200 BPS = 2%
-            new BN(20000000) // pool_cliff_fee_numerator: 20,000,000 = 2%
           )
           .accounts({
             authority: unauthorizedUser.publicKey,
@@ -1938,7 +1935,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           minBackers,
           maxBackedProposals,
           refundFeeBps,
-          new BN(20000000), // pool_cliff_fee_numerator: 20,000,000 = 2%
         )
         .accounts({
           authority: configureAuthority.publicKey,
@@ -1964,7 +1960,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             new BN(1),
             new BN(3),
             refundFeeBps, // refund_fee_basis_points: 200 BPS = 2%
-            new BN(20000000) // pool_cliff_fee_numerator: 20,000,000 = 2%
           )
           .accounts({
             authority: chainServiceAuthority.publicKey,

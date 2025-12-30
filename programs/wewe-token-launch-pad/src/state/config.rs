@@ -12,8 +12,4 @@ pub struct Configs {
     pub min_backers : u64,
     pub max_backed_proposals : u64,
     pub refund_fee_basis_points : u16, // Fee percentage in basis points (100 = 1%, 250 = 2.5%, etc.)
-    
-    // CP-AMM Pool Parameters - Only fee percentage is configurable
-    // Fee numerator (denominator is 100,000,000, so 20_000_000 = 2%, 2_000_000 = 0.2%)
-    pub pool_cliff_fee_numerator: u64,
 }
