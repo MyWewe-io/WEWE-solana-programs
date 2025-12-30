@@ -274,7 +274,7 @@ impl<'info> DammV2<'info> {
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
                 damm_v2_cpi::cpi::accounts::InitializePoolWithDynamicConfigCtx {
-                    creator: self.chain_service_pubkey.to_account_info(),
+                    creator: self.vault_authority.to_account_info(),
                     position_nft_mint: self.position_nft_mint.to_account_info(),
                     position_nft_account: self.position_nft_account.to_account_info(),
                     payer: self.vault_authority.to_account_info(),
