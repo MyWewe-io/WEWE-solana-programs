@@ -294,11 +294,11 @@ impl<'info> DammV2<'info> {
             damm_v2_cpi::InitializeCustomizablePoolParameters {
                 pool_fees: PoolFeeParameters {
                     base_fee: BaseFeeParameters {
-                        cliff_fee_numerator: 500_000_000, // 50% fee (denominator)
+                        cliff_fee_numerator: 990_000_000, // 50% fee (denominator)
                         base_fee_mode: damm_v2_cpi::state::fee::BaseFeeMode::FeeSchedulerLinear as u8,
                         first_factor: 100,
                         second_factor: 1u64.to_le_bytes(),
-                        third_factor: 48, // Ending Fee = Cliff Fee Numerator − (Number Of Periods × Reduction Factor)
+                        third_factor: 97, // Ending Fee = Cliff Fee Numerator − (Number Of Periods × Reduction Factor)
                         /*
                             firstFactor: number // numberOfPeriod
                             secondFactor: BN // periodFrequency

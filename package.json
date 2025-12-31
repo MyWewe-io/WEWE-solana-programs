@@ -6,6 +6,7 @@
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
+    "@meteora-ag/cp-amm-sdk": "^0.1.0",
     "@solana/spl-token": "^0.4.13",
     "decimal.js": "^10.6.0"
   },
