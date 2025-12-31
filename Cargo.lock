@@ -730,12 +730,13 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 
 [[package]]
 name = "cp-amm"
-version = "0.1.1"
-source = "git+https://github.com/MeteoraAg/damm-v2?branch=main#4f969508da67142265cafde1e2a14792b9000253"
+version = "0.1.5"
+source = "git+https://github.com/MeteoraAg/damm-v2?branch=main#601805a696b260512fc2244f420905170182d8d8"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bytemuck",
+ "const-crypto",
  "num",
  "num-traits",
  "num_enum",

@@ -91,4 +91,13 @@ pub enum ProposalError {
 
     #[msg("Maximum number of backed proposals reached")]
     MaxBackedProposalsReached,
+
+    #[msg("Invalid price range: sqrt_price must be between sqrt_min_price and sqrt_max_price")]
+    InvalidPriceRange,
+
+    #[msg("Invalid parameters: liquidity must be greater than 0")]
+    InvalidParameters,
+
+    #[msg("Liquidity cannot be zero. Ensure base_amount and quote_amount are non-zero and sqrt_price is within valid range.")]
+    LiquidityCannotBeZero,
 }
