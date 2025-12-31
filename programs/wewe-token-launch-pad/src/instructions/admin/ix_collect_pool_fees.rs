@@ -7,7 +7,7 @@ use anchor_spl::{
 
 use crate::{
     const_pda::{self, const_authority::VAULT_BUMP},
-    constant::{seeds::VAULT_AUTHORITY, treasury},
+    constant::{seeds::VAULT_AUTHORITY, seeds::TOKEN_VAULT, treasury},
     errors::ProposalError,
     event::PositionFeeClaimed,
     state::proposal::Proposal,
@@ -46,12 +46,17 @@ pub struct ClaimPositionFee<'info> {
     )]
     pub vault_authority: SystemAccount<'info>,
 
+    /// CHECK:
+    pub token_a_mint: UncheckedAccount<'info>,
+
+    /// CHECK:
+    pub token_b_mint: UncheckedAccount<'info>,
+
     #[account(
         init_if_needed,
         payer = payer,
         associated_token::mint = token_b_mint,
         associated_token::authority = wewe_treasury,
-        associated_token::token_program = token_b_program,
     )]
     pub wewe_wsol_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -60,7 +65,6 @@ pub struct ClaimPositionFee<'info> {
         payer = payer,
         associated_token::mint = token_a_mint,
         associated_token::authority = wewe_treasury,
-        associated_token::token_program = token_a_program,
     )]
     pub wewe_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -69,15 +73,14 @@ pub struct ClaimPositionFee<'info> {
         payer = payer,
         associated_token::authority = maker,
         associated_token::mint = token_b_mint,
-        associated_token::token_program = token_b_program,
     )]
     pub maker_wsol_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         associated_token::mint = token_a_mint,
-        associated_token::authority = proposal.maker,
-        associated_token::token_program = token_a_program,
+        associated_token::authority = maker,
     )]
     pub maker_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -88,27 +91,29 @@ pub struct ClaimPositionFee<'info> {
     #[account(mut)]
     pub position: UncheckedAccount<'info>,
 
-    /// The user token a account
-    #[account(mut)]
+    /// The user token a account - vault for token A
+    #[account(
+        mut,
+        seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), token_a_mint.key().as_ref()],
+        bump,
+    )]
     pub token_a_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// The user token b account
-    #[account(mut)]
+    /// The user token b account - vault for token B  
+    #[account(
+        mut,
+        seeds = [TOKEN_VAULT, vault_authority.key().as_ref(), token_b_mint.key().as_ref()],
+        bump,
+    )]
     pub token_b_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The vault token account for input token
-    #[account(mut, token::token_program = token_a_program, token::mint = token_a_mint)]
+    #[account(mut)]
     pub token_a_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The vault token account for output token
-    #[account(mut, token::token_program = token_b_program, token::mint = token_b_mint)]
+    #[account(mut)]
     pub token_b_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    /// CHECK:
-    pub token_a_mint: UncheckedAccount<'info>,
-
-    /// CHECK:
-    pub token_b_mint: UncheckedAccount<'info>,
 
     /// CHECK:
     pub position_nft_account: UncheckedAccount<'info>,
@@ -118,7 +123,7 @@ pub struct ClaimPositionFee<'info> {
     pub token_b_program: Interface<'info, TokenInterface>,
 
     /// CHECK: amm program address
-    #[account(address = cp_amm::ID)]
+    #[account(address = damm_v2_cpi::ID)]
     pub amm_program: UncheckedAccount<'info>,
 
     /// CHECK:
@@ -130,14 +135,18 @@ pub struct ClaimPositionFee<'info> {
 
 impl<'info> ClaimPositionFee<'info> {
     pub fn handle_claim_position_fee(&mut self) -> Result<()> {
+        // Access control: The maker account is already validated in Accounts struct
+        // Anyone can call this function as long as they provide the correct maker account
+        // The maker constraint ensures only the correct maker can be specified
+        
         let vault_authority_seeds: &[&[u8]] = &[VAULT_AUTHORITY, &[VAULT_BUMP]];
 
         let pre_a = self.token_a_account.amount;
         let pre_b = self.token_b_account.amount;
 
-        cp_amm::cpi::claim_position_fee(CpiContext::new_with_signer(
+        damm_v2_cpi::cpi::claim_position_fee(CpiContext::new_with_signer(
             self.amm_program.to_account_info(),
-            cp_amm::cpi::accounts::ClaimPositionFeeCtx {
+            damm_v2_cpi::cpi::accounts::ClaimPositionFeeCtx {
                 pool_authority: self.pool_authority.to_account_info(),
                 pool: self.pool.to_account_info(),
                 position: self.position.to_account_info(),
