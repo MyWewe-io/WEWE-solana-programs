@@ -5,7 +5,7 @@ use anchor_spl::{
     token::{mint_to, Mint, MintTo, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
 };
-use damm_v2_cpi::params::fee_parameters::{BaseFeeParameters, PoolFeeParameters};
+use damm_v2_cpi::{params::fee_parameters::{BaseFeeParameters, PoolFeeParameters}};
 use damm_v2_cpi::constants::{MIN_SQRT_PRICE, MAX_SQRT_PRICE};
 use std::u64;
 
@@ -117,11 +117,11 @@ pub struct DammV2<'info> {
     /// CHECK: payer
     #[account(mut)]
     pub payer: Signer<'info>,
-    /// CHECK: chain service pubkey - must be the pool_creator_authority
+    /// CHECK: chain service pubkey (constrained to constant, not passed as parameter)
     #[account(
         address = chain_service_pubkey::ID @ ProposalError::NotOwner
     )]
-    pub chain_service_pubkey: Signer<'info>,
+    pub chain_service_pubkey: AccountInfo<'info>,
     /// CHECK: token_program
     pub token_base_program: Interface<'info, TokenInterface>,
     /// CHECK: token_program
@@ -139,9 +139,8 @@ pub struct DammV2<'info> {
 impl<'info> DammV2<'info> {
     pub fn handle_create_pool(&mut self, sqrt_price: u128) -> Result<()> {
         // Chain service pubkey must be the signer (payer) and pool_creator_authority
-        // chain_service_pubkey is already constrained to equal chain_service_pubkey::ID in Accounts struct
         require!(
-            self.payer.key() == self.chain_service_pubkey.key(),
+            self.payer.key() == chain_service_pubkey::ID,
             ProposalError::NotOwner
         );
 
@@ -253,12 +252,6 @@ impl<'info> DammV2<'info> {
 
         // require!(false, ProposalError::NumericalOverflow);
 
-        // Error out here if the pool_creator_authority is not D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe
-        require!(
-            self.chain_service_pubkey.key() == chain_service_pubkey::ID,
-            ProposalError::NotOwner
-        );
-
         // Create pool via CPI (matching SDK: cpAmm.createCustomPool)
         // Parameters match SDK flow:
         // - tokenAAmount -> base_amount
@@ -301,10 +294,20 @@ impl<'info> DammV2<'info> {
             damm_v2_cpi::InitializeCustomizablePoolParameters {
                 pool_fees: PoolFeeParameters {
                     base_fee: BaseFeeParameters {
-                        cliff_fee_numerator: 20000000, // 2% fee (20,000,000 / 1,000,000,000)
-                        ..Default::default()
+                        cliff_fee_numerator: 500_000_000, // 50% fee (denominator)
+                        base_fee_mode: damm_v2_cpi::state::fee::BaseFeeMode::FeeSchedulerLinear as u8,
+                        first_factor: 100,
+                        second_factor: 1u64.to_le_bytes(),
+                        third_factor: 48, // Ending Fee = Cliff Fee Numerator − (Number Of Periods × Reduction Factor)
+                        /*
+                            firstFactor: number // numberOfPeriod
+                            secondFactor: BN // periodFrequency
+                            thirdFactor: BN // reductionFactor
+                            baseFeeMode: BaseFeeMode // 0 or 1
+                         */
+
                     },
-                    dynamic_fee: None, // No dynamic fee (SDK example uses getDynamicFeeParams(500), but we use None)
+                    dynamic_fee: None,
                     ..Default::default()
                 },
                 sqrt_min_price: MIN_SQRT_PRICE,
