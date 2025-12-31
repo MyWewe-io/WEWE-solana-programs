@@ -146,7 +146,7 @@ impl<'info> DammV2<'info> {
 
         let now = Clock::get()?.unix_timestamp;
         let elapsed = now.saturating_sub(self.proposal.time_started);
-        if elapsed >= SECONDS_TO_DAYS && self.proposal.total_backers < self.config.min_backers // MINIMUM_BACKERS 
+        if elapsed >= SECONDS_TO_DAYS * 3 && self.proposal.total_backers < self.config.min_backers // MINIMUM_BACKERS 
         {
             self.proposal.is_rejected = true;
             emit!(ProposalRejected {
