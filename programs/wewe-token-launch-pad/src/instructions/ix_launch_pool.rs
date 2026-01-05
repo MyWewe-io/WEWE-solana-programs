@@ -298,7 +298,7 @@ impl<'info> DammV2<'info> {
                         base_fee_mode: damm_v2_cpi::state::fee::BaseFeeMode::FeeSchedulerLinear as u8,
                         first_factor: 100,
                         second_factor: 1u64.to_le_bytes(),
-                        third_factor: 97, // Ending Fee = Cliff Fee Numerator − (Number Of Periods × Reduction Factor)
+                        third_factor: 9_700_000, // Ending Fee = Cliff Fee Numerator − (Number Of Periods × Reduction Factor)
                         /*
                             firstFactor: number // numberOfPeriod
                             secondFactor: BN // periodFrequency
