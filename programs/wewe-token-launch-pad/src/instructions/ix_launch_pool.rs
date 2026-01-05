@@ -321,6 +321,25 @@ impl<'info> DammV2<'info> {
             },
         )?;
 
+        // Permanent lock position before initializing pool
+        // Note: This requires the position to exist, which is created by initialize_pool_with_dynamic_config
+        // If the position doesn't exist yet, this will fail. Consider moving this call after initialize_pool_with_dynamic_config
+        damm_v2_cpi::cpi::permanent_lock_position(
+            CpiContext::new_with_signer(
+                self.amm_program.to_account_info(),
+                damm_v2_cpi::cpi::accounts::PermanentLockPositionCtx {
+                    pool: self.pool.to_account_info(),
+                    position: self.position.to_account_info(),
+                    position_nft_account: self.position_nft_account.to_account_info(),
+                    owner: self.vault_authority.to_account_info(),
+                    event_authority: self.damm_event_authority.to_account_info(),
+                    program: self.amm_program.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            liquidity,
+        )?;
+
         // Reload accounts after CPI to get updated balances for validation
         self.token_vault.reload()?;
         self.wsol_vault.reload()?;
