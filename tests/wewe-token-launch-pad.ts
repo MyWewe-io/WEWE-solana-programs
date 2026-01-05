@@ -1558,33 +1558,33 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
   
-    const backerMintAta = currentBackerTokenAccount; // Use current mint's token account
+    // Use currentBackerTokenAccount directly (derived from currentMint)
+    // This should match test 13's pattern exactly
     const destAta = currentPdas.makerTokenAccount;   // maker's ATA for the current mint
   
-    // Verify the backer's token account exists and has the correct mint
+    // Verify the backer's token account exists and has the correct mint BEFORE using it
     let balBefore = new BN(0);
-    try {
-      const tokenAccountInfo = await provider.connection.getTokenAccountBalance(backerMintAta);
-      const tokenAccountData = await provider.connection.getParsedAccountInfo(backerMintAta);
-      
-      // Verify the mint matches
-      if (tokenAccountData.value && 'parsed' in tokenAccountData.value.data) {
-        const parsedData = tokenAccountData.value.data as any;
-        if (parsedData.parsed?.info?.mint !== currentMint.toBase58()) {
-          throw new Error(`Backer token account has wrong mint. Expected ${currentMint.toBase58()}, got ${parsedData.parsed?.info?.mint}`);
-        }
-      }
-      
-      balBefore = new BN(tokenAccountInfo.value.amount);
-    } catch (e: any) {
-      // If account doesn't exist or has wrong mint, we can't proceed with transfer
-      // But we can still snapshot (the account will be checked in the instruction)
-      console.log(`Backer token account issue: ${e.message}`);
-      // If account doesn't exist, snapshot will fail anyway, so we'll let it fail with a clear error
-      if (e.message?.includes('Invalid param')) {
-        throw new Error(`Backer token account for current mint ${currentMint.toBase58()} doesn't exist. Make sure test 11 (Airdrop) ran successfully.`);
-      }
+    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
+    const tokenAccountData = await provider.connection.getParsedAccountInfo(currentBackerTokenAccount);
+    
+    // Verify the account exists
+    if (!tokenAccountData.value) {
+      throw new Error(`Backer token account ${currentBackerTokenAccount.toBase58()} does not exist. Expected mint: ${currentMint.toBase58()}. Make sure test 11 (Airdrop) ran successfully.`);
     }
+    
+    // Verify the mint matches - this is critical for the constraint check
+    if ('parsed' in tokenAccountData.value.data) {
+      const parsedData = tokenAccountData.value.data as any;
+      const accountMint = parsedData.parsed?.info?.mint;
+      if (accountMint !== currentMint.toBase58()) {
+        // This should never happen if the account was created correctly in test 11
+        throw new Error(`Backer token account ${currentBackerTokenAccount.toBase58()} has mint ${accountMint}, but expected ${currentMint.toBase58()}. Account address was derived using findUserAta(backer.publicKey, ${currentMint.toBase58()}), but the account at that address has mint ${accountMint}. This suggests test 11 (Airdrop) may have created the account for a different mint.`);
+      }
+    } else {
+      throw new Error(`Backer token account ${currentBackerTokenAccount.toBase58()} exists but could not parse mint information.`);
+    }
+    
+    balBefore = new BN(tokenAccountInfo.value.amount);
     
     const toMove = balBefore.gt(new BN(0)) ? balBefore.div(new BN(2)) : new BN(0);
 
@@ -1594,7 +1594,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const transferAmount = BigInt(toMove.toString());
       const tx = new anchor.web3.Transaction().add(
         createTransferInstruction(
-          backerMintAta,
+          currentBackerTokenAccount,
           destAta,
           backer.publicKey,
           transferAmount
@@ -1604,6 +1604,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     }  
   
     // Take snapshot AFTER moving tokens away (or if no tokens to move, snapshot with current balance)
+    // Use currentBackerTokenAccount directly (same as test 13) - this was verified to have the correct mint above
     const sig = await program.methods
       .snapshotBackerAmount()
       .accounts({
@@ -1611,7 +1612,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal,
         backer: backer.publicKey,
         backerAccount,
-        backerTokenAccount: backerMintAta,
+        backerTokenAccount: currentBackerTokenAccount,
         mintAccount: currentMint,
         config: configStruct,
       })
@@ -1641,10 +1642,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backer: backer.publicKey,
         proposal,
         vaultAuthority,
-        mintAccount: mint.publicKey,
-        tokenVault: vault,
+        mintAccount: currentMint,
+        tokenVault: currentVault,
         backerAccount,
-        backerTokenAccount: backerMintAta,
+        backerTokenAccount: currentBackerTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
