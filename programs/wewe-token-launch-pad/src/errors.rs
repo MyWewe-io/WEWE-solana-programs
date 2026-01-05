@@ -100,4 +100,7 @@ pub enum ProposalError {
 
     #[msg("Liquidity cannot be zero. Ensure base_amount and quote_amount are non-zero and sqrt_price is within valid range.")]
     LiquidityCannotBeZero,
+
+    #[msg("Insufficient funds in vault to cover proposal requirements")]
+    InsufficientFunds,
 }

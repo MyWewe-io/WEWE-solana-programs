@@ -108,4 +108,9 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_end_milestone()
     }
 
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn reset_pool_launch(ctx: Context<ResetPoolLaunch>) -> Result<()> {
+        ctx.accounts.handle_reset_pool_launch()
+    }
+
 }

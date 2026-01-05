@@ -6,6 +6,7 @@ pub mod ix_start_milestone;
 pub mod ix_end_milestone;
 pub mod ix_set_config;
 pub mod ix_emergency_unlock;
+pub mod ix_reset_pool_launch;
 
 pub use ix_reject_proposal::*;
 pub use ix_snapshot::*;
@@ -15,3 +16,4 @@ pub use ix_start_milestone::*;
 pub use ix_end_milestone::*;
 pub use ix_set_config::*;
 pub use ix_emergency_unlock::*;
+pub use ix_reset_pool_launch::*;
