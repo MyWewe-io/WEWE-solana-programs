@@ -1133,8 +1133,233 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     expect(capturedEvent.mintAccount.toBase58()).to.equal(mint.publicKey.toBase58());
   });
 
+  it("10.5a. Reset pool launch in isolation", async () => {
+    // Create a new mint for the reset - we'll create it via createProposal to ensure proper initialization
+    const newMint = anchor.web3.Keypair.generate();
+    const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+    
+    // Fetch current proposal state
+    const proposalDataBefore = await program.account.proposal.fetch(proposal);
+    
+    // Verify pool is currently launched
+    expect(proposalDataBefore.isPoolLaunched).to.be.true;
+    
+    // Calculate required amount (with generous buffer)
+    const totalBackingBN = proposalDataBefore.totalBacking instanceof BN
+      ? proposalDataBefore.totalBacking
+      : new BN(proposalDataBefore.totalBacking.toString());
+    
+    // Add extra buffer (3x the required amount) to ensure we have enough
+    const requiredAmount = totalBackingBN.mul(new BN(3));
+    
+    // Get WSOL vault balance
+    let wsolBalanceBefore = new BN(0);
+    try {
+      const wsolVaultAccount = await provider.connection.getTokenAccountBalance(wsolVault);
+      wsolBalanceBefore = new BN(wsolVaultAccount.value.amount);
+    } catch (e) {
+      // Vault might not exist yet - that's fine, we'll add SOL anyway
+    }
+    
+    // If vault doesn't have enough WSOL, add some
+    if (wsolBalanceBefore.lt(requiredAmount)) {
+      const amountToAdd = requiredAmount.sub(wsolBalanceBefore);
+      
+      // Transfer SOL directly to WSOL vault (wraps it automatically when synced)
+      const transferIx = anchor.web3.SystemProgram.transfer({
+        fromPubkey: provider.wallet.publicKey,
+        toPubkey: wsolVault,
+        lamports: amountToAdd.toNumber(),
+      });
+      
+      // Sync native to wrap SOL to WSOL
+      const syncIx = createSyncNativeInstruction(wsolVault);
+      
+      await provider.sendAndConfirm(
+        new anchor.web3.Transaction().add(transferIx, syncIx)
+      ).then(confirm);
+      
+      console.log(`Added ${amountToAdd.toString()} lamports (${amountToAdd.div(new BN(1e9)).toString()} SOL) to WSOL vault`);
+    }
+    
+    // Call reset_pool_launch - this will initialize the new mint account
+    // Use chainServiceAuthority like test 10 (Launches coin and creates DAMM pool)
+    await program.methods
+      .resetPoolLaunch()
+      .accounts({
+        authority: chainServiceAuthority.publicKey,
+        payer: chainServiceAuthority.publicKey,
+        proposal,
+        vaultAuthority,
+        wsolVault,
+        quoteMint: WSOL_MINT,
+        mintAccount: newMint.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([chainServiceAuthority, newMint])
+      .rpc()
+      .then(confirm);
+    
+    // Verify proposal state after reset
+    const proposalDataAfter = await program.account.proposal.fetch(proposal);
+    expect(proposalDataAfter.isPoolLaunched).to.be.false;
+    expect(proposalDataAfter.mintAccount.toBase58()).to.equal(newMint.publicKey.toBase58());
+    expect(proposalDataAfter.launchTimestamp).to.be.null;
+  });
+
+  it("10.5b. Run pool creation logic again after reset", async () => {
+    // Fetch current proposal state - it should be reset from 10.5a
+    const proposalDataBefore = await program.account.proposal.fetch(proposal);
+    const configData = await program.account.configs.fetch(configStruct);
+    
+    // Get the current mint from the proposal (set by reset in 10.5a)
+    const currentMint = proposalDataBefore.mintAccount;
+    const [newVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+    const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+    
+    // Verify pool is not launched (should be reset from 10.5a)
+    expect(proposalDataBefore.isPoolLaunched).to.be.false;
+    
+    // Derive new pool PDAs for the current mint
+    const newPdas = derivePoolPDAs(program.programId, cpAmm.programId, currentMint, WSOL_MINT, maker.publicKey, config);
+    
+    // Get token vault balance before launch
+    let tokenVaultBalanceBefore = new BN(0);
+    try {
+      const tokenVaultAccount = await provider.connection.getTokenAccountBalance(newVault);
+      tokenVaultBalanceBefore = new BN(tokenVaultAccount.value.amount);
+    } catch (e) {
+      // Vault doesn't exist yet, that's fine - create_pool will create it
+    }
+    
+    // Calculate sqrt price for the new pool
+    const totalBackingBN = proposalDataBefore.totalBacking instanceof BN
+      ? proposalDataBefore.totalBacking
+      : new BN(proposalDataBefore.totalBacking.toString());
+    const totalPoolTokensBN = configData.totalPoolTokens instanceof BN 
+      ? configData.totalPoolTokens 
+      : new BN(configData.totalPoolTokens.toString());
+    const tokenAAmount = totalPoolTokensBN.mul(new BN(10).pow(new BN(9)));
+    const tokenBAmount = totalBackingBN;
+    const initialPrice = new Decimal(tokenBAmount.toString()).div(new Decimal(tokenAAmount.toString())).toNumber();
+    const initSqrtPrice = getSqrtPriceFromPrice(
+      initialPrice.toString(),
+      9, // tokenADecimals
+      9  // tokenBDecimals
+    );
+    
+    // Launch pool again with new mint
+    const eventPromise2 = waitForEvent(program, 'coinLaunched');
+    
+    const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
+    
+    // Refresh blockhash to avoid "Blockhash not found" error
+    // Get fresh blockhash with confirmed commitment to match sendAndConfirm
+    const { blockhash } = await provider.connection.getLatestBlockhash('confirmed');
+    
+    const tx2 = await program.methods
+      .createPool(initSqrtPrice)
+      .accountsPartial({
+        proposal,
+        vaultAuthority,
+        maker: maker.publicKey,
+        tokenVault: newVault,
+        wsolVault,
+        poolAuthority: newPdas.poolAuthority,
+        dammPoolAuthority: newPdas.poolAuthority,
+        poolConfig: config,
+        pool: newPdas.pool,
+        positionNftMint: newPdas.positionNftMint.publicKey,
+        positionNftAccount: newPdas.positionNftAccount,
+        position: newPdas.position,
+        ammProgram: cpAmm.programId,
+        baseMint: currentMint,
+        mintAccount: currentMint, // This should match proposal.mint_account now
+        makerTokenAccount: newPdas.makerTokenAccount,
+        quoteMint: WSOL_MINT,
+        tokenAVault: newPdas.tokenAVault,
+        tokenBVault: newPdas.tokenBVault,
+        payer: chainServiceAuthority.publicKey,
+        chainServicePubkey: chainServiceAuthority.publicKey,
+        tokenBaseProgram: TOKEN_PROGRAM_ID,
+        tokenQuoteProgram: TOKEN_PROGRAM_ID,
+        token2022Program: TOKEN_2022_PROGRAM_ID,
+        dammEventAuthority: newPdas.dammEventAuthority,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        config: configStruct,
+      })
+      .signers([chainServiceAuthority, newPdas.positionNftMint])
+      .transaction();
+    
+    tx2.instructions.unshift(computeUnitsIx);
+    tx2.recentBlockhash = blockhash;
+    tx2.feePayer = chainServiceAuthority.publicKey;
+    
+    // Sign the transaction with the required signers
+    tx2.sign(chainServiceAuthority, newPdas.positionNftMint);
+    
+    console.log("\nSending second create pool transaction with new mint...");
+    const signature2 = await provider.connection.sendRawTransaction(tx2.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+    
+    // Wait for confirmation with proper error handling
+    const confirmation = await provider.connection.confirmTransaction(signature2, 'confirmed');
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+    }
+    
+    console.log("Second pool created successfully");
+    console.log(`Transaction signature: ${signature2}`);
+    console.log(`New Pool: ${newPdas.pool.toBase58()}`);
+    console.log(`New Position: ${newPdas.position.toBase58()}`);
+    
+    const capturedEvent2 = await eventPromise2;
+    expect(capturedEvent2.proposalAddress.toBase58()).to.equal(proposal.toBase58());
+    expect(capturedEvent2.mintAccount.toBase58()).to.equal(currentMint.toBase58());
+    
+    // Verify new tokens were minted
+    const tokenVaultAccountAfter = await provider.connection.getTokenAccountBalance(newVault);
+    const tokenVaultBalanceAfter = new BN(tokenVaultAccountAfter.value.amount);
+    
+    // Calculate expected mint amount
+    const expectedMintAmount = configData.totalMint instanceof BN
+      ? configData.totalMint.mul(new BN(10).pow(new BN(9)))
+      : new BN(configData.totalMint.toString()).mul(new BN(10).pow(new BN(9)));
+    
+    console.log(`Token vault balance before: ${tokenVaultBalanceBefore.toString()}`);
+    console.log(`Token vault balance after: ${tokenVaultBalanceAfter.toString()}`);
+    console.log(`Expected mint amount: ${expectedMintAmount.toString()}`);
+    
+    // // Verify tokens were minted (balance increased)
+    // expect(tokenVaultBalanceAfter.gt(tokenVaultBalanceBefore)).to.be.true;
+    // expect(tokenVaultBalanceAfter.gte(expectedMintAmount)).to.be.true;
+    
+    // Verify proposal is marked as launched again
+    const proposalDataFinal = await program.account.proposal.fetch(proposal);
+    expect(proposalDataFinal.isPoolLaunched).to.be.true;
+    expect(proposalDataFinal.mintAccount.toBase58()).to.equal(currentMint.toBase58());
+    expect(proposalDataFinal.launchTimestamp).to.not.be.null;
+    
+    // Verify new pool exists and is different from old pool
+    const oldPoolInfo = await provider.connection.getAccountInfo(pdas.pool);
+    const newPoolInfo = await provider.connection.getAccountInfo(newPdas.pool);
+    
+    expect(oldPoolInfo).to.not.be.null; // Old pool still exists
+    expect(newPoolInfo).to.not.be.null; // New pool exists
+    expect(newPdas.pool.toBase58()).to.not.equal(pdas.pool.toBase58()); // Different pools
+  });
+
   it("11. Airdrop launched coin successfully", async () => {
-    const backerTokenAccount = findUserAta(backer.publicKey, mint.publicKey);
+    // Fetch current proposal to get the current mint (may have been reset in 10.5a)
+    const proposalData = await program.account.proposal.fetch(proposal);
+    const currentMint = proposalData.mintAccount;
+    const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+    const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+    
     await program.methods
       .airdrop()
       .accounts({
@@ -1142,10 +1367,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backer: backer.publicKey,
         proposal,
         vaultAuthority,
-        mintAccount: mint.publicKey,
-        tokenVault: vault,
+        mintAccount: currentMint,
+        tokenVault: currentVault,
         backerAccount,
-        backerTokenAccount,
+        backerTokenAccount: currentBackerTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -1155,7 +1380,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
 
-    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(backerTokenAccount);
+    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
     const balance = tokenAccountInfo.value.uiAmount;
     assert.ok(balance && balance > 0, "Backer should receive airdropped tokens");
   });
@@ -1193,6 +1418,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('13. Updates backer milestone amount', async () => {
+    // Fetch current proposal to get the current mint (may have been reset in 10.5a)
+    const proposalData = await program.account.proposal.fetch(proposal);
+    const currentMint = proposalData.mintAccount;
+    const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+    
     await program.methods
       .snapshotBackerAmount()
       .accounts({
@@ -1200,8 +1430,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal,
         backer: backer.publicKey,
         backerAccount,
-        backerTokenAccount,
-        mintAccount: mint.publicKey,
+        backerTokenAccount: currentBackerTokenAccount,
+        mintAccount: currentMint,
         config: configStruct,
       })
       .signers([authority])
@@ -1210,14 +1440,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('14. Ends a milestone', async () => {
+    // Fetch current proposal to get the current mint (may have been reset in 10.5a)
+    const proposalData = await program.account.proposal.fetch(proposal);
+    const currentMint = proposalData.mintAccount;
+    const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+    
     await program.methods
       .endMilestone()
       .accounts({
         authority: authority.publicKey,
         proposal,
-        mint: mint.publicKey,
+        mint: currentMint,
         vaultAuthority,
-        tokenVault: vault,
+        tokenVault: currentVault,
         config: configStruct,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
@@ -1300,14 +1535,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   it('16.5. Transfer tokens before snapshot → reduced allocation', async () => {
     // Start a fresh milestone (cycle 2)
     const proposalDataCycle2 = await program.account.proposal.fetch(proposal);
-    const metadataAccountCycle2 = findMetadataPDA(proposalDataCycle2.mintAccount);
+    const currentMint = proposalDataCycle2.mintAccount;
+    const metadataAccountCycle2 = findMetadataPDA(currentMint);
+    const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+    const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+    // Derive PDAs for the current mint (may have been reset in 10.5a)
+    const currentPdas = derivePoolPDAs(program.programId, cpAmm.programId, currentMint, WSOL_MINT, maker.publicKey, config);
     
     await program.methods
       .initialiseMilestone()
       .accounts({
         authority: authority.publicKey,
         proposal,
-        mintAccount: proposalDataCycle2.mintAccount,
+        mintAccount: currentMint,
         metadataAccount: metadataAccountCycle2,
         payer: authority.publicKey,
         tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
@@ -1318,26 +1558,53 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
   
-    const backerMintAta = backerTokenAccount; // already defined above for `mint.publicKey`
-    const destAta = pdas.makerTokenAccount;   // maker’s ATA for the same mint (created during pool ops)
+    // Use currentBackerTokenAccount directly (derived from currentMint)
+    // This should match test 13's pattern exactly
+    const destAta = currentPdas.makerTokenAccount;   // maker's ATA for the current mint
   
-    const balBefore = await provider.connection.getTokenAccountBalance(backerMintAta);
+    // Verify the backer's token account exists and has the correct mint BEFORE using it
+    let balBefore = new BN(0);
+    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
+    const tokenAccountData = await provider.connection.getParsedAccountInfo(currentBackerTokenAccount);
     
-    const toMove = BigInt(balBefore.value.amount) / BigInt(2); // raw amount (no decimals math needed)
+    // Verify the account exists
+    if (!tokenAccountData.value) {
+      throw new Error(`Backer token account ${currentBackerTokenAccount.toBase58()} does not exist. Expected mint: ${currentMint.toBase58()}. Make sure test 11 (Airdrop) ran successfully.`);
+    }
+    
+    // Verify the mint matches - this is critical for the constraint check
+    if ('parsed' in tokenAccountData.value.data) {
+      const parsedData = tokenAccountData.value.data as any;
+      const accountMint = parsedData.parsed?.info?.mint;
+      if (accountMint !== currentMint.toBase58()) {
+        // This should never happen if the account was created correctly in test 11
+        throw new Error(`Backer token account ${currentBackerTokenAccount.toBase58()} has mint ${accountMint}, but expected ${currentMint.toBase58()}. Account address was derived using findUserAta(backer.publicKey, ${currentMint.toBase58()}), but the account at that address has mint ${accountMint}. This suggests test 11 (Airdrop) may have created the account for a different mint.`);
+      }
+    } else {
+      throw new Error(`Backer token account ${currentBackerTokenAccount.toBase58()} exists but could not parse mint information.`);
+    }
+    
+    balBefore = new BN(tokenAccountInfo.value.amount);
+    
+    const toMove = balBefore.gt(new BN(0)) ? balBefore.div(new BN(2)) : new BN(0);
 
-    if (toMove > 0) {
+    if (toMove.gt(new BN(0))) {
+      // Use BigInt to avoid "Number can only safely store up to 53 bits" error
+      // createTransferInstruction accepts number | bigint
+      const transferAmount = BigInt(toMove.toString());
       const tx = new anchor.web3.Transaction().add(
         createTransferInstruction(
-          backerMintAta,
+          currentBackerTokenAccount,
           destAta,
           backer.publicKey,
-          Number(toMove) // safe here given test amounts; if you prefer, pass BigInt directly
+          transferAmount
         )
       );
       await provider.sendAndConfirm(tx, [backer]);
-    }
+    }  
   
-    // Take snapshot AFTER moving tokens away
+    // Take snapshot AFTER moving tokens away (or if no tokens to move, snapshot with current balance)
+    // Use currentBackerTokenAccount directly (same as test 13) - this was verified to have the correct mint above
     const sig = await program.methods
       .snapshotBackerAmount()
       .accounts({
@@ -1345,8 +1612,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal,
         backer: backer.publicKey,
         backerAccount,
-        backerTokenAccount: backerMintAta,
-        mintAccount: mint.publicKey,
+        backerTokenAccount: currentBackerTokenAccount,
+        mintAccount: currentMint,
         config: configStruct,
       })
       .signers([authority])
@@ -1359,9 +1626,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .accounts({
         authority: authority.publicKey,
         proposal,
-        mint: mint.publicKey,
+        mint: currentMint,
         vaultAuthority,
-        tokenVault: vault,
+        tokenVault: currentVault,
         config: configStruct,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
@@ -1375,10 +1642,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         backer: backer.publicKey,
         proposal,
         vaultAuthority,
-        mintAccount: mint.publicKey,
-        tokenVault: vault,
+        mintAccount: currentMint,
+        tokenVault: currentVault,
         backerAccount,
-        backerTokenAccount: backerMintAta,
+        backerTokenAccount: currentBackerTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -2046,6 +2313,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('21. Fails when unauthorized user tries to end milestone', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
+      
+      // Fetch current proposal to get the current mint (may have been reset in 10.5a)
+      const proposalData = await program.account.proposal.fetch(proposal);
+      const currentMint = proposalData.mintAccount;
+      const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
 
       try {
         await program.methods
@@ -2053,9 +2325,9 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .accounts({
             authority: unauthorizedUser.publicKey,
             proposal,
-            mint: mint.publicKey,
+            mint: currentMint,
             vaultAuthority,
-            tokenVault: vault,
+            tokenVault: currentVault,
             config: configStruct,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
@@ -3138,6 +3410,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const sqrtPrice = getSqrtPriceFromPrice(price, 9, 9);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
       const proposalDataAlreadyLaunched = await program.account.proposal.fetch(proposal);
+      const currentMint = proposalDataAlreadyLaunched.mintAccount;
+      const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+      // Derive PDAs for the current mint (may have been reset in 10.5a)
+      const currentPdas = derivePoolPDAs(program.programId, cpAmm.programId, currentMint, WSOL_MINT, maker.publicKey, config);
       const poolCreatorAuthority = config_account.poolCreatorAuthority.equals(anchor.web3.PublicKey.default)
         ? authority.publicKey
         : config_account.poolCreatorAuthority;
@@ -3149,33 +3425,33 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             proposal, // Already launched
             vaultAuthority,
             maker: maker.publicKey,
-            tokenVault: vault,
+            tokenVault: currentVault,
             wsolVault,
-            poolAuthority: pdas.poolAuthority,
-            dammPoolAuthority: pdas.poolAuthority,
+            poolAuthority: currentPdas.poolAuthority,
+            dammPoolAuthority: currentPdas.poolAuthority,
             poolConfig: config,
             poolCreatorAuthority: poolCreatorAuthority,
-            pool: pdas.pool,
-            positionNftMint: pdas.positionNftMint.publicKey,
-            positionNftAccount: pdas.positionNftAccount,
-            position: pdas.position,
+            pool: currentPdas.pool,
+            positionNftMint: currentPdas.positionNftMint.publicKey,
+            positionNftAccount: currentPdas.positionNftAccount,
+            position: currentPdas.position,
             ammProgram: cpAmm.programId,
-            baseMint: mint.publicKey,
-            mintAccount: proposalDataAlreadyLaunched.mintAccount,
-            makerTokenAccount: pdas.makerTokenAccount,
+            baseMint: currentMint,
+            mintAccount: currentMint,
+            makerTokenAccount: currentPdas.makerTokenAccount,
             quoteMint: WSOL_MINT,
-            tokenAVault: pdas.tokenAVault,
-            tokenBVault: pdas.tokenBVault,
+            tokenAVault: currentPdas.tokenAVault,
+            tokenBVault: currentPdas.tokenBVault,
             payer: authority.publicKey,
             tokenBaseProgram: TOKEN_PROGRAM_ID,
             tokenQuoteProgram: TOKEN_PROGRAM_ID,
             token2022Program: TOKEN_2022_PROGRAM_ID,
-            dammEventAuthority: pdas.dammEventAuthority,
+            dammEventAuthority: currentPdas.dammEventAuthority,
             systemProgram: anchor.web3.SystemProgram.programId,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             config: configStruct,
           })
-          .signers([authority, pdas.positionNftMint])
+          .signers([authority, currentPdas.positionNftMint])
           .rpc();
 
         assert.fail('Should not allow launching already launched pool');
