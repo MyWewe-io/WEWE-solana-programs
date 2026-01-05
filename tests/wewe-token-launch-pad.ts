@@ -1589,16 +1589,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const toMove = balBefore.gt(new BN(0)) ? balBefore.div(new BN(2)) : new BN(0);
 
     if (toMove.gt(new BN(0))) {
+      // Use BigInt to avoid "Number can only safely store up to 53 bits" error
+      // createTransferInstruction accepts number | bigint
+      const transferAmount = BigInt(toMove.toString());
       const tx = new anchor.web3.Transaction().add(
         createTransferInstruction(
           backerMintAta,
           destAta,
           backer.publicKey,
-          toMove.toNumber()
+          transferAmount
         )
       );
       await provider.sendAndConfirm(tx, [backer]);
-    }
+    }  
   
     // Take snapshot AFTER moving tokens away (or if no tokens to move, snapshot with current balance)
     const sig = await program.methods
