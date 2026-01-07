@@ -86,6 +86,8 @@ impl<'info> ResetPoolLaunch<'info> {
         
         // Reset the pool launch flag
         self.proposal.is_pool_launched = false;
+
+        self.proposal.milestone_active = false;
         
         // Update the mint account (use the initialized mint account's key)
         self.proposal.mint_account = self.mint_account.key();
