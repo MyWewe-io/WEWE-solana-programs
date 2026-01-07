@@ -1655,6 +1655,111 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .then(confirm);
   });
 
+  it('16.55. Resets airdrop flag and allows retrying airdrop', async () => {
+    // Get proposal data to find the current mint
+    const proposalData = await program.account.proposal.fetch(proposal);
+    const currentMint = proposalData.mintAccount;
+    const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+    const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+
+    // Verify that the backer has already received an airdrop (initial_airdrop_received = true)
+    const backerAccountBefore = await program.account.backers.fetch(backerAccount);
+    assert.strictEqual(
+      backerAccountBefore.initialAirdropReceived,
+      true,
+      'Backer should have already received initial airdrop'
+    );
+
+    // Get balance before reset
+    const balanceBeforeReset = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
+    const balanceBeforeResetAmount = Number(balanceBeforeReset.value.amount);
+
+    // Test that airdrop fails before resetAirdrop (since initial_airdrop_received = true)
+    try {
+      await program.methods
+        .airdrop()
+        .accounts({
+          payer: authority.publicKey,
+          backer: backer.publicKey,
+          proposal,
+          vaultAuthority,
+          mintAccount: currentMint,
+          tokenVault: currentVault,
+          backerAccount,
+          backerTokenAccount: currentBackerTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      assert.fail('Should not allow airdrop when initial_airdrop_received is true');
+    } catch (err) {
+      expect(err.message).to.include('AirdropAlreadyRecived');
+    }
+
+    // Reset the airdrop flag using admin instruction
+    await program.methods
+      .resetAirdrop()
+      .accounts({
+        authority: authority.publicKey,
+        proposal,
+        backer: backer.publicKey,
+        backerAccount,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+
+    // Verify that initial_airdrop_received is now false
+    const backerAccountAfterReset = await program.account.backers.fetch(backerAccount);
+    assert.strictEqual(
+      backerAccountAfterReset.initialAirdropReceived,
+      false,
+      'Backer airdrop flag should be reset to false'
+    );
+
+    // Now retry the airdrop
+    await program.methods
+      .airdrop()
+      .accounts({
+        payer: authority.publicKey,
+        backer: backer.publicKey,
+        proposal,
+        vaultAuthority,
+        mintAccount: currentMint,
+        tokenVault: currentVault,
+        backerAccount,
+        backerTokenAccount: currentBackerTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        config: configStruct,
+      })
+      .signers([authority])
+      .rpc()
+      .then(confirm);
+
+    // Verify that initial_airdrop_received is now true again
+    const backerAccountAfterAirdrop = await program.account.backers.fetch(backerAccount);
+    assert.strictEqual(
+      backerAccountAfterAirdrop.initialAirdropReceived,
+      true,
+      'Backer airdrop flag should be set to true after airdrop'
+    );
+
+    // Verify balance increased
+    const balanceAfterAirdrop = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
+    const balanceAfterAirdropAmount = Number(balanceAfterAirdrop.value.amount);
+    assert.ok(
+      balanceAfterAirdropAmount > balanceBeforeResetAmount,
+      `Balance should increase after airdrop. Before: ${balanceBeforeResetAmount}, After: ${balanceAfterAirdropAmount}`
+    );
+  });
+
   describe('Burn Amount Verification Tests', () => {
     it('16.6. Verifies zero burn when all holders maintain full allocation', async () => {
       // Create new proposal for burn testing

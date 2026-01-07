@@ -113,4 +113,9 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_reset_pool_launch()
     }
 
+    #[access_control(check(&ctx.accounts.authority))]
+    pub fn reset_airdrop(ctx: Context<ResetAirdrop>) -> Result<()> {
+        ctx.accounts.handle_reset_airdrop()
+    }
+
 }
