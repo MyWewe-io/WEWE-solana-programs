@@ -809,11 +809,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   });
 
   it('8. Authority rejects a proposal', async () => {
+    const proposal2Data = await program.account.proposal.fetch(proposal2);
+    const metadataAccount2 = findMetadataPDA(proposal2Data.mintAccount);
+    
     await program.methods
       .rejectProposal()
       .accountsPartial({
         authority: authority.publicKey,
         proposal: proposal2,
+        payer: authority.publicKey,
+        mintAccount: proposal2Data.mintAccount,
+        metadataAccount: metadataAccount2,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
       })
       .signers([authority])
       .rpc()
@@ -1551,7 +1558,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         metadataAccount: metadataAccountCycle2,
         payer: authority.publicKey,
         tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([authority])
@@ -2348,6 +2354,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('18. Fails when unauthorized user tries to reject proposal', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
+      const proposalDataUnauthorized = await program.account.proposal.fetch(proposal);
+      const metadataAccountUnauthorized = findMetadataPDA(proposalDataUnauthorized.mintAccount);
 
       try {
         await program.methods
@@ -2355,6 +2363,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .accountsPartial({
             authority: unauthorizedUser.publicKey,
             proposal,
+            payer: unauthorizedUser.publicKey,
+            mintAccount: proposalDataUnauthorized.mintAccount,
+            metadataAccount: metadataAccountUnauthorized,
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           })
           .signers([unauthorizedUser])
           .rpc();
@@ -2591,11 +2603,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('24. Fails when backing rejected proposal', async () => {
       // First reject the proposal
+      const testProposal3Data = await program.account.proposal.fetch(testProposal3);
+      const metadataAccount3 = findMetadataPDA(testProposal3Data.mintAccount);
+      
       await program.methods
         .rejectProposal()
         .accountsPartial({
           authority: authority.publicKey,
           proposal: testProposal3,
+          payer: authority.publicKey,
+          mintAccount: testProposal3Data.mintAccount,
+          metadataAccount: metadataAccount3,
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         })
         .signers([authority])
         .rpc()
@@ -3452,11 +3471,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .rpc()
         .then(confirm);
 
+      const testProposal10DataForReject = await program.account.proposal.fetch(testProposal10);
+      const metadataAccountTest10ForReject = findMetadataPDA(testProposal10DataForReject.mintAccount);
+      
       await program.methods
         .rejectProposal()
         .accountsPartial({
           authority: authority.publicKey,
           proposal: testProposal10,
+          payer: authority.publicKey,
+          mintAccount: testProposal10DataForReject.mintAccount,
+          metadataAccount: metadataAccountTest10ForReject,
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         })
         .signers([authority])
         .rpc()
@@ -3490,12 +3516,19 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   describe('Rejection and Launch Constraint Tests', () => {
     it('41. Fails when trying to reject already launched proposal', async () => {
+      const proposalDataLaunched = await program.account.proposal.fetch(proposal);
+      const metadataAccountLaunched = findMetadataPDA(proposalDataLaunched.mintAccount);
+      
       try {
         await program.methods
           .rejectProposal()
           .accountsPartial({
             authority: authority.publicKey,
             proposal, // This was launched in test #10
+            payer: authority.publicKey,
+            mintAccount: proposalDataLaunched.mintAccount,
+            metadataAccount: metadataAccountLaunched,
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           })
           .signers([authority])
           .rpc();
@@ -4228,5 +4261,76 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
       assert.strictEqual(actualIncrease, expectedIncrease, 'Vault should receive full amount');
     }); 
+
+    it('47. Verifies metadata account is closed and rent refunded when proposal is rejected', async () => {
+      // Create a new proposal for testing
+      const makerData = await program.account.makerAccount.fetch(makerAccount);
+      const proposalIndex14 = makerData.proposalCount;
+      const testProposal14 = findProposalPDA(program.programId, maker.publicKey, proposalIndex14);
+      const testMint14 = anchor.web3.Keypair.generate();
+      const [testVault14] = getTokenVaultAddress(vaultAuthority, testMint14.publicKey, program.programId);
+
+      // Create proposal (this creates the metadata account)
+      await program.methods
+        .createProposal(metadata.name, metadata.symbol, metadata.uri)
+        .accountsPartial({
+          payer: authority.publicKey,
+          maker: maker.publicKey,
+          makerAccount,
+          vaultAuthority,
+          proposal: testProposal14,
+          mintAccount: testMint14.publicKey,
+          tokenVault: testVault14,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct
+        })
+        .signers([authority, testMint14, maker])
+        .rpc()
+        .then(confirm);
+
+      // Get proposal data to find the mint account
+      const testProposal14Data = await program.account.proposal.fetch(testProposal14);
+      const metadataAccount14 = findMetadataPDA(testProposal14Data.mintAccount);
+
+      // Check that metadata account exists before rejection
+      const metadataAccountInfoBefore = await provider.connection.getAccountInfo(metadataAccount14);
+      expect(metadataAccountInfoBefore).to.not.be.null;
+      expect(metadataAccountInfoBefore!.lamports).to.be.greaterThan(0);
+      
+      const metadataRentBefore = metadataAccountInfoBefore!.lamports;
+
+      // Get payer balance before rejection
+      const payerBalanceBefore = await provider.connection.getBalance(authority.publicKey);
+
+      // Reject the proposal (this should close the metadata account)
+      await program.methods
+        .rejectProposal()
+        .accountsPartial({
+          authority: authority.publicKey,
+          proposal: testProposal14,
+          payer: authority.publicKey, // Payer receives the rent refund
+          mintAccount: testProposal14Data.mintAccount,
+          metadataAccount: metadataAccount14,
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+        })
+        .signers([authority])
+        .rpc()
+        .then(confirm);
+
+      // Check that metadata account no longer exists (or has 0 lamports)
+      const metadataAccountInfoAfter = await provider.connection.getAccountInfo(metadataAccount14);
+      // When an account is closed, it either doesn't exist or has 0 lamports
+      expect(metadataAccountInfoAfter === null || metadataAccountInfoAfter!.lamports === 0).to.be.true;
+
+      // Check that payer received the rent refund
+      const payerBalanceAfter = await provider.connection.getBalance(authority.publicKey);
+      const balanceIncrease = payerBalanceAfter - payerBalanceBefore;
+      
+      // The payer should receive the rent that was in the metadata account
+      // Note: There might be transaction fees, so we check that the increase is at least close to the rent
+      // Allow for some transaction fee variance (typically 5000 lamports)
+      expect(balanceIncrease).to.be.greaterThan(metadataRentBefore - 10000);
+      expect(balanceIncrease).to.be.lessThanOrEqual(metadataRentBefore + 10000);
+    });
   });
 });
