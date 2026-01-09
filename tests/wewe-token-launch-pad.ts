@@ -37,6 +37,7 @@ import {
   findConfigPDA,
   findBackerProposalCountPDA,
   findMetadataPDA,
+  findTempWsolPDA,
 } from './utils';
 
 const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
@@ -1494,6 +1495,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const weweTokenAccount = getAssociatedTokenAddressSync(mint.publicKey, weweTreasury, true);
     const makerWsolAccount = getAssociatedTokenAddressSync(WSOL_MINT, maker.publicKey, true);
     const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+    const treasuryTempWsol = findTempWsolPDA(vaultAuthority, proposal, true);
+    const makerTempWsol = findTempWsolPDA(vaultAuthority, proposal, false);
     const computeUnitsIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 });
 
     const tx = await program.methods
@@ -1518,6 +1521,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         tokenAMint: mint.publicKey,
         tokenBMint: WSOL_MINT,
         positionNftAccount: pdas.positionNftAccount,
+        treasuryTempWsol,
+        makerTempWsol,
         tokenAProgram: TOKEN_PROGRAM_ID,
         tokenBProgram: TOKEN_PROGRAM_ID,
         ammProgram: cpAmm.programId,
@@ -2481,6 +2486,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       const weweTokenAccount = getAssociatedTokenAddressSync(mint.publicKey, weweTreasury, true);
       const makerWsolAccount = getAssociatedTokenAddressSync(WSOL_MINT, maker.publicKey, true);
       const [wsolVault] = getTokenVaultAddress(vaultAuthority, WSOL_MINT, program.programId);
+      const treasuryTempWsol = findTempWsolPDA(vaultAuthority, proposal, true);
+      const makerTempWsol = findTempWsolPDA(vaultAuthority, proposal, false);
 
       try {
         await program.methods
@@ -2505,6 +2512,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             tokenAMint: mint.publicKey,
             tokenBMint: WSOL_MINT,
             positionNftAccount: pdas.positionNftAccount,
+            treasuryTempWsol,
+            makerTempWsol,
             tokenAProgram: TOKEN_PROGRAM_ID,
             tokenBProgram: TOKEN_PROGRAM_ID,
             ammProgram: cpAmm.programId,

@@ -1,7 +1,7 @@
 // utils/helpers.ts
 import * as anchor from '@coral-xyz/anchor';
 import Decimal from "decimal.js";
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import BN from "bn.js";
 
 export const WSOL_MINT = new anchor.web3.PublicKey("So11111111111111111111111111111111111111112");
@@ -117,6 +117,24 @@ export function findMetadataPDA(mint: anchor.web3.PublicKey): anchor.web3.Public
     TOKEN_METADATA_PROGRAM_ID
   );
   return metadataPDA;
+}
+
+export function findTempWsolPDA(
+  vaultAuthority: anchor.web3.PublicKey,
+  proposal: anchor.web3.PublicKey,
+  isTreasury: boolean
+): anchor.web3.PublicKey {
+  const [tempWsolPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("temp_wsol"),
+      vaultAuthority.toBuffer(),
+      proposal.toBuffer(),
+      Buffer.from(isTreasury ? "treasury" : "maker"),
+    ],
+    TOKEN_PROGRAM_ID
+  );
+
+  return tempWsolPDA;
 }
 
 export const derivePoolPDAs = (

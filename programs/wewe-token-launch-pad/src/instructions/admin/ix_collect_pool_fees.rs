@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::Token,
+    token::{close_account, CloseAccount, Token},
     token_interface::{TokenAccount, TokenInterface},
 };
 
@@ -52,6 +52,7 @@ pub struct ClaimPositionFee<'info> {
     /// CHECK:
     pub token_b_mint: UncheckedAccount<'info>,
 
+    /// WSOL account - can be owned by treasury or vault_authority (we'll use as temp account)
     #[account(
         init_if_needed,
         payer = payer,
@@ -68,6 +69,7 @@ pub struct ClaimPositionFee<'info> {
     )]
     pub wewe_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
+    /// WSOL account - can be owned by maker or vault_authority (we'll use as temp account)
     #[account(
         init_if_needed,
         payer = payer,
@@ -117,6 +119,16 @@ pub struct ClaimPositionFee<'info> {
 
     /// CHECK:
     pub position_nft_account: UncheckedAccount<'info>,
+
+    /// CHECK: Temporary WSOL account for treasury unwrapping (PDA derived, owned by vault_authority)
+    /// PDA: [b"temp_wsol", vault_authority, proposal, b"treasury"]
+    #[account(mut)]
+    pub treasury_temp_wsol: UncheckedAccount<'info>,
+
+    /// CHECK: Temporary WSOL account for maker unwrapping (PDA derived, owned by vault_authority)
+    /// PDA: [b"temp_wsol", vault_authority, proposal, b"maker"]
+    #[account(mut)]
+    pub maker_temp_wsol: UncheckedAccount<'info>,
 
     pub token_a_program: Interface<'info, TokenInterface>,
 
@@ -217,14 +229,60 @@ impl<'info> ClaimPositionFee<'info> {
             )?;
         }
 
+        // Unwrap WSOL (token_b) to SOL before transferring
+        // We use PDA-derived temporary accounts that are passed in but validated programmatically
         if treasury_b > 0 {
+            // Validate treasury_temp_wsol is the correct PDA
+            let token_b_program_key = self.token_b_program.key();
+            let (expected_treasury_pda, _treasury_bump) = Pubkey::find_program_address(
+                &[
+                    b"temp_wsol",
+                    self.vault_authority.key().as_ref(),
+                    self.proposal.key().as_ref(),
+                    b"treasury",
+                ],
+                &token_b_program_key,
+            );
+            require!(
+                self.treasury_temp_wsol.key() == expected_treasury_pda,
+                ProposalError::IncorrectAccount
+            );
+
+            // Transfer WSOL to temporary PDA account
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
                     self.token_b_program.to_account_info(),
                     anchor_spl::token::Transfer {
                         from: self.token_b_account.to_account_info(),
-                        to: self.wewe_wsol_account.to_account_info(),
+                        to: self.treasury_temp_wsol.to_account_info(),
                         authority: self.vault_authority.to_account_info(),
+                    },
+                    &[&vault_authority_seeds[..]],
+                ),
+                treasury_b,
+            )?;
+
+            // Close the temporary WSOL account to unwrap it to SOL
+            // The SOL (lamports) will be sent to the account owner (vault_authority)
+            close_account(
+                CpiContext::new_with_signer(
+                    self.token_b_program.to_account_info(),
+                    CloseAccount {
+                        account: self.treasury_temp_wsol.to_account_info(),
+                        destination: self.vault_authority.to_account_info(),
+                        authority: self.vault_authority.to_account_info(),
+                    },
+                    &[&vault_authority_seeds[..]],
+                ),
+            )?;
+
+            // Transfer SOL from vault_authority to treasury
+            anchor_lang::system_program::transfer(
+                CpiContext::new_with_signer(
+                    self.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: self.vault_authority.to_account_info(),
+                        to: self.wewe_treasury.to_account_info(),
                     },
                     &[&vault_authority_seeds[..]],
                 ),
@@ -233,13 +291,56 @@ impl<'info> ClaimPositionFee<'info> {
         }
 
         if maker_b > 0 {
+            // Validate maker_temp_wsol is the correct PDA
+            let token_b_program_key = self.token_b_program.key();
+            let (expected_maker_pda, _maker_bump) = Pubkey::find_program_address(
+                &[
+                    b"temp_wsol",
+                    self.vault_authority.key().as_ref(),
+                    self.proposal.key().as_ref(),
+                    b"maker",
+                ],
+                &token_b_program_key,
+            );
+            require!(
+                self.maker_temp_wsol.key() == expected_maker_pda,
+                ProposalError::IncorrectAccount
+            );
+
+            // Transfer WSOL to temporary PDA account
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
                     self.token_b_program.to_account_info(),
                     anchor_spl::token::Transfer {
                         from: self.token_b_account.to_account_info(),
-                        to: self.maker_wsol_account.to_account_info(),
+                        to: self.maker_temp_wsol.to_account_info(),
                         authority: self.vault_authority.to_account_info(),
+                    },
+                    &[&vault_authority_seeds[..]],
+                ),
+                maker_b,
+            )?;
+
+            // Close the temporary WSOL account to unwrap it to SOL
+            close_account(
+                CpiContext::new_with_signer(
+                    self.token_b_program.to_account_info(),
+                    CloseAccount {
+                        account: self.maker_temp_wsol.to_account_info(),
+                        destination: self.vault_authority.to_account_info(),
+                        authority: self.vault_authority.to_account_info(),
+                    },
+                    &[&vault_authority_seeds[..]],
+                ),
+            )?;
+
+            // Transfer SOL from vault_authority to maker
+            anchor_lang::system_program::transfer(
+                CpiContext::new_with_signer(
+                    self.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: self.vault_authority.to_account_info(),
+                        to: self.maker.to_account_info(),
                     },
                     &[&vault_authority_seeds[..]],
                 ),
