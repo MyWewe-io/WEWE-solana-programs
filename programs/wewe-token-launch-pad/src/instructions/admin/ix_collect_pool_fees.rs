@@ -120,14 +120,42 @@ pub struct ClaimPositionFee<'info> {
     /// CHECK:
     pub position_nft_account: UncheckedAccount<'info>,
 
-    /// CHECK: Temporary WSOL account for treasury unwrapping (PDA derived, owned by vault_authority)
+    /// CHECK: Temporary WSOL account for treasury unwrapping (PDA derived from token program)
     /// PDA: [b"temp_wsol", vault_authority, proposal, b"treasury"]
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = {
+            let (expected_pda, _) = Pubkey::find_program_address(
+                &[
+                    b"temp_wsol",
+                    vault_authority.key().as_ref(),
+                    proposal.key().as_ref(),
+                    b"treasury",
+                ],
+                &token_b_program.key(),
+            );
+            treasury_temp_wsol.key() == expected_pda
+        } @ ProposalError::IncorrectAccount
+    )]
     pub treasury_temp_wsol: UncheckedAccount<'info>,
 
-    /// CHECK: Temporary WSOL account for maker unwrapping (PDA derived, owned by vault_authority)
+    /// CHECK: Temporary WSOL account for maker unwrapping (PDA derived from token program)
     /// PDA: [b"temp_wsol", vault_authority, proposal, b"maker"]
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = {
+            let (expected_pda, _) = Pubkey::find_program_address(
+                &[
+                    b"temp_wsol",
+                    vault_authority.key().as_ref(),
+                    proposal.key().as_ref(),
+                    b"maker",
+                ],
+                &token_b_program.key(),
+            );
+            maker_temp_wsol.key() == expected_pda
+        } @ ProposalError::IncorrectAccount
+    )]
     pub maker_temp_wsol: UncheckedAccount<'info>,
 
     pub token_a_program: Interface<'info, TokenInterface>,
@@ -230,24 +258,8 @@ impl<'info> ClaimPositionFee<'info> {
         }
 
         // Unwrap WSOL (token_b) to SOL before transferring
-        // We use PDA-derived temporary accounts that are passed in but validated programmatically
+        // We use PDA-derived temporary accounts (validated at account struct level)
         if treasury_b > 0 {
-            // Validate treasury_temp_wsol is the correct PDA
-            let token_b_program_key = self.token_b_program.key();
-            let (expected_treasury_pda, _treasury_bump) = Pubkey::find_program_address(
-                &[
-                    b"temp_wsol",
-                    self.vault_authority.key().as_ref(),
-                    self.proposal.key().as_ref(),
-                    b"treasury",
-                ],
-                &token_b_program_key,
-            );
-            require!(
-                self.treasury_temp_wsol.key() == expected_treasury_pda,
-                ProposalError::IncorrectAccount
-            );
-
             // Transfer WSOL to temporary PDA account
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
@@ -291,22 +303,6 @@ impl<'info> ClaimPositionFee<'info> {
         }
 
         if maker_b > 0 {
-            // Validate maker_temp_wsol is the correct PDA
-            let token_b_program_key = self.token_b_program.key();
-            let (expected_maker_pda, _maker_bump) = Pubkey::find_program_address(
-                &[
-                    b"temp_wsol",
-                    self.vault_authority.key().as_ref(),
-                    self.proposal.key().as_ref(),
-                    b"maker",
-                ],
-                &token_b_program_key,
-            );
-            require!(
-                self.maker_temp_wsol.key() == expected_maker_pda,
-                ProposalError::IncorrectAccount
-            );
-
             // Transfer WSOL to temporary PDA account
             anchor_spl::token::transfer(
                 CpiContext::new_with_signer(
