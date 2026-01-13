@@ -122,7 +122,8 @@ export function findMetadataPDA(mint: anchor.web3.PublicKey): anchor.web3.Public
 export function findTempWsolPDA(
   vaultAuthority: anchor.web3.PublicKey,
   proposal: anchor.web3.PublicKey,
-  isTreasury: boolean
+  isTreasury: boolean,
+  programId: anchor.web3.PublicKey // Add program ID parameter
 ): anchor.web3.PublicKey {
   const [tempWsolPDA] = anchor.web3.PublicKey.findProgramAddressSync(
     [
@@ -131,7 +132,7 @@ export function findTempWsolPDA(
       proposal.toBuffer(),
       Buffer.from(isTreasury ? "treasury" : "maker"),
     ],
-    TOKEN_PROGRAM_ID
+    programId // Use program ID instead of TOKEN_PROGRAM_ID
   );
 
   return tempWsolPDA;
