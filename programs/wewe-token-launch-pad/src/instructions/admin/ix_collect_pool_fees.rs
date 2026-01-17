@@ -377,35 +377,20 @@ impl<'info> ClaimPositionFee<'info> {
             msg!("✅ WSOL transferred to treasury temp PDA");
 
             // Close the temporary WSOL account to unwrap it to SOL
-            // The SOL (lamports) will be sent to the account owner (vault_authority)
+            // The SOL (lamports) will be sent to the treasury account
             msg!("Closing treasury temp WSOL PDA to unwrap {} WSOL to SOL", treasury_b);
             close_account(
                 CpiContext::new_with_signer(
                     self.token_b_program.to_account_info(),
                     CloseAccount {
                         account: self.treasury_temp_wsol.to_account_info(),
-                        destination: self.vault_authority.to_account_info(),
+                        destination: self.wewe_treasury.to_account_info(),
                         authority: self.vault_authority.to_account_info(),
                     },
                     &[&vault_authority_seeds[..]],
                 ),
             )?;
-            msg!("✅ Unwrapped {} WSOL to SOL in vault_authority", treasury_b);
-
-            // Transfer SOL from vault_authority to treasury
-            msg!("Transferring {} SOL from vault_authority to treasury", treasury_b);
-            anchor_lang::system_program::transfer(
-                CpiContext::new_with_signer(
-                    self.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
-                        from: self.vault_authority.to_account_info(),
-                        to: self.wewe_treasury.to_account_info(),
-                    },
-                    &[&vault_authority_seeds[..]],
-                ),
-                treasury_b,
-            )?;
-            msg!("✅ Transferred {} SOL to treasury", treasury_b);
+            msg!("✅ Unwrapped {} WSOL to SOL to treasury", treasury_b);
         }
 
         if maker_b > 0 {
@@ -498,35 +483,20 @@ impl<'info> ClaimPositionFee<'info> {
             )?;
             msg!("✅ WSOL transferred to maker temp PDA");
 
-            // Close the temporary WSOL account to unwrap it to SOL
+            // Close the temporary WSOL account to unwrap it to SOL and send it to maker
             msg!("Closing maker temp WSOL PDA to unwrap {} WSOL to SOL", maker_b);
             close_account(
                 CpiContext::new_with_signer(
                     self.token_b_program.to_account_info(),
                     CloseAccount {
                         account: self.maker_temp_wsol.to_account_info(),
-                        destination: self.vault_authority.to_account_info(),
+                        destination: self.maker.to_account_info(),
                         authority: self.vault_authority.to_account_info(),
                     },
                     &[&vault_authority_seeds[..]],
                 ),
             )?;
-            msg!("✅ Unwrapped {} WSOL to SOL in vault_authority", maker_b);
-
-            // Transfer SOL from vault_authority to maker
-            msg!("Transferring {} SOL from vault_authority to maker", maker_b);
-            anchor_lang::system_program::transfer(
-                CpiContext::new_with_signer(
-                    self.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
-                        from: self.vault_authority.to_account_info(),
-                        to: self.maker.to_account_info(),
-                    },
-                    &[&vault_authority_seeds[..]],
-                ),
-                maker_b,
-            )?;
-            msg!("✅ Transferred {} SOL to maker", maker_b);
+            msg!("✅ Unwrapped {} WSOL to SOL to maker", maker_b);
         }
 
         emit!(PositionFeeClaimed {
