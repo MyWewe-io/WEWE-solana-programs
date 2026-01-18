@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use anchor_spl::token::{Mint, Token};
+use anchor_spl::token::Mint;
 
 use crate::{
     constant::{
