@@ -131,7 +131,7 @@ impl<'info> SnapshotBacker<'info> {
 fn tier_pct_from_bp(bp: u64) -> u8 {
     if bp >= 10_000 {
         100
-    } else if bp >= 7_000 {
+    } else if bp >= 7_500 {
         75
     } else if bp >= 5_000 {
         50
