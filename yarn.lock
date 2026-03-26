@@ -75,15 +75,16 @@
     bn.js "^5.1.2"
     buffer-layout "^1.2.0"
 
-"@meteora-ag/cp-amm-sdk@^0.1.0":
-  version "1.2.8"
-  resolved "https://registry.yarnpkg.com/@meteora-ag/cp-amm-sdk/-/cp-amm-sdk-1.2.8.tgz#1058b5e263f99511697b2846f05d66e2ce200d26"
-  integrity sha512-7MV4Ds9GgXRjNPKXXTj6jwVBtfFmKvqDjJkVPhtHfnUwbjWRyX43xE3ILBWAceGgYMjKstqyPdi/EhJVYsunjA==
+"@meteora-ag/cp-amm-sdk@^1.2.8":
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/@meteora-ag/cp-amm-sdk/-/cp-amm-sdk-1.4.0.tgz#48b75ab20180f2abba31c7b2b064e30395897ad9"
+  integrity sha512-BhygilWv0lfV42IoFjuUu9RhWLid71HYZ8Ho69WABKfu5PqIwyz/aC4yNH9/6Ccwdqq5f/dolNG08DdQueer6A==
   dependencies:
     "@coral-xyz/anchor" "^0.31.0"
     "@solana/spl-token" "^0.4.8"
     "@solana/web3.js" "^1.95.3"
     "@types/bn.js" "^5.1.0"
+    bn.js "^5.2.2"
     chain "^0.4.0"
     decimal.js "^10.4.2"
     invariant "^2.2.4"
@@ -445,6 +446,11 @@ bn.js@^5.1.2, bn.js@^5.2.0, bn.js@^5.2.1:
   version "5.2.1"
   resolved "https://registry.yarnpkg.com/bn.js/-/bn.js-5.2.1.tgz#0bc527a6a0d18d0aa8d5b0538ce4a77dccfa7b70"
   integrity sha512-eXRvHzWyYPBuB4NBy0cmYQjGitUrtqwbvlzP3G6VFnNRbsZQIxQ10PbKKHt8gZ/HW/D/747aDl+QkDqg3KQLMQ==
+
+bn.js@^5.2.2:
+  version "5.2.3"
+  resolved "https://registry.yarnpkg.com/bn.js/-/bn.js-5.2.3.tgz#16a9e409616b23fef3ccbedb8d42f13bff80295e"
+  integrity sha512-EAcmnPkxpntVL+DS7bO1zhcZNvCkxqtkd0ZY53h06GNQ3DEkkGZ/gKgmDv6DdZQGj9BgfSPKtJJ7Dp1GPP8f7w==
 
 borsh@^0.7.0:
   version "0.7.0"
