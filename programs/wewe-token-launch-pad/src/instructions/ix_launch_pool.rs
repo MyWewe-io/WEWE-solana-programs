@@ -1,8 +1,13 @@
 use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{
     associated_token::AssociatedToken,
+    metadata::{
+        update_metadata_accounts_v2, mpl_token_metadata::types::DataV2, UpdateMetadataAccountsV2,
+        Metadata,
+    },
     token,
-    token::{mint_to, Mint, MintTo, Transfer as TokenTransfer},
+    token::{mint_to, set_authority, Mint, MintTo, SetAuthority, Transfer as TokenTransfer},
+    token::spl_token::instruction::AuthorityType,
     token_interface::{TokenAccount, TokenInterface},
 };
 use damm_v2_cpi::{params::fee_parameters::{BaseFeeParameters, PoolFeeParameters}};
@@ -130,9 +135,18 @@ pub struct DammV2<'info> {
     pub token_2022_program: Interface<'info, TokenInterface>,
     /// CHECK: damm event authority
     pub damm_event_authority: UncheckedAccount<'info>,
+    /// CHECK: Metadata PDA derived from mint
+    #[account(
+        mut,
+        seeds = [b"metadata", token_metadata_program.key().as_ref(), base_mint.key().as_ref()],
+        bump,
+        seeds::program = token_metadata_program.key(),
+    )]
+    pub metadata_account: UncheckedAccount<'info>,
     /// System program.
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_metadata_program: Program<'info, Metadata>,
     pub config: Account<'info, Configs>,
 }
 
@@ -194,6 +208,39 @@ impl<'info> DammV2<'info> {
             .with_signer(proposal_signer_seeds),
             amount,
         )?;
+
+        // Revoke mint and freeze authority after minting tokens
+        // This ensures all tokens are minted before authority is revoked
+        // DexScreener checks the mint account's mint_authority field - if None, token shows as non-mintable
+        if mint_data.mint_authority.is_some() {
+            // Revoke mint authority to make token non-mintable
+            set_authority(
+                CpiContext::new(
+                    self.token_base_program.to_account_info(),
+                    SetAuthority {
+                        current_authority: self.proposal.to_account_info(),
+                        account_or_mint: self.mint_account.to_account_info(),
+                    },
+                )
+                .with_signer(proposal_signer_seeds),
+                AuthorityType::MintTokens,
+                None, // None = revoke authority
+            )?;
+
+            // Revoke freeze authority to make token non-freezable
+            set_authority(
+                CpiContext::new(
+                    self.token_base_program.to_account_info(),
+                    SetAuthority {
+                        current_authority: self.proposal.to_account_info(),
+                        account_or_mint: self.mint_account.to_account_info(),
+                    },
+                )
+                .with_signer(proposal_signer_seeds),
+                AuthorityType::FreezeAccount,
+                None, // None = revoke authority
+            )?;
+        }
 
         // Reload token vault after minting to get updated balance
         self.token_vault.reload()?;
@@ -362,6 +409,32 @@ impl<'info> DammV2<'info> {
             base_amount,
             quote_amount,
         )?;
+
+        // Make metadata immutable when proposal launches
+        if !self.metadata_account.data_is_empty() {
+            update_metadata_accounts_v2(
+                CpiContext::new(
+                    self.token_metadata_program.to_account_info(),
+                    UpdateMetadataAccountsV2 {
+                        metadata: self.metadata_account.to_account_info(),
+                        update_authority: self.proposal.to_account_info(),
+                    },
+                )
+                .with_signer(proposal_signer_seeds),
+                None, // New update authority - None means keep current
+                Some(DataV2 {
+                    name: self.proposal.token_name.clone(),
+                    symbol: self.proposal.token_symbol.clone(),
+                    uri: self.proposal.token_uri.clone(),
+                    seller_fee_basis_points: 0,
+                    creators: None,
+                    collection: None,
+                    uses: None,
+                }),
+                Some(false), // Is mutable - set to false to make metadata immutable
+                None, // Primary sale happened - None means keep current
+            )?;
+        }
 
         // Only set flag AFTER all validations pass
         let now = Clock::get()?.unix_timestamp;
