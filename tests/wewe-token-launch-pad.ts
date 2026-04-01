@@ -546,6 +546,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   it('3. Creates first proposal', async () => {
     const eventPromise = waitForEvent(program, 'proposalCreated');
+    const metadataAccount = findMetadataPDA(mint.publicKey);
 
     await program.methods
       .createProposal(metadata.name, metadata.symbol, metadata.uri)
@@ -557,7 +558,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal,
         mintAccount: mint.publicKey,
         tokenVault: vault,
+        metadataAccount,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         config: configStruct
       })
       .signers([authority, mint, maker])
@@ -577,6 +581,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   it('4. Creates second proposal with same maker', async () => {
     const eventPromise = waitForEvent(program, 'proposalCreated');
+    const metadataAccount2 = findMetadataPDA(mint2.publicKey);
 
     await program.methods
       .createProposal(metadata.name, metadata.symbol, metadata.uri)
@@ -588,7 +593,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal: proposal2,
         mintAccount: mint2.publicKey,
         tokenVault: vault2,
+        metadataAccount: metadataAccount2,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         config: configStruct
       })
       .signers([authority, mint2, maker])
@@ -700,6 +708,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   it('7.5. Creates third proposal and backs it successfully (reaches max limit)', async () => {
     // First create the third proposal
     const eventPromise = waitForEvent(program, 'proposalCreated');
+    const metadataAccount3 = findMetadataPDA(mint3.publicKey);
 
     await program.methods
       .createProposal(metadata.name, metadata.symbol, metadata.uri)
@@ -711,7 +720,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal: proposal3,
         mintAccount: mint3.publicKey,
         tokenVault: vault3,
+        metadataAccount: metadataAccount3,
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         config: configStruct
       })
       .signers([authority, mint3, maker])
@@ -764,7 +776,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         proposal: proposal4,
         mintAccount: mint4.publicKey,
         tokenVault: vault4,
+        metadataAccount: findMetadataPDA(mint4.publicKey),
+        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         config: configStruct
       })
       .signers([authority, mint4, maker])
@@ -1128,6 +1143,13 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     console.log(`Pool: ${pdas.pool.toBase58()}`);
     console.log(`Position: ${pdas.position.toBase58()}`);
 
+    // Verify that both mint authority and freeze authority are revoked after pool creation
+    const mintInfo = await getMint(provider.connection, proposalData.mintAccount);
+    expect(mintInfo.mintAuthority).to.be.null;
+    expect(mintInfo.freezeAuthority).to.be.null;
+    console.log('✓ Mint authority revoked (is null):', mintInfo.mintAuthority === null);
+    console.log('✓ Freeze authority revoked (is null):', mintInfo.freezeAuthority === null);
+
     const capturedEvent = await eventPromise;
 
     expect(capturedEvent.proposalAddress.toBase58()).to.equal(proposal.toBase58());
@@ -1388,20 +1410,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
   it('12. Starts a milestone (initialiseMilestone)', async () => {
     const proposalData = await program.account.proposal.fetch(proposal);
-    const metadataAccount = findMetadataPDA(proposalData.mintAccount);
     
     const sig = await program.methods
       .initialiseMilestone()
       .accounts({
         authority: authority.publicKey,
         proposal,
-        mintAccount: proposalData.mintAccount,
-        metadataAccount,
-        payer: authority.publicKey,
-        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([authority])
       .rpc();
@@ -1410,12 +1424,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     await printTxLogs(sig);
     await confirm(sig);
 
-    // Verify that both mint authority and freeze authority are revoked
-    const mintInfo = await getMint(provider.connection, proposalData.mintAccount);
-    expect(mintInfo.mintAuthority).to.be.null;
-    expect(mintInfo.freezeAuthority).to.be.null;
-    console.log('✓ Mint authority revoked (is null):', mintInfo.mintAuthority === null);
-    console.log('✓ Freeze authority revoked (is null):', mintInfo.freezeAuthority === null);
+    // Note: Mint and freeze authorities are now revoked in createPool, not here
+    // Verify that milestone is active
+    const proposalDataAfter = await program.account.proposal.fetch(proposal);
+    expect(proposalDataAfter.milestoneActive).to.be.true;
+    console.log('✓ Milestone started successfully');
   });
 
   it('13. Updates backer milestone amount', async () => {
@@ -1552,12 +1565,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .accounts({
         authority: authority.publicKey,
         proposal,
-        mintAccount: currentMint,
-        metadataAccount: metadataAccountCycle2,
-        payer: authority.publicKey,
-        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([authority])
       .rpc()
@@ -1816,7 +1823,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposalBurn1,
           mintAccount: testMintBurn1.publicKey,
           tokenVault: testVaultBurn1,
+          metadataAccount: findMetadataPDA(testMintBurn1.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMintBurn1, maker])
@@ -1922,12 +1932,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .accounts({
           authority: authority.publicKey,
           proposal: testProposalBurn1,
-          mintAccount: testProposalBurn1Data.mintAccount,
-          metadataAccount: metadataAccountBurn1,
-          payer: authority.publicKey,
-          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         })
         .signers([authority])
         .rpc()
@@ -2043,7 +2047,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposalBurn2,
           mintAccount: testMintBurn2.publicKey,
           tokenVault: testVaultBurn2,
+          metadataAccount: findMetadataPDA(testMintBurn2.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMintBurn2, maker])
@@ -2181,12 +2188,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .accounts({
           authority: authority.publicKey,
           proposal: testProposalBurn2,
-          mintAccount: testProposalBurn2Data.mintAccount,
-          metadataAccount: metadataAccountBurn2,
-          payer: authority.publicKey,
-          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         })
         .signers([authority])
         .rpc()
@@ -2381,12 +2382,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .accounts({
             authority: unauthorizedUser.publicKey,
             proposal,
-            mintAccount: proposalDataUnauthorized.mintAccount,
-            metadataAccount: metadataAccountUnauthorized,
-            payer: unauthorizedUser.publicKey,
-            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-            systemProgram: anchor.web3.SystemProgram.programId,
-            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           })
           .signers([unauthorizedUser])
           .rpc();
@@ -2590,7 +2585,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposal3,
           mintAccount: testMint3.publicKey,
           tokenVault: testVault3,
+          metadataAccount: findMetadataPDA(testMint3.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMint3, maker])
@@ -2769,7 +2767,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposal4,
           mintAccount: testMint4.publicKey,
           tokenVault: testVault4,
+          metadataAccount: findMetadataPDA(testMint4.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMint4, maker])
@@ -2821,7 +2822,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             proposal: testProposal5,
             mintAccount: testMint5.publicKey,
             tokenVault: testVault5,
+            metadataAccount: findMetadataPDA(testMint5.publicKey),
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
             systemProgram: anchor.web3.SystemProgram.programId,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             config: configStruct
           })
           .signers([authority, testMint5, maker])
@@ -2852,7 +2856,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             proposal: testProposal6,
             mintAccount: testMint6.publicKey,
             tokenVault: testVault6,
+            metadataAccount: findMetadataPDA(testMint6.publicKey),
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
             systemProgram: anchor.web3.SystemProgram.programId,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             config: configStruct
           })
           .signers([authority, testMint6, maker])
@@ -2883,7 +2890,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             proposal: testProposal7,
             mintAccount: testMint7.publicKey,
             tokenVault: testVault7,
+            metadataAccount: findMetadataPDA(testMint7.publicKey),
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
             systemProgram: anchor.web3.SystemProgram.programId,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             config: configStruct
           })
           .signers([authority, testMint7, maker])
@@ -2974,7 +2984,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposal8,
           mintAccount: testMint8.publicKey,
           tokenVault: testVault8,
+          metadataAccount: findMetadataPDA(testMint8.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMint8, maker])
@@ -3048,12 +3061,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .accounts({
             authority: authority.publicKey,
             proposal: testProposal8,
-            mintAccount: testProposal8DataForMilestone.mintAccount,
-            metadataAccount: metadataAccountTest8,
-            payer: authority.publicKey,
-            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-            systemProgram: anchor.web3.SystemProgram.programId,
-            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           })
           .signers([authority])
           .rpc();
@@ -3306,7 +3313,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposal9,
           mintAccount: testMint9.publicKey,
           tokenVault: testVault9,
+          metadataAccount: findMetadataPDA(testMint9.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMint9, maker])
@@ -3454,7 +3464,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposal10,
           mintAccount: testMint10.publicKey,
           tokenVault: testVault10,
+          metadataAccount: findMetadataPDA(testMint10.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMint10, maker])
@@ -3480,12 +3493,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           .accounts({
             authority: authority.publicKey,
             proposal: testProposal10,
-            mintAccount: testProposal10Data.mintAccount,
-            metadataAccount: metadataAccountTest10,
-            payer: authority.publicKey,
-            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-            systemProgram: anchor.web3.SystemProgram.programId,
-            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           })
           .signers([authority])
           .rpc();
@@ -3598,7 +3605,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
                 proposal: testProposal15, 
                 mintAccount: testMint15.publicKey,
                 tokenVault: testVault15,
+                metadataAccount: findMetadataPDA(testMint15.publicKey),
+                tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
                 systemProgram: anchor.web3.SystemProgram.programId,
+                rent: anchor.web3.SYSVAR_RENT_PUBKEY,
                 config: configStruct
             })
             .signers([authority, testMint15, maker])
@@ -3684,12 +3694,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             .accounts({
                 authority: authority.publicKey,
                 proposal: testProposal15,
-                mintAccount: testProposal15Data.mintAccount,
-                metadataAccount: metadataAccountTest15,
-                payer: authority.publicKey,
-                tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-                systemProgram: anchor.web3.SystemProgram.programId,
-                rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             })
             .signers([authority])
             .rpc()
@@ -3820,7 +3824,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposal11,
           mintAccount: testMint11.publicKey,
           tokenVault: testVault11,
+          metadataAccount: findMetadataPDA(testMint11.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMint11, maker])
@@ -3918,12 +3925,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         .accounts({
           authority: authority.publicKey,
           proposal: testProposal11,
-          mintAccount: testProposal11Data.mintAccount,
-          metadataAccount: metadataAccountTest11,
-          payer: authority.publicKey,
-          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         })
         .signers([authority])
         .rpc()
@@ -4041,7 +4042,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           proposal: testProposal12,
           mintAccount: testMint12.publicKey,
           tokenVault: testVault12,
+          metadataAccount: findMetadataPDA(testMint12.publicKey),
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           config: configStruct
         })
         .signers([authority, testMint12, maker])

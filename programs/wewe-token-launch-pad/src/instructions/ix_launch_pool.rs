@@ -2,9 +2,10 @@ use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::{
     associated_token::AssociatedToken,
     token,
-    token::{mint_to, Mint, MintTo, Transfer as TokenTransfer},
+    token::{mint_to, set_authority, Mint, MintTo, SetAuthority, Transfer as TokenTransfer},
     token_interface::{TokenAccount, TokenInterface},
 };
+use anchor_spl::token::spl_token::instruction::AuthorityType;
 use damm_v2_cpi::{params::fee_parameters::{BaseFeeParameters, PoolFeeParameters}};
 use damm_v2_cpi::constants::{MIN_SQRT_PRICE, MAX_SQRT_PRICE};
 use std::u64;
@@ -362,6 +363,39 @@ impl<'info> DammV2<'info> {
             base_amount,
             quote_amount,
         )?;
+
+        // Revoke mint and freeze authority AFTER pool is created
+        // This ensures the token is non-mintable and non-freezable
+        // DexScreener checks the mint account's mint_authority field - if None, token shows as non-mintable
+        if mint_data.mint_authority.is_some() {
+            // Revoke mint authority to make token non-mintable
+            set_authority(
+                CpiContext::new(
+                    self.token_base_program.to_account_info(),
+                    SetAuthority {
+                        current_authority: self.proposal.to_account_info(),
+                        account_or_mint: self.mint_account.to_account_info(),
+                    },
+                )
+                .with_signer(proposal_signer_seeds),
+                AuthorityType::MintTokens,
+                None, // None = revoke authority
+            )?;
+
+            // Revoke freeze authority to make token non-freezable
+            set_authority(
+                CpiContext::new(
+                    self.token_base_program.to_account_info(),
+                    SetAuthority {
+                        current_authority: self.proposal.to_account_info(),
+                        account_or_mint: self.mint_account.to_account_info(),
+                    },
+                )
+                .with_signer(proposal_signer_seeds),
+                AuthorityType::FreezeAccount,
+                None, // None = revoke authority
+            )?;
+        }
 
         // Only set flag AFTER all validations pass
         let now = Clock::get()?.unix_timestamp;
