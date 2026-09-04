@@ -294,18 +294,24 @@ impl<'info> DammV2<'info> {
             damm_v2_cpi::InitializeCustomizablePoolParameters {
                 pool_fees: PoolFeeParameters {
                     base_fee: BaseFeeParameters {
-                        cliff_fee_numerator: 990_000_000, // 50% fee (denominator)
-                        base_fee_mode: damm_v2_cpi::state::fee::BaseFeeMode::FeeSchedulerLinear as u8,
-                        first_factor: 100,
-                        second_factor: 1u64.to_le_bytes(),
-                        third_factor: 9_700_000, // Ending Fee = Cliff Fee Numerator − (Number Of Periods × Reduction Factor)
-                        /*
-                            firstFactor: number // numberOfPeriod
-                            secondFactor: BN // periodFrequency
-                            thirdFactor: BN // reductionFactor
-                            baseFeeMode: BaseFeeMode // 0 or 1
-                         */
-
+                        // cp-amm 0.2.0+ packs the fee schedule into an opaque 27-byte `data`
+                        // blob (borsh BorshFeeTimeScheduler). The byte layout is identical to
+                        // the old typed fields, so this CPI stays wire-compatible with the
+                        // live program. Values match the prior config (50% cliff, linear):
+                        //   [0..8)   cliff_fee_numerator u64 = 990_000_000
+                        //   [8..10)  number_of_period    u16 = 100   (was first_factor)
+                        //   [10..18) period_frequency    u64 = 1     (was second_factor)
+                        //   [18..26) reduction_factor    u64 = 9_700_000 (was third_factor)
+                        //   [26]     base_fee_mode       u8  = FeeTimeSchedulerLinear (0)
+                        data: {
+                            let mut d = [0u8; 27];
+                            d[0..8].copy_from_slice(&990_000_000u64.to_le_bytes());
+                            d[8..10].copy_from_slice(&100u16.to_le_bytes());
+                            d[10..18].copy_from_slice(&1u64.to_le_bytes());
+                            d[18..26].copy_from_slice(&9_700_000u64.to_le_bytes());
+                            d[26] = damm_v2_cpi::state::fee::BaseFeeMode::FeeTimeSchedulerLinear as u8;
+                            d
+                        },
                     },
                     dynamic_fee: None,
                     ..Default::default()

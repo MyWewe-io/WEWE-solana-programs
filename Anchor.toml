@@ -34,7 +34,7 @@ address = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"
 program = "genesis/cp_amm.so"
 
 [test.validator]
-bind_address = "0.0.0.0"
+bind_address = "127.0.0.1"
 url = "https://api.devnet.solana.com"
 ledger = ".anchor/test-ledger"
 rpc_port = 8899
