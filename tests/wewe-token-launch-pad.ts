@@ -1115,13 +1115,24 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .transaction();
 
     tx.instructions.unshift(computeUnitsIx);
-    
+
+    // Refresh blockhash to avoid "Blockhash not found" error
+    // Get fresh blockhash with confirmed commitment to match confirmTransaction
+    const { blockhash } = await provider.connection.getLatestBlockhash('confirmed');
+    tx.recentBlockhash = blockhash;
+    tx.feePayer = chainServiceAuthority.publicKey;
+    tx.sign(chainServiceAuthority, pdas.positionNftMint);
+
     // chainServiceAuthority must be a signer (as payer and pool_creator_authority)
     console.log("\nSending create pool transaction...");
-    const signature = await provider.sendAndConfirm(tx, [chainServiceAuthority, pdas.positionNftMint], {
-      commitment: "confirmed",
+    const signature = await provider.connection.sendRawTransaction(tx.serialize(), {
       skipPreflight: false,
+      maxRetries: 3,
     });
+    const confirmation = await provider.connection.confirmTransaction(signature, 'confirmed');
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+    }
 
     console.log("Pool created successfully");
     console.log(`Transaction signature: ${signature}`);
