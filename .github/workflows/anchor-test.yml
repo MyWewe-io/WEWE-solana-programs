@@ -16,6 +16,12 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: Install Anchor CLI (avm)
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --force
+          avm install 0.31.0
+          avm use 0.31.0
+
       - name: Show versions
         run: |
           rustc --version
@@ -33,7 +39,8 @@ jobs:
           solana-keygen new --no-bip39-passphrase --silent --force -o $HOME/.config/solana/id.json
           chmod 600 $HOME/.config/solana/id.json
           solana config set --keypair $HOME/.config/solana/id.json
-          solana config set --url localhost
 
       - name: Run Anchor tests
-        run: anchor test
+        # Runs against a local validator (Anchor.toml [test.validator]); the
+        # fresh keypair is auto-funded by the local faucet. No secrets / devnet SOL.
+        run: anchor test --provider.cluster localnet
