@@ -58,15 +58,17 @@ impl<'info> SnapshotBacker<'info> {
         let pow = 10u64
             .checked_pow(self.mint_account.decimals as u32)
             .ok_or(ProposalError::NumericalOverflow)?;
-        let pending_claim = self
-            .backer_account
-            .settle_cycle
-            .saturating_sub(self.backer_account.claimed_upto);
         let expected_base = per.saturating_mul(cur as u64);
         let mut actual_base = self.backer_token_account.amount.saturating_div(pow);
-        if pending_claim > 0 {
-            actual_base = actual_base.saturating_add(per.saturating_mul((pending_claim) as u64));
-        }
+        // Add back rewards earned at prior milestones but not yet claimed: those
+        // tokens are owed to the backer (not sold), so they must count as "held"
+        // in the reputation ratio. The exact unclaimed amount is claim_amount
+        // (whole-token units, zeroed on claim). The previous `per * pending_claim`
+        // assumed every unclaimed milestone paid the FULL per-milestone share
+        // (100% tier), overstating the numerator and inflating the tier/reward
+        // (e.g. a 25%-tier milestone was credited as 100%, doubling the next
+        // milestone's payout).
+        actual_base = actual_base.saturating_add(self.backer_account.claim_amount);
 
         let bp = (actual_base.saturating_mul(10_000)).saturating_div(expected_base);
         let pct = tier_pct_from_bp(bp);
