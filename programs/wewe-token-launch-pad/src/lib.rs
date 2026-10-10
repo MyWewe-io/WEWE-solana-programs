@@ -99,6 +99,7 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_initialise_milestone()
     }
 
+    #[access_control(check(&ctx.accounts.payer))]
     pub fn airdrop(ctx: Context<Airdrop>) -> Result<()> {
         ctx.accounts.handle_airdrop()
     }
