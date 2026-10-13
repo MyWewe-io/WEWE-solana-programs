@@ -10,7 +10,7 @@ use crate::{
     constant::{seeds::VAULT_AUTHORITY, seeds::TOKEN_VAULT, treasury},
     errors::ProposalError,
     event::PositionFeeClaimed,
-    state::proposal::Proposal,
+    state::{config::Configs, proposal::Proposal},
 };
 
 #[derive(Accounts)]
@@ -35,6 +35,9 @@ pub struct ClaimPositionFee<'info> {
 
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
+
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
 
     /// CHECK: vault authority
     #[account(

@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount, TokenInterface};
-use anchor_spl::token::{Mint, Token};
+use anchor_spl::token::Mint;
 
 use crate::{
     constant::{
@@ -9,13 +9,16 @@ use crate::{
         MINT_DECIMALS,
     },
     errors::ProposalError,
-    state::proposal::Proposal,
+    state::{config::Configs, proposal::Proposal},
 };
 
 #[derive(Accounts)]
 pub struct ResetPoolLaunch<'info> {
     pub authority: Signer<'info>,
-    
+
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
+
     #[account(mut)]
     pub payer: Signer<'info>,
     

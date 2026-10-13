@@ -1,12 +1,13 @@
 use anchor_lang::prelude::*;
 
-use crate::{constant::chain_service_pubkey, errors::ProposalError};
+use crate::{errors::ProposalError, state::config::Configs};
 
-pub fn check(signer_account: &AccountInfo) -> Result<()> {
-    // Check if signer === owner
+/// Gate for routine automated operations. Authorizes the HOT backend signer
+/// (admin_authority) stored in the Configs account. Rotatable via set_config.
+pub fn check(signer_account: &AccountInfo, config: &Account<Configs>) -> Result<()> {
     require_keys_eq!(
         signer_account.key(),
-        chain_service_pubkey::ID,
+        config.admin_authority,
         ProposalError::NotOwner
     );
 

@@ -1,25 +1,28 @@
 use crate::{
     constant::seeds::BACKER,
-    state::{backers::Backers, proposal::Proposal},
+    state::{backers::Backers, config::Configs, proposal::Proposal},
 };
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct ResetAirdrop<'info> {
     pub authority: Signer<'info>,
-    
+
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
-    
+
     /// CHECK: backer account
     pub backer: AccountInfo<'info>,
-    
+
     #[account(
         mut,
         seeds = [BACKER, proposal.key().as_ref(), backer.key().as_ref()],
         bump,
     )]
     pub backer_account: Account<'info, Backers>,
+
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> ResetAirdrop<'info> {

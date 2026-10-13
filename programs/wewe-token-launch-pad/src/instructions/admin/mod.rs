@@ -8,6 +8,7 @@ pub mod ix_set_config;
 pub mod ix_emergency_unlock;
 pub mod ix_reset_pool_launch;
 pub mod ix_reset_airdrop;
+pub mod ix_migrate_config;
 
 pub use ix_reject_proposal::*;
 pub use ix_snapshot::*;
@@ -19,3 +20,4 @@ pub use ix_set_config::*;
 pub use ix_emergency_unlock::*;
 pub use ix_reset_pool_launch::*;
 pub use ix_reset_airdrop::*;
+pub use ix_migrate_config::*;

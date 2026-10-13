@@ -1,12 +1,14 @@
 use anchor_lang::prelude::*;
 
-use crate::{errors::ProposalError, event::ProposalRejected, state::proposal::Proposal};
+use crate::{errors::ProposalError, event::ProposalRejected, state::{config::Configs, proposal::Proposal}};
 
 #[derive(Accounts)]
 pub struct RejectProposal<'info> {
     pub authority: Signer<'info>,
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> RejectProposal<'info> {

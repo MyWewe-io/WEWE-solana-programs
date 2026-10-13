@@ -3,7 +3,7 @@ use crate::{
     constant::seeds::{TOKEN_VAULT, VAULT_AUTHORITY},
     errors::ProposalError,
     event::MilestoneEnded,
-    state::proposal::Proposal,
+    state::{config::Configs, proposal::Proposal},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -13,6 +13,9 @@ pub struct EndMilestone<'info> {
     pub authority: Signer<'info>,
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
+
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
 
     #[account(
         mut,
