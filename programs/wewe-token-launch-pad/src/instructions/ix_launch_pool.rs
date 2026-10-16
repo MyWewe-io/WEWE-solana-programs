@@ -114,14 +114,9 @@ pub struct DammV2<'info> {
     /// CHECK:
     #[account(mut)]
     pub token_b_vault: UncheckedAccount<'info>,
-    /// CHECK: payer
+    /// CHECK: payer — also the pool creator authority; must equal config.admin_authority (enforced in handler)
     #[account(mut)]
     pub payer: Signer<'info>,
-    /// CHECK: chain service pubkey (constrained to constant, not passed as parameter)
-    #[account(
-        address = chain_service_pubkey::ID @ ProposalError::NotOwner
-    )]
-    pub chain_service_pubkey: AccountInfo<'info>,
     /// CHECK: token_program
     pub token_base_program: Interface<'info, TokenInterface>,
     /// CHECK: token_program
@@ -138,9 +133,9 @@ pub struct DammV2<'info> {
 
 impl<'info> DammV2<'info> {
     pub fn handle_create_pool(&mut self, sqrt_price: u128) -> Result<()> {
-        // Chain service pubkey must be the signer (payer) and pool_creator_authority
+        // Payer (also the pool creator authority) must be the hot admin authority stored in config.
         require!(
-            self.payer.key() == chain_service_pubkey::ID,
+            self.payer.key() == self.config.admin_authority,
             ProposalError::NotOwner
         );
 
@@ -271,7 +266,7 @@ impl<'info> DammV2<'info> {
                     position_nft_mint: self.position_nft_mint.to_account_info(),
                     position_nft_account: self.position_nft_account.to_account_info(),
                     payer: self.vault_authority.to_account_info(),
-                    pool_creator_authority: self.chain_service_pubkey.to_account_info(),
+                    pool_creator_authority: self.payer.to_account_info(),
                     config: self.pool_config.to_account_info(),
                     pool_authority: self.damm_pool_authority.to_account_info(),
                     pool: self.pool.to_account_info(),

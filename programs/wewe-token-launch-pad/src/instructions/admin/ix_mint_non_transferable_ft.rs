@@ -4,6 +4,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::constant::seeds::{MINT_ACCOUNT, MINT_AUTHORITY};
 use crate::errors::ProposalError;
+use crate::state::config::Configs;
 
 #[derive(Accounts)]
 pub struct MintSoulboundToUser<'info> {
@@ -42,6 +43,9 @@ pub struct MintSoulboundToUser<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
 }
 
 impl<'info> MintSoulboundToUser<'info> {

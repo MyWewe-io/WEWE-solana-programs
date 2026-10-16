@@ -1,15 +1,16 @@
 use anchor_lang::prelude::*;
 
-use crate::{constant::configure_authority_pubkey, errors::ProposalError};
+use crate::{errors::ProposalError, state::config::Configs};
 
-pub fn check_configure_authority(signer_account: &AccountInfo) -> Result<()> {
-    // Check if signer === configure_authority (for set_config operations)
+/// Gate for sensitive operations (set_config, reset_airdrop, reset_pool_launch,
+/// emergency_unlock). Authorizes only the cold / multisig configure_authority stored
+/// in the Configs account.
+pub fn check_configure_authority(signer_account: &AccountInfo, config: &Account<Configs>) -> Result<()> {
     require_keys_eq!(
         signer_account.key(),
-        configure_authority_pubkey::ID,
+        config.configure_authority,
         ProposalError::NotOwner
     );
 
     Ok(())
 }
-

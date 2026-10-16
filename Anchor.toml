@@ -27,7 +27,9 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 --exit tests/**/*.ts"
 [test]
 startup_wait = 10000
 shutdown_wait = 2000
-upgradeable = false
+# Deploy upgradeable so a ProgramData account exists; set_config bootstraps off the
+# program upgrade authority (the provider wallet on the local validator).
+upgradeable = true
 
 [[test.genesis]]
 address = "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"
@@ -46,5 +48,9 @@ filename = "genesis/config.json"
 [[test.validator.clone]]
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 
-[[test.validator.clone]]
+# CP-AMM pool config, loaded with pool_creator_authority set to the deterministic local
+# test admin so pool creation works with the rotated admin authority instead of a key
+# pinned into the devnet config.
+[[test.validator.account]]
 address = "7xeqWqnS4VMguYMexgtw1vxXt3cM8eh6vyvUkYgv2aJY"
+filename = "genesis/cp_amm_config_test_admin.json"

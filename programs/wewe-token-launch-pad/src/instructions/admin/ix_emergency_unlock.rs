@@ -1,28 +1,34 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constant::chain_service_pubkey,
     errors::ProposalError,
-    state::proposal::Proposal,
+    state::{config::Configs, proposal::Proposal},
 };
 
 #[derive(Accounts)]
 pub struct EmergencyUnlock<'info> {
-    /// CHECK: Admin authority
-    #[account(
-        constraint = authority.key() == chain_service_pubkey::ID @ ProposalError::UnauthorizedEmergencyUnlock
-    )]
     pub authority: Signer<'info>,
-    
+
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
+
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
-    
+
     /// CHECK: Pool account to verify it doesn't exist or is invalid
     pub pool_account: AccountInfo<'info>,
 }
 
 impl<'info> EmergencyUnlock<'info> {
     pub fn handle_emergency_unlock(&mut self) -> Result<()> {
+        // Sensitive op — require the cold configure_authority even if the lib.rs
+        // #[access_control] wrapper is ever removed.
+        require_keys_eq!(
+            self.authority.key(),
+            self.config.configure_authority,
+            ProposalError::UnauthorizedEmergencyUnlock
+        );
+
         // Require that pool launch flag is set (otherwise no need to unlock)
         require!(
             self.proposal.is_pool_launched,

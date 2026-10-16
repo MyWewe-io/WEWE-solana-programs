@@ -18,7 +18,15 @@ declare_id!("DiBfVGvJ1c5ZrE1AcCpoiZYfVkPdaUtsjrUWEhwsJs9X");
 pub mod wewe_token_launch_pad {
     use super::*;
 
-    #[access_control(check_configure_authority(&ctx.accounts.authority))]
+    // One-time migration to grow an existing Configs account to the current layout.
+    // Gated to the program upgrade authority inside the handler (needs program_data).
+    pub fn migrate_config(ctx: Context<MigrateConfig>) -> Result<()> {
+        ctx.accounts.handle_migrate_config()
+    }
+
+    // Access control is enforced inside handle_set_config: it depends on the pre-write
+    // stored configure_authority (bootstrap vs. rotate), which an #[access_control] attribute
+    // cannot express cleanly.
     pub fn set_config(
         ctx: Context<SetConfig>,
         amount_to_raise_per_user: u64,
@@ -29,6 +37,8 @@ pub mod wewe_token_launch_pad {
         min_backers: u64,
         max_backed_proposals: u64,
         refund_fee_basis_points: u16,
+        admin_authority: Pubkey,
+        configure_authority: Pubkey,
     ) -> Result<()> {
         ctx.accounts.handle_set_config(
             amount_to_raise_per_user,
@@ -39,6 +49,8 @@ pub mod wewe_token_launch_pad {
             min_backers,
             max_backed_proposals,
             refund_fee_basis_points,
+            admin_authority,
+            configure_authority,
         )?;
         Ok(())
     }
@@ -68,53 +80,57 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handler_claim_milestone_reward()
     }
 
-    #[access_control(check(&ctx.accounts.authority))]
+    #[access_control(check(&ctx.accounts.authority, &ctx.accounts.config))]
     pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
         ctx.accounts.handle_reject_proposal()
     }
 
-    // TODO: Figure out if this is needed
-    // #[access_control(check(&ctx.accounts.authority))]
+    // TODO: Figure out if this is needed. Sensitive op — gated to the cold configure_authority.
+    // #[access_control(check_configure_authority(&ctx.accounts.authority, &ctx.accounts.config))]
     // pub fn emergency_unlock(ctx: Context<EmergencyUnlock>) -> Result<()> {
     //     ctx.accounts.handle_emergency_unlock()
     // }
 
-    #[access_control(check(&ctx.accounts.authority))]
+    #[access_control(check(&ctx.accounts.authority, &ctx.accounts.config))]
     pub fn snapshot_backer_amount(ctx: Context<SnapshotBacker>) -> Result<()> {
         ctx.accounts.handle_snapshot()
     }
 
-    #[access_control(check(&ctx.accounts.authority))]
+    #[access_control(check(&ctx.accounts.authority, &ctx.accounts.config))]
     pub fn mint_soulbound_to_user(ctx: Context<MintSoulboundToUser>) -> Result<()> {
         ctx.accounts.handle_mint_soulbound_to_user(&ctx.bumps)
     }
 
-    #[access_control(check(&ctx.accounts.payer))]
+    #[access_control(check(&ctx.accounts.payer, &ctx.accounts.config))]
     pub fn claim_pool_fee(ctx: Context<ClaimPositionFee>) -> Result<()> {
         ctx.accounts.handle_claim_position_fee()
     }
 
-    #[access_control(check(&ctx.accounts.authority))]
+    #[access_control(check(&ctx.accounts.authority, &ctx.accounts.config))]
     pub fn initialise_milestone(ctx: Context<InitialiseMilestone>) -> Result<()> {
         ctx.accounts.handle_initialise_milestone()
     }
 
-    #[access_control(check(&ctx.accounts.payer))]
+    #[access_control(check(&ctx.accounts.payer, &ctx.accounts.config))]
     pub fn airdrop(ctx: Context<Airdrop>) -> Result<()> {
         ctx.accounts.handle_airdrop()
     }
 
-    #[access_control(check(&ctx.accounts.authority))]
+    #[access_control(check(&ctx.accounts.authority, &ctx.accounts.config))]
     pub fn end_milestone(ctx: Context<EndMilestone>) -> Result<()> {
         ctx.accounts.handle_end_milestone()
     }
 
-    #[access_control(check(&ctx.accounts.authority))]
+    // Sensitive op — gated to the cold configure_authority (privilege split).
+    #[access_control(check_configure_authority(&ctx.accounts.authority, &ctx.accounts.config))]
     pub fn reset_pool_launch(ctx: Context<ResetPoolLaunch>) -> Result<()> {
         ctx.accounts.handle_reset_pool_launch()
     }
 
-    #[access_control(check(&ctx.accounts.authority))]
+    // Pinned to the Squads multisig vault (a PDA with no private key), NOT the
+    // rotatable configure_authority — so a single compromised key can never
+    // trigger a reset. Executable only via a Squads proposal + threshold approval.
+    #[access_control(check_multisig(&ctx.accounts.authority))]
     pub fn reset_airdrop(ctx: Context<ResetAirdrop>) -> Result<()> {
         ctx.accounts.handle_reset_airdrop()
     }

@@ -20,19 +20,17 @@ pub mod treasury {
     pub const ID: Pubkey = pubkey!("76U9hvHNUNn7YV5FekSzDHzqnHETsUpDKq4cMj2dMxNi");
 }
 
-pub mod chain_service_pubkey {
-    use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
-    pub const ID: Pubkey = pubkey!("D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe");
-}
-
-pub mod configure_authority_pubkey {
-    use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
-    // In production, this will be the same as the upgrade authority
-    // For tests, we use a separate keypair: GAM9nJgT7dYqK67Upn9VETCTkMpZinV4d12A8GW4ejRG
-    pub const ID: Pubkey = pubkey!("GAM9nJgT7dYqK67Upn9VETCTkMpZinV4d12A8GW4ejRG");
-}
-
 pub mod wsol_pubkey {
     use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
     pub const ID: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
+}
+
+// Squads multisig vault (also the program upgrade authority). A PDA with NO
+// private key, so reset_airdrop can only be triggered via a Squads proposal +
+// threshold approval — a single leaked key can never trigger it. Immutable on
+// purpose (not a rotatable config field) so this holds even if configure_authority
+// is ever changed.
+pub mod multisig_authority {
+    use anchor_lang::{prelude::Pubkey, solana_program::pubkey};
+    pub const ID: Pubkey = pubkey!("Hfr3CwoJZhMd9rULDspsKdtGKA26AnNDkf3hpZexAVQC");
 }

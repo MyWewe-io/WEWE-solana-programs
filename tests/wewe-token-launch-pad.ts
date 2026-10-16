@@ -61,14 +61,18 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
   const cpAmm = new Program<CpAmm>(CpAmmIDL as CpAmm, provider);
 
   const { maker, backer, authority } = generateKeypairs();
-  // configure_authority - in prod this will be the same as upgrade authority
-  // For tests, we use a separate keypair
-  const configureAuthority = anchor.web3.Keypair.fromSecretKey(
-    Uint8Array.from([40, 42, 71, 80, 145, 233, 28, 85, 46, 107, 84, 98, 241, 241, 141, 138, 140, 198, 165, 158, 56, 179, 167, 195, 231, 122, 197, 137, 163, 36, 140, 202, 225, 68, 81, 1, 242, 195, 20, 0, 204, 11, 235, 44, 77, 100, 241, 12, 138, 225, 40, 210, 2, 95, 212, 51, 228, 218, 94, 73, 186, 142, 137, 191])
-  );
-  // chain_service authority - used for automated operations, should NOT be able to set config
-  const chainServiceAuthority = anchor.web3.Keypair.fromSecretKey(
-    Uint8Array.from([42, 132, 54, 48, 86, 137, 10, 155, 254, 103, 140, 97, 104, 8, 197, 48, 55, 71, 171, 157, 247, 159, 233, 130, 100, 213, 107, 236, 96, 40, 175, 164, 179, 49, 15, 185, 22, 130, 249, 11, 142, 174, 6, 253, 52, 133, 167, 81, 80, 179, 15, 199, 164, 252, 14, 233, 42, 74, 178, 20, 71, 62, 139, 21])
+  // Authorities are generated fresh per test run and registered on-chain via set_config.
+  // configure_authority: cold/multisig authority; can set_config + the sensitive reset ops.
+  const configureAuthority = anchor.web3.Keypair.generate();
+  // chain_service / admin authority: hot backend signer for automated ops. Reuse the generated
+  // `authority` so every hot-op call site signs with the same registered admin key.
+  const chainServiceAuthority = authority;
+
+  // The program upgrade authority (provider wallet on localnet) bootstraps the first set_config.
+  const BPF_LOADER_UPGRADEABLE = new anchor.web3.PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
+  const [programData] = anchor.web3.PublicKey.findProgramAddressSync(
+    [program.programId.toBuffer()],
+    BPF_LOADER_UPGRADEABLE
   );
 
   let proposalIndex1 = new BN(0);
@@ -442,19 +446,23 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         minBackers,
         maxBackedProposals,
         refundFeeBps, // refund_fee_basis_points: 200 BPS = 2%
+        chainServiceAuthority.publicKey, // admin_authority (hot)
+        configureAuthority.publicKey,    // configure_authority (cold)
       )
       .accounts({
-        authority: configureAuthority.publicKey,
+        authority: provider.wallet.publicKey, // upgrade authority bootstraps the first config
         config: configStruct,
+        program: program.programId,
+        programData,
+        systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([configureAuthority])
       .rpc();
 
     await confirm(tx);
 
   });
 
-  it('1.5. Fails when old authority (not configure_authority) tries to set config', async () => {
+  it('1.5. Fails when a non-configure authority tries to set config', async () => {
     const amountToRaisePerUser = new BN(1_000_000_000); // 1 SOL
     const totalMint = new BN(1_000_000_000);
     const totalPoolTokens = new BN(150_000_000);
@@ -463,8 +471,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     const minBackers = new BN(1);
     const maxBackedProposals = new BN(3);
     const refundFeeBps = new BN(200); // 200 BPS = 2%
-  
+
     try {
+      // Config is already bootstrapped, so updates require the stored configure_authority.
+      // The hot admin authority must not be able to set config.
       await program.methods
         .setConfig(
           amountToRaisePerUser,
@@ -475,15 +485,59 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           minBackers,
           maxBackedProposals,
           refundFeeBps,
+          chainServiceAuthority.publicKey,
+          configureAuthority.publicKey,
         )
         .accounts({
-          authority: authority.publicKey, // Using old authority, not configureAuthority
+          authority: chainServiceAuthority.publicKey, // hot admin, not the configure authority
           config: configStruct,
+          program: program.programId,
+          programData,
+          systemProgram: anchor.web3.SystemProgram.programId,
         })
-        .signers([authority])
+        .signers([chainServiceAuthority])
         .rpc();
 
-      assert.fail('Should not allow old authority to set config');
+      assert.fail('Should not allow a non-configure authority to set config');
+    } catch (err) {
+      expect(err.message).to.include('NotOwner');
+    }
+  });
+
+  it('1.6. migrate_config is a no-op on a current-layout config (idempotent)', async () => {
+    const tx = await program.methods
+      .migrateConfig()
+      .accounts({
+        authority: provider.wallet.publicKey, // the local upgrade authority
+        config: configStruct,
+        program: program.programId,
+        programData,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+    await confirm(tx);
+
+    // Config is untouched and still valid under the current layout.
+    const cfg = await program.account.configs.fetch(configStruct);
+    expect(cfg.adminAuthority.toBase58()).to.equal(chainServiceAuthority.publicKey.toBase58());
+    expect(cfg.configureAuthority.toBase58()).to.equal(configureAuthority.publicKey.toBase58());
+  });
+
+  it('1.7. migrate_config rejects a non-upgrade-authority signer', async () => {
+    const stranger = anchor.web3.Keypair.generate();
+    try {
+      await program.methods
+        .migrateConfig()
+        .accounts({
+          authority: stranger.publicKey,
+          config: configStruct,
+          program: program.programId,
+          programData,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([stranger])
+        .rpc();
+      assert.fail('Should not allow a non-upgrade-authority to migrate config');
     } catch (err) {
       expect(err.message).to.include('NotOwner');
     }
@@ -1058,24 +1112,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     // Note: Liquidity is calculated internally by the Rust program using get_liquidity_for_adding_liquidity
     // which matches the SDK's getLiquidityDelta logic
     
-    // Chain service pubkey must be the signer (payer) and pool_creator_authority
-    // Verify chainServiceAuthority matches the constant
-    const CHAIN_SERVICE_PUBKEY = new anchor.web3.PublicKey("D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe");
-    if (!chainServiceAuthority.publicKey.equals(CHAIN_SERVICE_PUBKEY)) {
-      throw new Error(`chainServiceAuthority (${chainServiceAuthority.publicKey.toString()}) does not match constant (${CHAIN_SERVICE_PUBKEY.toString()})`);
-    }
+    // chain_service authority is the signer (payer) and pool_creator_authority.
+    // It is registered on-chain via set_config (config-stored model), not matched to a
+    // hardcoded constant, so no baked-in-pubkey assertion here.
 
     // Assert that the config being passed is the expected one
     const EXPECTED_CONFIG_PUBKEY = new anchor.web3.PublicKey("7xeqWqnS4VMguYMexgtw1vxXt3cM8eh6vyvUkYgv2aJY");
     expect(config.toBase58()).to.equal(EXPECTED_CONFIG_PUBKEY.toBase58(), 
       `Config must be ${EXPECTED_CONFIG_PUBKEY.toBase58()}, but got ${config.toBase58()}`);
-
-    // For this config, D4VNMB6heKqVyiii4HjK2K7pEC9U3tVuNjCkFr3xNGfe is the pool creator authority
-    // Verify this matches what we're passing
-    expect(CHAIN_SERVICE_PUBKEY.toBase58()).to.equal(
-      CHAIN_SERVICE_PUBKEY.toBase58(),
-      `poolCreatorAuthority must be ${CHAIN_SERVICE_PUBKEY.toBase58()} for config ${EXPECTED_CONFIG_PUBKEY.toBase58()}`
-    );
 
     // Create pool using createPool instruction (similar to SDK's createCustomPool)
     // The Rust program handles liquidity calculation internally
@@ -1102,7 +1146,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         tokenAVault: pdas.tokenAVault,
         tokenBVault: pdas.tokenBVault,
         payer: chainServiceAuthority.publicKey,
-        chainServicePubkey: chainServiceAuthority.publicKey,
         tokenBaseProgram: TOKEN_PROGRAM_ID,
         tokenQuoteProgram: TOKEN_PROGRAM_ID,
         token2022Program: TOKEN_2022_PROGRAM_ID,
@@ -1194,12 +1237,12 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       console.log(`Added ${amountToAdd.toString()} lamports (${amountToAdd.div(new BN(1e9)).toString()} SOL) to WSOL vault`);
     }
     
-    // Call reset_pool_launch - this will initialize the new mint account
-    // Use chainServiceAuthority like test 10 (Launches coin and creates DAMM pool)
+    // Call reset_pool_launch - this will initialize the new mint account.
+    // Sensitive op: gated to the cold configure_authority. Hot chainServiceAuthority still pays.
     await program.methods
       .resetPoolLaunch()
       .accounts({
-        authority: chainServiceAuthority.publicKey,
+        authority: configureAuthority.publicKey,
         payer: chainServiceAuthority.publicKey,
         proposal,
         vaultAuthority,
@@ -1209,7 +1252,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([chainServiceAuthority, newMint])
+      .signers([configureAuthority, chainServiceAuthority, newMint])
       .rpc()
       .then(confirm);
     
@@ -1293,7 +1336,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
         tokenAVault: newPdas.tokenAVault,
         tokenBVault: newPdas.tokenBVault,
         payer: chainServiceAuthority.publicKey,
-        chainServicePubkey: chainServiceAuthority.publicKey,
         tokenBaseProgram: TOKEN_PROGRAM_ID,
         tokenQuoteProgram: TOKEN_PROGRAM_ID,
         token2022Program: TOKEN_2022_PROGRAM_ID,
@@ -1671,7 +1713,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .then(confirm);
   });
 
-  it('16.55. Resets airdrop flag and allows retrying airdrop', async () => {
+  it('16.55. reset_airdrop rejects any non-multisig signer (pinned to Squads vault)', async () => {
     // Get proposal data to find the current mint
     const proposalData = await program.account.proposal.fetch(proposal);
     const currentMint = proposalData.mintAccount;
@@ -1685,10 +1727,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       true,
       'Backer should have already received initial airdrop'
     );
-
-    // Get balance before reset
-    const balanceBeforeReset = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
-    const balanceBeforeResetAmount = Number(balanceBeforeReset.value.amount);
 
     // Test that airdrop fails before resetAirdrop (since initial_airdrop_received = true)
     try {
@@ -1717,62 +1755,34 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       expect(err.message).to.include('AirdropAlreadyRecived');
     }
 
-    // Reset the airdrop flag using admin instruction
-    await program.methods
-      .resetAirdrop()
-      .accounts({
-        authority: authority.publicKey,
-        proposal,
-        backer: backer.publicKey,
-        backerAccount,
-      })
-      .signers([authority])
-      .rpc()
-      .then(confirm);
+    // reset_airdrop is pinned to the Squads multisig vault (a PDA with no private
+    // key). A normal signer — even the configure_authority — must be rejected, so
+    // a single leaked key can never trigger a reset (the exact exploit this
+    // prevents). The positive reset path runs only via a Squads proposal and is
+    // not exercisable with a plain keypair here.
+    try {
+      await program.methods
+        .resetAirdrop()
+        .accounts({
+          authority: configureAuthority.publicKey,
+          proposal,
+          backer: backer.publicKey,
+          backerAccount,
+        })
+        .signers([configureAuthority])
+        .rpc();
 
-    // Verify that initial_airdrop_received is now false
+      assert.fail('reset_airdrop must reject a non-multisig signer');
+    } catch (err) {
+      expect(err.message).to.include('NotOwner');
+    }
+
+    // Flag stays true — the reset was blocked.
     const backerAccountAfterReset = await program.account.backers.fetch(backerAccount);
     assert.strictEqual(
       backerAccountAfterReset.initialAirdropReceived,
-      false,
-      'Backer airdrop flag should be reset to false'
-    );
-
-    // Now retry the airdrop
-    await program.methods
-      .airdrop()
-      .accounts({
-        payer: authority.publicKey,
-        backer: backer.publicKey,
-        proposal,
-        vaultAuthority,
-        mintAccount: currentMint,
-        tokenVault: currentVault,
-        backerAccount,
-        backerTokenAccount: currentBackerTokenAccount,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        config: configStruct,
-      })
-      .signers([authority])
-      .rpc()
-      .then(confirm);
-
-    // Verify that initial_airdrop_received is now true again
-    const backerAccountAfterAirdrop = await program.account.backers.fetch(backerAccount);
-    assert.strictEqual(
-      backerAccountAfterAirdrop.initialAirdropReceived,
       true,
-      'Backer airdrop flag should be set to true after airdrop'
-    );
-
-    // Verify balance increased
-    const balanceAfterAirdrop = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
-    const balanceAfterAirdropAmount = Number(balanceAfterAirdrop.value.amount);
-    assert.ok(
-      balanceAfterAirdropAmount > balanceBeforeResetAmount,
-      `Balance should increase after airdrop. Before: ${balanceBeforeResetAmount}, After: ${balanceAfterAirdropAmount}`
+      'Airdrop flag must remain true — reset blocked for a non-multisig signer'
     );
   });
 
@@ -2289,10 +2299,15 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             new BN(1),
             new BN(3),
             refundFeeBps, // refund_fee_basis_points: 200 BPS = 2%
+            chainServiceAuthority.publicKey,
+            configureAuthority.publicKey,
           )
           .accounts({
             authority: unauthorizedUser.publicKey,
             config: configStruct,
+            program: program.programId,
+            programData,
+            systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([unauthorizedUser])
           .rpc();
@@ -2323,10 +2338,15 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
           minBackers,
           maxBackedProposals,
           refundFeeBps,
+          chainServiceAuthority.publicKey,
+          configureAuthority.publicKey,
         )
         .accounts({
           authority: configureAuthority.publicKey,
           config: configStruct,
+          program: program.programId,
+          programData,
+          systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([configureAuthority])
         .rpc();
@@ -2348,10 +2368,15 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             new BN(1),
             new BN(3),
             refundFeeBps, // refund_fee_basis_points: 200 BPS = 2%
+            chainServiceAuthority.publicKey,
+            configureAuthority.publicKey,
           )
           .accounts({
             authority: chainServiceAuthority.publicKey,
             config: configStruct,
+            program: program.programId,
+            programData,
+            systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([chainServiceAuthority])
           .rpc();

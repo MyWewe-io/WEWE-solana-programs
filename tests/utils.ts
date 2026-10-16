@@ -16,8 +16,10 @@ export const confirm = async (promise: Promise<string>, provider = anchor.Anchor
 export const generateKeypairs = () => ({
   maker: anchor.web3.Keypair.generate(),
   backer: anchor.web3.Keypair.generate(),
-  authority: anchor.web3.Keypair.fromSecretKey(Uint8Array.from([42, 132, 54, 48, 86, 137, 10, 155, 254, 103, 140, 97, 104, 8, 197, 48, 55, 71, 171, 157, 247, 159, 233, 130, 100, 213, 107, 236, 96, 40, 175, 164, 179, 49, 15, 185, 22, 130, 249, 11, 142, 174, 6, 253, 52, 133, 167, 81, 80, 179, 15, 199, 164, 252, 14, 233, 42, 74, 178, 20, 71, 62, 139, 21])
-  ),
+  // Deterministic local test authority (derived from a fixed seed, not a real/secret key —
+  // authorizes nothing on mainnet). Fixed so its pubkey can be baked into the local CP-AMM
+  // pool-config fixture as pool_creator_authority. Registered on-chain via set_config.
+  authority: anchor.web3.Keypair.fromSeed(Uint8Array.from(Array(32).fill(7))),
   mint: anchor.web3.Keypair.generate(),
   mint2: anchor.web3.Keypair.generate(),
 });

@@ -7,13 +7,13 @@ use anchor_lang::prelude::*;
 #[derive(Accounts)]
 pub struct ResetAirdrop<'info> {
     pub authority: Signer<'info>,
-    
+
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
-    
+
     /// CHECK: backer account
     pub backer: AccountInfo<'info>,
-    
+
     #[account(
         mut,
         seeds = [BACKER, proposal.key().as_ref(), backer.key().as_ref()],

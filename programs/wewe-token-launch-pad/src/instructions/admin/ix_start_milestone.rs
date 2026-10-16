@@ -2,7 +2,7 @@ use crate::{
     constant::seeds::PROPOSAL,
     errors::ProposalError,
     event::MilestoneStarted,
-    state::proposal::Proposal,
+    state::{config::Configs, proposal::Proposal},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -17,6 +17,8 @@ use anchor_spl::token::spl_token::instruction::AuthorityType;
 #[derive(Accounts)]
 pub struct InitialiseMilestone<'info> {
     pub authority: Signer<'info>,
+    #[account(seeds = [b"config"], bump)]
+    pub config: Account<'info, Configs>,
     #[account(mut)]
     pub proposal: Account<'info, Proposal>,
     /// CHECK: Mint account from proposal
