@@ -1,6 +1,6 @@
 use crate::{
     constant::seeds::BACKER,
-    state::{backers::Backers, config::Configs, proposal::Proposal},
+    state::{backers::Backers, proposal::Proposal},
 };
 use anchor_lang::prelude::*;
 
@@ -20,9 +20,6 @@ pub struct ResetAirdrop<'info> {
         bump,
     )]
     pub backer_account: Account<'info, Backers>,
-
-    #[account(seeds = [b"config"], bump)]
-    pub config: Account<'info, Configs>,
 }
 
 impl<'info> ResetAirdrop<'info> {

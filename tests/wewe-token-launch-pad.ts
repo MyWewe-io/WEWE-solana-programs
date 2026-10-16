@@ -1713,7 +1713,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .then(confirm);
   });
 
-  it('16.55. Resets airdrop flag and allows retrying airdrop', async () => {
+  it('16.55. reset_airdrop rejects any non-multisig signer (pinned to Squads vault)', async () => {
     // Get proposal data to find the current mint
     const proposalData = await program.account.proposal.fetch(proposal);
     const currentMint = proposalData.mintAccount;
@@ -1727,10 +1727,6 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       true,
       'Backer should have already received initial airdrop'
     );
-
-    // Get balance before reset
-    const balanceBeforeReset = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
-    const balanceBeforeResetAmount = Number(balanceBeforeReset.value.amount);
 
     // Test that airdrop fails before resetAirdrop (since initial_airdrop_received = true)
     try {
@@ -1759,63 +1755,34 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       expect(err.message).to.include('AirdropAlreadyRecived');
     }
 
-    // Reset the airdrop flag using admin instruction.
-    // Sensitive op: gated to the cold configure_authority.
-    await program.methods
-      .resetAirdrop()
-      .accounts({
-        authority: configureAuthority.publicKey,
-        proposal,
-        backer: backer.publicKey,
-        backerAccount,
-      })
-      .signers([configureAuthority])
-      .rpc()
-      .then(confirm);
+    // reset_airdrop is pinned to the Squads multisig vault (a PDA with no private
+    // key). A normal signer — even the configure_authority — must be rejected, so
+    // a single leaked key can never trigger a reset (the exact exploit this
+    // prevents). The positive reset path runs only via a Squads proposal and is
+    // not exercisable with a plain keypair here.
+    try {
+      await program.methods
+        .resetAirdrop()
+        .accounts({
+          authority: configureAuthority.publicKey,
+          proposal,
+          backer: backer.publicKey,
+          backerAccount,
+        })
+        .signers([configureAuthority])
+        .rpc();
 
-    // Verify that initial_airdrop_received is now false
+      assert.fail('reset_airdrop must reject a non-multisig signer');
+    } catch (err) {
+      expect(err.message).to.include('NotOwner');
+    }
+
+    // Flag stays true — the reset was blocked.
     const backerAccountAfterReset = await program.account.backers.fetch(backerAccount);
     assert.strictEqual(
       backerAccountAfterReset.initialAirdropReceived,
-      false,
-      'Backer airdrop flag should be reset to false'
-    );
-
-    // Now retry the airdrop
-    await program.methods
-      .airdrop()
-      .accounts({
-        payer: authority.publicKey,
-        backer: backer.publicKey,
-        proposal,
-        vaultAuthority,
-        mintAccount: currentMint,
-        tokenVault: currentVault,
-        backerAccount,
-        backerTokenAccount: currentBackerTokenAccount,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-        config: configStruct,
-      })
-      .signers([authority])
-      .rpc()
-      .then(confirm);
-
-    // Verify that initial_airdrop_received is now true again
-    const backerAccountAfterAirdrop = await program.account.backers.fetch(backerAccount);
-    assert.strictEqual(
-      backerAccountAfterAirdrop.initialAirdropReceived,
       true,
-      'Backer airdrop flag should be set to true after airdrop'
-    );
-
-    // Verify balance increased
-    const balanceAfterAirdrop = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
-    const balanceAfterAirdropAmount = Number(balanceAfterAirdrop.value.amount);
-    assert.ok(
-      balanceAfterAirdropAmount > balanceBeforeResetAmount,
-      `Balance should increase after airdrop. Before: ${balanceBeforeResetAmount}, After: ${balanceAfterAirdropAmount}`
+      'Airdrop flag must remain true — reset blocked for a non-multisig signer'
     );
   });
 

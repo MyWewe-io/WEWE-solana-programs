@@ -127,8 +127,10 @@ pub mod wewe_token_launch_pad {
         ctx.accounts.handle_reset_pool_launch()
     }
 
-    // Sensitive op — gated to the cold configure_authority (privilege split).
-    #[access_control(check_configure_authority(&ctx.accounts.authority, &ctx.accounts.config))]
+    // Pinned to the Squads multisig vault (a PDA with no private key), NOT the
+    // rotatable configure_authority — so a single compromised key can never
+    // trigger a reset. Executable only via a Squads proposal + threshold approval.
+    #[access_control(check_multisig(&ctx.accounts.authority))]
     pub fn reset_airdrop(ctx: Context<ResetAirdrop>) -> Result<()> {
         ctx.accounts.handle_reset_airdrop()
     }
