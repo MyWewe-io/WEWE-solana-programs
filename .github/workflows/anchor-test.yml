@@ -22,6 +22,14 @@ jobs:
           avm install 0.31.0
           avm use 0.31.0
 
+      # Keep the test runtime on the version used by the project. The Solana
+      # installer follows the runner default, and Node 24 requires JSON import
+      # attributes that this TypeScript/Mocha toolchain does not emit.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.3
+          cache: yarn
+
       - name: Show versions
         run: |
           rustc --version
