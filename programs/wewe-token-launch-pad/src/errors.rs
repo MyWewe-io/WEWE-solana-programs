@@ -53,6 +53,9 @@ pub enum ProposalError {
     #[msg("Account passed is Incorrect")]
     IncorrectAccount,
 
+    #[msg("Mint account does not belong to this proposal")]
+    MintDoesNotMatchProposal,
+
     #[msg("Initial Airdrop received already")]
     AirdropAlreadyRecived,
 

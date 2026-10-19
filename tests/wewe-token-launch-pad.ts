@@ -1439,6 +1439,35 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     assert.ok(balance && balance > 0, "Backer should receive airdropped tokens");
   });
 
+  it("11.1. Rejects an airdrop using another proposal's mint", async () => {
+    const foreignBackerTokenAccount = findUserAta(backer.publicKey, mint2.publicKey);
+
+    try {
+      await program.methods
+        .airdrop()
+        .accounts({
+          payer: authority.publicKey,
+          backer: backer.publicKey,
+          proposal,
+          vaultAuthority,
+          mintAccount: mint2.publicKey,
+          tokenVault: vault2,
+          backerAccount,
+          backerTokenAccount: foreignBackerTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          config: configStruct,
+        })
+        .signers([authority])
+        .rpc();
+
+      assert.fail("Should not allow an airdrop from another proposal's mint");
+    } catch (err) {
+      expect(err.message).to.include('MintDoesNotMatchProposal');
+    }
+  });
+
   it('12. Starts a milestone (initialiseMilestone)', async () => {
     const proposalData = await program.account.proposal.fetch(proposal);
     const metadataAccount = findMetadataPDA(proposalData.mintAccount);
@@ -1515,17 +1544,49 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .then(confirm);
   });
 
+  it("14.5. Rejects a milestone claim using another proposal's mint", async () => {
+    const foreignBackerTokenAccount = findUserAta(backer.publicKey, mint2.publicKey);
+
+    try {
+      await program.methods
+        .claimMilestoneReward()
+        .accounts({
+          backer: backer.publicKey,
+          proposal,
+          vaultAuthority,
+          mintAccount: mint2.publicKey,
+          tokenVault: vault2,
+          backerAccount,
+          backerTokenAccount: foreignBackerTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([backer])
+        .rpc();
+
+      assert.fail("Should not allow a milestone claim from another proposal's mint");
+    } catch (err) {
+      expect(err.message).to.include('MintDoesNotMatchProposal');
+    }
+  });
+
   it("15. Backer claims milestone reward successfully", async () => {
+    const proposalData = await program.account.proposal.fetch(proposal);
+    const currentMint = proposalData.mintAccount;
+    const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+    const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+
     await program.methods
       .claimMilestoneReward()
       .accounts({
         backer: backer.publicKey,
         proposal,
         vaultAuthority,
-        mintAccount: mint.publicKey,
-        tokenVault: vault,
+        mintAccount: currentMint,
+        tokenVault: currentVault,
         backerAccount,
-        backerTokenAccount,
+        backerTokenAccount: currentBackerTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -1534,7 +1595,7 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
       .rpc()
       .then(confirm);
 
-    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(backerTokenAccount);
+    const tokenAccountInfo = await provider.connection.getTokenAccountBalance(currentBackerTokenAccount);
     const balance = tokenAccountInfo.value.uiAmount;
     assert.ok(balance && balance > 0, "Backer should receive milestone reward");
   
@@ -2435,6 +2496,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('20. Fails when unauthorized user tries to snapshot backer', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
+      const configData = await program.account.configs.fetch(configStruct);
+      const proposalData = await program.account.proposal.fetch(proposal);
+      const currentMint = proposalData.mintAccount;
+      const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+
+      // Keep every non-authority account valid so this specifically exercises the
+      // snapshot_backer_amount access-control gate, not a mint/account constraint.
+      expect(unauthorizedUser.publicKey.equals(configData.adminAuthority)).to.equal(false);
 
       try {
         await program.methods
@@ -2444,8 +2513,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             proposal,
             backer: backer.publicKey,
             backerAccount,
-            backerTokenAccount,
-            mintAccount: mint.publicKey,
+            backerTokenAccount: currentBackerTokenAccount,
+            mintAccount: currentMint,
             config: configStruct,
           })
           .signers([unauthorizedUser])
@@ -2453,7 +2522,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
         assert.fail('Should not allow unauthorized user to snapshot');
       } catch (err) {
-        expect(err.message).to.include('NotOwner');
+        const anchorError = err as anchor.AnchorError;
+        expect(anchorError.error.errorCode.code).to.equal('NotOwner');
       }
     });
 
@@ -2958,6 +3028,11 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
     });
 
     it('32. Fails when attempting to claim airdrop twice', async () => {
+      const proposalData = await program.account.proposal.fetch(proposal);
+      const currentMint = proposalData.mintAccount;
+      const [currentVault] = getTokenVaultAddress(vaultAuthority, currentMint, program.programId);
+      const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+
       try {
         await program.methods
           .airdrop()
@@ -2966,10 +3041,10 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
             backer: backer.publicKey,
             proposal,
             vaultAuthority,
-            mintAccount: mint.publicKey,
-            tokenVault: vault,
+            mintAccount: currentMint,
+            tokenVault: currentVault,
             backerAccount,
-            backerTokenAccount,
+            backerTokenAccount: currentBackerTokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: anchor.web3.SystemProgram.programId,

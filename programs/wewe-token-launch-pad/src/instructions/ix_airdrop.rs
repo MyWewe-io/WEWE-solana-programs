@@ -30,7 +30,10 @@ pub struct Airdrop<'info> {
     )]
     pub vault_authority: UncheckedAccount<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        address = proposal.mint_account @ ProposalError::MintDoesNotMatchProposal,
+    )]
     pub mint_account: Account<'info, Mint>,
 
     #[account(
