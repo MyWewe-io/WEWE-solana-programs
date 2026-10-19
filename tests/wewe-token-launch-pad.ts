@@ -2496,9 +2496,14 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
     it('20. Fails when unauthorized user tries to snapshot backer', async () => {
       const unauthorizedUser = anchor.web3.Keypair.generate();
+      const configData = await program.account.configs.fetch(configStruct);
       const proposalData = await program.account.proposal.fetch(proposal);
       const currentMint = proposalData.mintAccount;
       const currentBackerTokenAccount = findUserAta(backer.publicKey, currentMint);
+
+      // Keep every non-authority account valid so this specifically exercises the
+      // snapshot_backer_amount access-control gate, not a mint/account constraint.
+      expect(unauthorizedUser.publicKey.equals(configData.adminAuthority)).to.equal(false);
 
       try {
         await program.methods
@@ -2517,7 +2522,8 @@ describe('Wewe Token Launch Pad - Integration Tests', () => {
 
         assert.fail('Should not allow unauthorized user to snapshot');
       } catch (err) {
-        expect(err.message).to.include('NotOwner');
+        const anchorError = err as anchor.AnchorError;
+        expect(anchorError.error.errorCode.code).to.equal('NotOwner');
       }
     });
 
