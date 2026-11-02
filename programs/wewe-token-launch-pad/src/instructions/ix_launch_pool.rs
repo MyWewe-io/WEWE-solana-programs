@@ -133,11 +133,12 @@ pub struct DammV2<'info> {
 
 impl<'info> DammV2<'info> {
     pub fn handle_create_pool(&mut self, sqrt_price: u128) -> Result<()> {
-        // Payer (also the pool creator authority) must be the hot admin authority stored in config.
-        require!(
-            self.payer.key() == self.config.admin_authority,
-            ProposalError::NotOwner
-        );
+        // Authorization for pool creation is enforced by Meteora: the
+        // initialize_pool_with_dynamic_config CPI below requires `payer` to equal
+        // the DAMM config's `pool_creator_authority` (has_one). That permissioned
+        // config is the gate, so we intentionally do NOT additionally bind `payer`
+        // to config.admin_authority here — the Meteora pool-creator key and the hot
+        // admin signer are allowed to differ (e.g. a dedicated pool-creator key).
 
         let now = Clock::get()?.unix_timestamp;
         let elapsed = now.saturating_sub(self.proposal.time_started);
