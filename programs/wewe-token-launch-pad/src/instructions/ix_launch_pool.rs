@@ -70,8 +70,6 @@ pub struct DammV2<'info> {
         address = const_pda::const_authority::POOL_ID,
     )]
     pub pool_authority: AccountInfo<'info>,
-    /// CHECK: pool config
-    pool_config: UncheckedAccount<'info>,
     /// CHECK: pool
     #[account(mut)]
     pub pool: UncheckedAccount<'info>,
@@ -258,16 +256,18 @@ impl<'info> DammV2<'info> {
         // - poolFees -> configured fee parameters
         // - activationType -> 1 (Timestamp)
         // - collectFeeMode -> 1 (BothToken)
-        damm_v2_cpi::cpi::initialize_pool_with_dynamic_config(
+        // Permissionless pool creation: initialize_customizable_pool has no
+        // `config` account and no `pool_creator_authority` gate, so it does not
+        // depend on a Meteora permissioned config. Launch authorization is
+        // enforced by this program instead (payer == config.admin_authority above).
+        damm_v2_cpi::cpi::initialize_customizable_pool(
             CpiContext::new_with_signer(
                 self.amm_program.to_account_info(),
-                damm_v2_cpi::cpi::accounts::InitializePoolWithDynamicConfigCtx {
+                damm_v2_cpi::cpi::accounts::InitializeCustomizablePoolCtx {
                     creator: self.vault_authority.to_account_info(),
                     position_nft_mint: self.position_nft_mint.to_account_info(),
                     position_nft_account: self.position_nft_account.to_account_info(),
                     payer: self.vault_authority.to_account_info(),
-                    pool_creator_authority: self.payer.to_account_info(),
-                    config: self.pool_config.to_account_info(),
                     pool_authority: self.damm_pool_authority.to_account_info(),
                     pool: self.pool.to_account_info(),
                     position: self.position.to_account_info(),
